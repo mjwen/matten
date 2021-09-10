@@ -1,12 +1,13 @@
 import itertools
 import warnings
 from typing import Dict, List
-from pymatgen.core.structure import Structure
 
-import ase
+import ase.geometry
+import ase.neighborlist
 import numpy as np
 import numpy.typing as npt
 import torch
+from pymatgen.core.structure import Structure
 from torch_geometric.data import Data
 
 from eigenn.core.configuration import Configuration
@@ -21,27 +22,34 @@ class DataPoint(Data):
 
     Args:
         pos: coords of the atoms
-        node_attrs: extra node attributes (e.g. species of atoms). These are different
-            from `x` in that they are not used as input for the model.
         edge_index: 2D array (2, num_edges). edge index.
-        edge_cell_shift: 2D array (num_edges, 3). which periodic image of the target
-            point each edge goes to, relative to the source point. Used when periodic
-            boundary conditions is effective (e.g. for crystals).
-        cell: 3D array (1, 3, 3). The periodic cell for ``edge_cell_shift`` as the three
-            triclinic cell vectors. Necessary only when ``edge_cell_shift`` is not None.
         x: input to the model, i.e. initial node features
         y: reference value for the output of the model, e.g. DFT energy, forces
+        edge_cell_shift: 2D array (num_edges, 3). which periodic image of the target
+            point each edge goes to, relative to the source point. Used when periodic
+            boundary conditions is effective (e.g. for crystals). Optional.
+        cell: 3D array (1, 3, 3). The periodic cell for ``edge_cell_shift`` as the three
+            triclinic cell vectors. Necessary only when ``edge_cell_shift`` is not
+            None. Optional.
         kwargs: extra property of a data point, e.g. prediction output such as energy
             and forces.
+
+    Notes:
+        To use PyG ``InMemoryDataset`` and ``Batch``, all arguments of `Data` should
+        be keyword arguments. This is because internally something like
+        `data = data_list[0].__class__()` is used (data_list[0] is a `Data` point),
+        from which we see that a `Data` class is instantiated without passing arguments.
+        For this class, we use ``*`` to distinguish them in the initializer. Arguments
+        before ``*`` are necessary, after it are optional.
     """
 
     def __init__(
         self,
-        *,
         pos: List[Vector],
         edge_index: npt.ArrayLike,
         x: Dict[str, npt.ArrayLike],
         y: Dict[str, npt.ArrayLike],
+        *,
         edge_cell_shift: List[IntVector] = None,
         cell: npt.ArrayLike = None,
         **kwargs,
@@ -52,10 +60,10 @@ class DataPoint(Data):
         edge_index = torch.as_tensor(edge_index, dtype=torch.int64)
         edge_cell_shift = (
             torch.as_tensor(edge_cell_shift, dtype=torch.int64)
-            if edge_cell_shift
+            if edge_cell_shift is not None
             else None
         )
-        cell = torch.as_tensor(cell, dtype=DTYPE) if cell else None
+        cell = torch.as_tensor(cell, dtype=DTYPE) if cell is not None else None
 
         # check shape
         num_nodes = pos.shape[0]
@@ -65,11 +73,13 @@ class DataPoint(Data):
         assert edge_index.shape[0] == 2
 
         if edge_cell_shift is not None:
-            assert edge_cell_shift.shape == [num_edges, 3]
-            assert cell is None, "both `edge_cell_shift` and `cell` should be provided"
+            assert edge_cell_shift.shape == (num_edges, 3)
+            assert cell is not None, (
+                "both `edge_cell_shift` and `cell` should be " "provided"
+            )
         if cell is not None:
-            assert cell.shape == (1, 3, 3)
-            assert edge_cell_shift is None, (
+            assert cell.shape == (3, 3)
+            assert edge_cell_shift is not None, (
                 "both `edge_cell_shift` and `cell` should " "be provided"
             )
 
@@ -118,7 +128,6 @@ class Molecule(DataPoint):
 
     def __init__(
         self,
-        *,
         pos: List[Vector],
         edge_index: npt.ArrayLike,
         x: Dict[str, npt.ArrayLike],
@@ -175,7 +184,6 @@ class Crystal(DataPoint):
     @classmethod
     def from_points(
         cls,
-        *,
         pos: List[Vector],
         cell: npt.ArrayLike,
         pbc: PBC,
@@ -248,9 +256,9 @@ class Crystal(DataPoint):
         **kwargs,
     ):
         return cls.from_points(
-            pos=struct.coords,
-            cell=struct.cell,
-            pbc=[True, True, True],
+            pos=struct.cart_coords,
+            cell=struct.lattice.matrix,
+            pbc=(True, True, True),
             r_cut=r_cut,
             x=x,
             y=y,
@@ -327,7 +335,7 @@ def neighbor_list_and_relative_vec(
         temp_cell = cell.detach().cpu().numpy()
         cell_tensor = cell.to(device=out_device, dtype=out_dtype)
     elif cell is not None:
-        temp_cell = np.asarray(cell)
+        temp_cell = np.array(cell)
         cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
     else:
         # ASE will "complete" this correctly.
