@@ -36,7 +36,8 @@ class DataPoint(Data):
 
     Notes:
         To use PyG ``InMemoryDataset`` and ``Batch``, all arguments of `Data` should
-        be keyword arguments. This is because internally something like
+        be keyword arguments. This is because internally (e.g. in collate() of
+        InMemoryDataset) something like
         `data = data_list[0].__class__()` is used (data_list[0] is a `Data` point),
         from which we see that a `Data` class is instantiated without passing arguments.
         For this class, we use ``*`` to distinguish them in the initializer. Arguments

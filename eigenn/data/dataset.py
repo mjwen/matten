@@ -1,6 +1,6 @@
 from itertools import product
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 import torch
@@ -25,15 +25,15 @@ class InMemoryDataset(PyGInMemoryDataset):
         filenames: filenames of the dataset. Will try to find the files with `filenames` in
             `root/raw/`. If they exist, will use them. If not, will try to download
             from `url`. This should not be a path, but just the names.
-        url: path to download the dataset.
         root: root to store the dataset.
+        url: path to download the dataset.
     """
 
     def __init__(
         self,
         filenames: List[Union[str, Path]],
-        url: str = None,
         root: Union[str, Path] = ".",
+        url: Optional[str] = None,
     ):
         self.filenames = to_list(filenames)
         self.url = url
@@ -59,7 +59,10 @@ class InMemoryDataset(PyGInMemoryDataset):
         """
         Process the (downloaded) files to get a list of data points.
 
-        This is before any transformation.
+        In this function, the files in ``self.raw_file_names`` (this is basically
+        `<root>/raw/<filenames>` with `root` and `filenames` provided at the
+        instantiation of the class) should be processed to generate a list of
+        ``DataPoint`` object.
         """
         raise NotImplementedError
 
@@ -96,8 +99,8 @@ class InMemoryDataset(PyGInMemoryDataset):
         torch.save((data, slices), self.processed_paths[0])
 
     # This is copied from  InMemoryDataset, with one modification
-    # data = Data()
-
+    # data = data_list[0].__class__()  ->  data = Data()
+    # TODO make a PR to PyG?
     @staticmethod
     def collate(data_list: List[Data]) -> Tuple[Data, Dict[str, Tensor]]:
         """
