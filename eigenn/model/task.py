@@ -243,6 +243,27 @@ class ClassificationTask(Task):
 
 
 class RegressionTask(Task):
+    """
+    Regression task.
+
+    Args:
+         label_scaler_dict: information to transform the label to its original space
+            using the mean and standard deviation. Currently, this should be of
+            {'mean': Tensor, 'std': Tensor}. This is optional: if
+            `None`, no transform is performed.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        loss_weight: float = 1.0,
+        label_scaler_dict: Optional[Dict[str, Tensor]] = None,
+        **kwargs,
+    ):
+        super().__init__(name, loss_weight=loss_weight, **kwargs)
+        self.label_scaler_dict = self._check_label_scaler_dict(label_scaler_dict)
+
     def init_loss(self):
         return nn.MSELoss()
 
@@ -255,3 +276,25 @@ class RegressionTask(Task):
 
         # This requires `mode` of early stopping and checkpoint to be `min`
         return {"MeanAbsoluteError": 1.0}
+
+    def transform(self, preds: Tensor, labels: Tensor) -> Tuple[Tensor, Tensor]:
+
+        if self.label_scaler_dict is not None:
+            mean = self.label_scaler_dict["mean"]
+            std = self.label_scaler_dict["std"]
+            preds = preds * std + mean
+            labels = labels * std + mean
+
+        return preds, labels
+
+    @staticmethod
+    def _check_label_scaler_dict(d):
+        if d is not None:
+            keys = set(d.keys())
+            expected_keys = {"mean", "std"}
+            assert keys == expected_keys, (
+                f"Expect `label_scale_dict` to be `None` or a dict with keys "
+                f"{expected_keys}. Got {d}."
+            )
+
+        return d
