@@ -83,8 +83,8 @@ class BaseModel(pl.LightningModule):
         This should return a `Task` instance of a list of `Task` instances.
 
         Example:
-            from eigenn.model.task import ClassificationTask
-            t = ClassificationTask(name='crystal_type', num_classes=10)
+            from eigenn.model.task import CanonicalClassificationTask
+            t = CanonicalClassificationTask(name='my_task', num_classes=10)
             return t
         """
 

@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.model.task import ClassificationTask, RegressionTask
+from eigenn.model.task import CanonicalClassificationTask, CanonicalRegressionTask
 
 
 def test_classification_task():
@@ -8,7 +8,7 @@ def test_classification_task():
     loss_weight = 2.0
     num_classes = 3
 
-    task = ClassificationTask(
+    task = CanonicalClassificationTask(
         name=name, num_classes=num_classes, loss_weight=loss_weight
     )
 
@@ -30,9 +30,9 @@ def test_regression_task():
     name = "some_test"
     loss_weight = 2.0
 
-    label_scaler_dict = {"mean": torch.tensor(1.0), "std": torch.tensor(2.0)}
-    task = RegressionTask(
-        name=name, loss_weight=loss_weight, label_scaler_dict=label_scaler_dict
+    label_transform_dict = {"mean": torch.tensor(1.0), "std": torch.tensor(2.0)}
+    task = CanonicalRegressionTask(
+        name=name, loss_weight=loss_weight, label_transform_dict=label_transform_dict
     )
 
     # property

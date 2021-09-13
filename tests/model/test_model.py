@@ -3,7 +3,7 @@ import torch.nn as nn
 from pytorch_lightning import seed_everything
 
 from eigenn.model.model import BaseModel
-from eigenn.model.task import ClassificationTask
+from eigenn.model.task import CanonicalClassificationTask
 
 seed_everything(seed=35)
 
@@ -26,7 +26,7 @@ class BasicModel(BaseModel):
         return backbone
 
     def init_tasks(self, params):
-        task = ClassificationTask(name=TASK_NAME, num_classes=2)
+        task = CanonicalClassificationTask(name=TASK_NAME, num_classes=2)
 
         return task
 
