@@ -48,8 +48,8 @@ class Task:
     ):
         assert loss_weight > 0, f"`los_weight` should be positive, got {loss_weight}"
 
-        self.name = name
-        self.loss_weight = loss_weight
+        self._name = name
+        self._loss_weight = loss_weight
 
         # store kwargs as attribute
         self.__dict__.update(kwargs)
@@ -70,6 +70,9 @@ class Task:
 
         It could be a plain torchmetric class (e.g. torchmetric.Accuracy) or a
         collection of metrics as in torchmetric.MetricCollection.
+
+        Other programs are not supposed to call this directly, but instead should call
+        the wrapper `init_metric_as_collection()`.
 
         Example 1:
             metric = Accuracy(num_classes=10)
@@ -168,6 +171,14 @@ class Task:
             transformed_preds, transformed_labels
         """
         return preds, labels
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def loss_weight(self):
+        return self._loss_weight
 
     def __getitem__(self, key):
         """
