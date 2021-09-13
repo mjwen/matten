@@ -1,12 +1,13 @@
 """
 Base Lightning model for regression and classification.
 """
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+from torch import Tensor
 from torch.optim import lr_scheduler
 
 from eigenn.model.task import ClassificationTask, RegressionTask, Task
@@ -48,10 +49,12 @@ class BaseModel(pl.LightningModule):
         # dict of dict: {mode: {task_name: metric_object}}
         self.metrics = nn.ModuleDict()
         for mode in ["train", "val", "test"]:
+            # cannot use `train` directly (already a submodule of the class)
+            mode = "metric_" + mode
             self.metrics[mode] = nn.ModuleDict()
             for name, task in self.tasks.items():
-                metric = task.init_metric_as_collection()
-                self.metrics[mode][name] = metric
+                mc = task.init_metric_as_collection()
+                self.metrics[mode][name] = mc
 
         # timer
         self.timer = TimeMeter()
@@ -62,7 +65,9 @@ class BaseModel(pl.LightningModule):
 
         A pytorch or lightning model that can be called like:
         `model(graphs, feats, metadata)`
-        The model should return a dictionary of {task_name: task_prediction}.
+        The model should return a dictionary of {task_name: task_prediction}, where the
+        task_name should the name of one task defined in `init_tasks()` and
+        task_prediction should be a tensor.
 
         This will be called in the `decode()` function.
         Oftentimes, the underlying model may not return a dictionary (e.g. when using
@@ -85,31 +90,56 @@ class BaseModel(pl.LightningModule):
 
         raise NotImplementedError
 
+    def forward(
+        self,
+        graphs,
+        feats: [str, Any] = None,
+        metadata: Dict[str, Any] = None,
+        mode: Optional[str] = None,
+    ):
+        """
+        Args:
+            graphs:
+            feats:
+            metadata:
+            mode: select what to return. See below.
+
+        Returns:
+            If `None`, directly return the value returned by the backbone forward method.
+        """
+
+        if mode is None:
+            return self.backbone(graphs, feats, metadata)
+        elif mode == "decoder":
+            return self.decode(graphs, feats, metadata)
+        else:
+            raise ValueError(f"Not supported return mode: {mode}")
+
     def decode(
         self,
         graphs,
-        feats: Dict[str, torch.Tensor],
-        metadata: Dict[str, torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
+        feats: Dict[str, Tensor],
+        metadata: Dict[str, Tensor],
+    ) -> Dict[str, Tensor]:
         """
         Compute prediction for each task using the backbone model.
 
         Args:
-            graphs: graphs for batched graphs
-            feats: input for the model
+            graphs: batched graphs
+            feats: batched features for the model
             metadata: extra metadata needed by the model to compute the prediction
 
         Returns:
             {task_name: task_prediction}
         """
 
-        preds = self(graphs, feats, metadata)
+        preds = self.backbone(graphs, feats, metadata)
 
         return preds
 
     def compute_loss(
-        self, preds: Dict[str, torch.Tensor], labels: Dict[str, torch.Tensor]
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+        self, preds: Dict[str, Tensor], labels: Dict[str, Tensor]
+    ) -> Tuple[Dict[str, Tensor], Tensor]:
         """
         Compute the loss for each task.
 
@@ -125,28 +155,19 @@ class BaseModel(pl.LightningModule):
         total_loss = 0.0
 
         for task_name, task in self.tasks.items():
+            p = preds[task_name]
+            l = labels[task_name]
+            if task.task_type() == "classification" and task.is_binary():
+                # this will use BCEWithLogitsLoss, which requires label be of float
+                p = p.reshape(-1)
+                l = l.reshape(-1).to(torch.get_default_dtype())
+
             loss_fn = self.loss_fns[task_name]
-            loss = loss_fn(preds, labels)
+            loss = loss_fn(p, l)
             individual_losses[task_name] = loss
             total_loss = total_loss + task.loss_weight * loss
 
         return individual_losses, total_loss
-
-    def forward(self, graphs, feats, metadata, mode: Optional[str] = None):
-        """
-        Args:
-            mode: select what to return. See below.
-
-        Returns:
-            If `None`, directly return the value returned by the backbone forward method.
-        """
-
-        if mode is None:
-            return self.backbone(graphs, feats, metadata)
-        elif mode == "decoder":
-            return self.decode(graphs, feats, metadata)
-        else:
-            raise ValueError(f"Not supported return mode: {mode}")
 
     def training_step(self, batch, batch_idx):
         loss, preds, labels = self.shared_step(batch, "train")
@@ -165,7 +186,7 @@ class BaseModel(pl.LightningModule):
         # return {"loss": loss}
 
     def validation_epoch_end(self, outputs):
-        score = self.compute_metrics("val")
+        _, score = self.compute_metrics("val")
 
         # val/score used for early stopping and learning rate scheduler
         if score is not None:
@@ -203,6 +224,7 @@ class BaseModel(pl.LightningModule):
         # lightning cannot move graphs to gpu, so do it manually
         graphs = graphs.to(self.device)
 
+        # TODO, get feats from batched graphs
         # nodes = ["atom", "global"]
         # feats = {nt: mol_graphs.nodes[nt].data.pop("feat") for nt in nodes}
         # feats["bond"] = mol_graphs.edges["bond"].data.pop("feat")
@@ -241,6 +263,7 @@ class BaseModel(pl.LightningModule):
         Args:
             mode: train, val, or test
         """
+        mode = "metric_" + mode
 
         for task_name, metric in self.metrics[mode].items():
 
@@ -265,48 +288,60 @@ class BaseModel(pl.LightningModule):
                     # torch.softmax maybe unstable (e.g. sum of the values is away from 1
                     # due to numerical errors), which torchmetrics will complain
                     prob = torch.argmax(p, dim=1)
+
                 metric(prob, labels[task_name])
 
             else:
                 raise RuntimeError(f"Unsupported task type {task.__class__}")
 
-    def compute_metrics(self, mode):
+    def compute_metrics(
+        self, mode, log: bool = True
+    ) -> Tuple[Dict[str, Tensor], Union[Tensor, None]]:
         """
         Compute metric and logger it at each epoch.
+
+        Args:
+            log: whether to log the metrics
+
+        Returns:
+            individual_score: individual metric scores, {task_name: scores},
+                where scores is a dict.
+            score: aggregated score. `None` if metric_aggregation() of task is not set.
         """
 
-        # f"{mode}/{task_name}",
+        mode = "metric_" + mode
 
-        # Do not set to 0. in order to return None if there is no metric
-        # contributes to score
-        score = None
+        total_score = None
+        individual_score = {}
 
         for task_name, metric_coll in self.metrics[mode].items():
 
             # metric collection output, a dict: {metric_name: metric_value}
-            out = metric_coll.compute()
+            score = metric_coll.compute()
+            individual_score[task_name] = score
 
-            for metric_name, metric_value in out.items():
-                self.log(
-                    f"{mode}/{metric_name}/{task_name}",
-                    metric_value,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=False,
-                )
+            if log:
+                for metric_name, metric_value in score.items():
+                    self.log(
+                        f"{mode}/{metric_name}/{task_name}",
+                        metric_value,
+                        on_step=False,
+                        on_epoch=True,
+                        prog_bar=False,
+                    )
 
             # compute score for model checkpoint and early stopping
             task = self.tasks[task_name]
-            score_metric = task.score_metric()
-            if score_metric:
-                score = 0 if score is None else score
-                for metric_name, weight in score_metric.items():
-                    score = score + out[metric_name] * weight
+            metric_agg_dict = task.metric_aggregation()
+            if metric_agg_dict:
+                total_score = 0 if total_score is None else total_score
+                for metric_name, weight in metric_agg_dict.items():
+                    total_score = total_score + score[metric_name] * weight
 
             # reset to initial state for next epoch
             metric_coll.reset()
 
-        return score
+        return individual_score, total_score
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

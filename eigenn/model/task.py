@@ -22,11 +22,12 @@ class Task:
     Base class for regression or classification task settings.
 
     Subclass should implement:
+        - task_type()
         - init_loss()
         - init_metric()
 
     Subclass can implement:
-        - score_metric()
+        - metric_aggƒegration()
         - transform()
 
     Args:
@@ -50,9 +51,19 @@ class Task:
 
         self._name = name
         self._loss_weight = loss_weight
+        self._task_type = None
 
         # store kwargs as attribute
         self.__dict__.update(kwargs)
+
+    def task_type(self) -> str:
+        """
+        Type of the task, should be either `classification` or `regression`.
+
+        Returns:
+            type of the task, either `classification` or `regression`.
+        """
+        raise NotImplementedError
 
     def init_loss(self):
         """
@@ -103,23 +114,24 @@ class Task:
 
         return metric
 
-    def score_metric(
-        self,
-    ) -> Dict[str, str]:
+    def metric_aggregation(self) -> Dict[str, float]:
         """
-        Name of the metric to compute a validation score and the weight for the score.
+        Ways to aggregate various metrics to a total metric score.
 
         In the training, some functionality (e.g. early stopping and model checkpoint)
         needs a score to determine its behavior. When multiple metrics are used
         (e.g. using torchmetric.MetricCollection in `init_metric()`), we need to
-        determine what metrics are used as the score and the weight it contributes to
-        the score.
+        determine what metrics contribute to the score and the weight of the metrics
+        contribute to the score.
 
         This function should return a dict: {metric_name: metric_weight}, and it should
         be used together with `init_metric()`.
         `metric_name` is the name of the metric that contributes to the score and
         `metric_weight` is the corresponding score. The total score is a weighted sum
         of individual scores.
+
+        By default, this is an empty dict, meaning that no total metric score will be
+        computed.
 
         Note:
             Sometimes you may want to use negative weight, depending on the ``mode`` of
@@ -143,8 +155,8 @@ class Task:
 
             Then, we can have the below in this function
 
-            score_metric = {'F1': -1}
-            return score_metric
+            metric_agg = {'F1': -1}
+            return metric_agg
 
 
         Returns:
@@ -212,8 +224,19 @@ class ClassificationTask(Task):
         self.num_classes = num_classes
         self.average = average
 
+    def task_type(self):
+        return "classification"
+
     def init_loss(self):
-        loss_fn = nn.CrossEntropyLoss()
+
+        # binary classification
+        if self.is_binary():
+            loss_fn = nn.BCEWithLogitsLoss()
+
+        # multiclass
+        else:
+            loss_fn = nn.CrossEntropyLoss()
+
         return loss_fn
 
     def init_metric(self):
@@ -222,7 +245,7 @@ class ClassificationTask(Task):
         average = self.average
 
         # binary or micro, num_classes not needed
-        if n == 2 or average == "micro":
+        if self.is_binary() or average == "micro":
             n = None
 
         metric = MetricCollection(
@@ -236,10 +259,13 @@ class ClassificationTask(Task):
 
         return metric
 
-    def score_metric(self):
+    def metric_aggregation(self):
         # This requires `mode` of early stopping and checkpoint to be `min`
         # TODO, check the mode?
         return {"F1": -1.0}
+
+    def is_binary(self):
+        return self.num_classes == 2
 
 
 class RegressionTask(Task):
@@ -264,6 +290,9 @@ class RegressionTask(Task):
         super().__init__(name, loss_weight=loss_weight, **kwargs)
         self.label_scaler_dict = self._check_label_scaler_dict(label_scaler_dict)
 
+    def task_type(self):
+        return "regression"
+
     def init_loss(self):
         return nn.MSELoss()
 
@@ -272,7 +301,7 @@ class RegressionTask(Task):
 
         return metric
 
-    def score_metric(self):
+    def metric_aggregation(self):
 
         # This requires `mode` of early stopping and checkpoint to be `min`
         return {"MeanAbsoluteError": 1.0}

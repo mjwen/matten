@@ -46,7 +46,6 @@ def test_regression_task():
     metric(preds, labels)
     out = metric.compute()
     assert out["MeanAbsoluteError"] == 0.25
-    assert out["MeanAbsoluteError"] == 0.25
 
     # transform
     t_preds, t_labels = task.transform(preds, labels)
