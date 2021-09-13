@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from torch.optim import lr_scheduler
-from torchmetrics import MetricCollection
 
 from eigenn.model.task import ClassificationTask, RegressionTask, Task
 from eigenn.model.utils import TimeMeter
@@ -51,10 +50,7 @@ class BaseModel(pl.LightningModule):
         for mode in ["train", "val", "test"]:
             self.metrics[mode] = nn.ModuleDict()
             for name, task in self.tasks.items():
-                metric = task.init_metric()
-                # convert the MetricCollection for uniformity below
-                if not isinstance(metric, MetricCollection):
-                    metric = MetricCollection([metric])
+                metric = task.init_metric_as_collection()
                 self.metrics[mode][name] = metric
 
         # timer

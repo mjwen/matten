@@ -5,6 +5,7 @@ Regression or classification tasks that define the loss function and metrics.
 from typing import Dict, Optional, Tuple
 
 import torch.nn as nn
+import torchmetrics
 from torch import Tensor
 from torchmetrics import (
     F1,
@@ -63,7 +64,7 @@ class Task:
         """
         raise NotImplementedError
 
-    def init_metric(self):
+    def init_metric(self) -> torchmetrics.Metric:
         """
         Initialize the metrics (torchmetrics) for the task.
 
@@ -85,6 +86,19 @@ class Task:
             return metric
         """
         raise NotImplementedError
+
+    def init_metric_as_collection(self) -> MetricCollection:
+        """
+        This is a wrapper function for `init_metric()`.
+
+        In `init_metric()`, we allows metric(s) to be any torchmetric object. In this
+        function, we convert the metric(s) to a MetriCollection object.
+        """
+        metric = self.init_metric()
+        if not isinstance(metric, MetricCollection):
+            metric = MetricCollection([metric])
+
+        return metric
 
     def score_metric(
         self,
@@ -181,17 +195,9 @@ class ClassificationTask(Task):
         average: str = "micro",
         *,
         loss_weight: float = 1.0,
-        score_metric_name: str = None,
-        score_weight: Optional[float] = None,
         **kwargs,
     ):
-        super().__init__(
-            name,
-            loss_weight=loss_weight,
-            score_metric_name=score_metric_name,
-            score_weight=score_weight,
-            **kwargs,
-        )
+        super().__init__(name, loss_weight=loss_weight, **kwargs)
         self.num_classes = num_classes
         self.average = average
 
@@ -219,6 +225,11 @@ class ClassificationTask(Task):
 
         return metric
 
+    def score_metric(self):
+        # This requires `mode` of early stopping and checkpoint to be `min`
+        # TODO, check the mode?
+        return {"F1": -1.0}
+
 
 class RegressionTask(Task):
     def init_loss(self):
@@ -228,3 +239,8 @@ class RegressionTask(Task):
         metric = MeanAbsoluteError(compute_on_step=False)
 
         return metric
+
+    def score_metric(self):
+
+        # This requires `mode` of early stopping and checkpoint to be `min`
+        return {"MeanAbsoluteError": 1.0}
