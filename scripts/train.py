@@ -8,10 +8,9 @@ python train.py --config configs/minimal.yaml
 """
 
 from eigenn.data.datamodule import BaseDataModule
-from eigenn.model.cli import EigennCLI
-from eigenn.model.model import BaseModel
 from eigenn.model_factory.model_basic import BasicModel
 from eigenn.utils import to_path
+from scripts.cli import EigennCLI
 
 CWD = to_path(__file__).parent
 
