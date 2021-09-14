@@ -1,6 +1,6 @@
 import itertools
 import warnings
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import ase.geometry
 import ase.neighborlist
@@ -36,57 +36,64 @@ class DataPoint(Data):
 
     Notes:
         To use PyG ``InMemoryDataset`` and ``Batch``, all arguments of `Data` should
-        be keyword arguments. This is because internally (e.g. in collate() of
-        InMemoryDataset) something like
-        `data = data_list[0].__class__()` is used (data_list[0] is a `Data` point),
-        from which we see that a `Data` class is instantiated without passing arguments.
+        be keyword arguments. This is because in collate()
+        (see https://github.com/pyg-team/pytorch_geometric/blob/74245f3a680c1f6fd1944623e47d9e677b43e827/torch_geometric/data/collate.py#L14)
+         something like `out = cls()` (cls is the subclassed Data class) is used.
+        We see that a `Data` class is instantiated without passing arguments.
         For this class, we use ``*`` to distinguish them in the initializer. Arguments
         before ``*`` are necessary, after it are optional.
     """
 
     def __init__(
         self,
-        pos: List[Vector],
-        edge_index: npt.ArrayLike,
-        x: Dict[str, npt.ArrayLike],
-        y: Dict[str, npt.ArrayLike],
+        pos: List[Vector] = None,
+        edge_index: npt.ArrayLike = None,
+        x: Dict[str, npt.ArrayLike] = None,
+        y: Dict[str, npt.ArrayLike] = None,
         *,
-        edge_cell_shift: List[IntVector] = None,
-        cell: npt.ArrayLike = None,
+        edge_cell_shift: Optional[List[IntVector]] = None,
+        cell: Optional[npt.ArrayLike] = None,
         **kwargs,
     ):
 
         # convert to tensors
-        pos = torch.as_tensor(pos, dtype=DTYPE)
-        edge_index = torch.as_tensor(edge_index, dtype=torch.int64)
-        edge_cell_shift = (
-            torch.as_tensor(edge_cell_shift, dtype=torch.int64)
-            if edge_cell_shift is not None
-            else None
-        )
-        cell = torch.as_tensor(cell, dtype=DTYPE) if cell is not None else None
+        if pos is not None:
+            pos = torch.as_tensor(pos, dtype=DTYPE)
+            assert pos.shape[1] == 3
+            num_nodes = pos.shape[0]
+        else:
+            num_nodes = None
 
-        # check shape
-        num_nodes = pos.shape[0]
-        num_edges = edge_index.shape[1]
-
-        assert pos.shape[1] == 3
-        assert edge_index.shape[0] == 2
+        if edge_index is not None:
+            edge_index = torch.as_tensor(edge_index, dtype=torch.int64)
+            assert edge_index.shape[0] == 2
+            num_edges = edge_index.shape[1]
+        else:
+            num_edges = None
 
         if edge_cell_shift is not None:
+            edge_cell_shift = torch.as_tensor(edge_cell_shift, dtype=torch.int64)
             assert edge_cell_shift.shape == (num_edges, 3)
             assert cell is not None, (
                 "both `edge_cell_shift` and `cell` should be " "provided"
             )
+
         if cell is not None:
+            cell = torch.as_tensor(cell, dtype=DTYPE)
             assert cell.shape == (3, 3)
             assert edge_cell_shift is not None, (
                 "both `edge_cell_shift` and `cell` should " "be provided"
             )
 
         # convert input and output to tensors
-        x = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in x.items()}
-        y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
+        if x is not None:
+            x = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in x.items()}
+        else:
+            x = {}
+        if y is not None:
+            y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
+        else:
+            y = {}
         self.sanity_check()
 
         # pyG Data only accepts tensor as input, not dict.
@@ -129,10 +136,10 @@ class Molecule(DataPoint):
 
     def __init__(
         self,
-        pos: List[Vector],
-        edge_index: npt.ArrayLike,
-        x: Dict[str, npt.ArrayLike],
-        y: Dict[str, npt.ArrayLike],
+        pos: List[Vector] = None,
+        edge_index: npt.ArrayLike = None,
+        x: Dict[str, npt.ArrayLike] = None,
+        y: Dict[str, npt.ArrayLike] = None,
         **kwargs,
     ):
 

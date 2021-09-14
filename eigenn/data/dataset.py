@@ -98,56 +98,6 @@ class InMemoryDataset(PyGInMemoryDataset):
 
         torch.save((data, slices), self.processed_paths[0])
 
-    # This is copied from  InMemoryDataset, with one modification
-    # data = data_list[0].__class__()  ->  data = Data()
-    # TODO make a PR to PyG?
-    @staticmethod
-    def collate(data_list: List[Data]) -> Tuple[Data, Dict[str, Tensor]]:
-        """
-        Collates a python list of data objects to the internal storage
-        format of :class:`torch_geometric.data.InMemoryDataset`.
-        """
-        keys = data_list[0].keys
-        # data = data_list[0].__class__()
-        data = Data()
-
-        for key in keys:
-            data[key] = []
-        slices = {key: [0] for key in keys}
-
-        for item, key in product(data_list, keys):
-            data[key].append(item[key])
-            if isinstance(item[key], Tensor) and item[key].dim() > 0:
-                cat_dim = item.__cat_dim__(key, item[key])
-                cat_dim = 0 if cat_dim is None else cat_dim
-                s = slices[key][-1] + item[key].size(cat_dim)
-            else:
-                s = slices[key][-1] + 1
-            slices[key].append(s)
-
-        if hasattr(data_list[0], "__num_nodes__"):
-            data.__num_nodes__ = []
-            for item in data_list:
-                data.__num_nodes__.append(item.num_nodes)
-
-        for key in keys:
-            item = data_list[0][key]
-            if isinstance(item, Tensor) and len(data_list) > 1:
-                if item.dim() > 0:
-                    cat_dim = data.__cat_dim__(key, item)
-                    cat_dim = 0 if cat_dim is None else cat_dim
-                    data[key] = torch.cat(data[key], dim=cat_dim)
-                else:
-                    data[key] = torch.stack(data[key])
-            elif isinstance(item, Tensor):  # Don't duplicate attributes...
-                data[key] = data[key][0]
-            elif isinstance(item, int) or isinstance(item, float):
-                data[key] = torch.tensor(data[key])
-
-            slices[key] = torch.tensor(slices[key], dtype=torch.long)
-
-        return data, slice
-
 
 # this is copied from matmainer.dataset.utils with slight modifications
 def _fetch_external_dataset(url, save_dir):
