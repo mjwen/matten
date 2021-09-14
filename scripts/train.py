@@ -31,6 +31,8 @@ def main():
         run=False,
     )
 
+    # TODO, we may want to jit the cli.model here
+
     # fit the model
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
 
