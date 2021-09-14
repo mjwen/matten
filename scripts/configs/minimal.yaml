@@ -1,0 +1,43 @@
+data:
+  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  init_args:
+    trainset_filename: matbench_dielectric.json
+    valset_filename: matbench_dielectric.json
+    testset_filename: matbench_dielectric.json
+    r_cut: 5.0
+    root: /tmp
+
+trainer:
+  max_epochs: 20
+  logger: true
+  checkpoint_callback: true
+  num_nodes: 1
+  num_processes: 1
+  flush_logs_every_n_steps: 100
+  log_every_n_steps: 50
+  sync_batchnorm: false
+  weights_summary: top
+  num_sanity_val_steps: 2
+  terminate_on_nan: false
+  precision: 32
+#  callbacks:
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+    betas:
+    - 0.9
+    - 0.999
+    eps: 1.0e-08
+    weight_decay: 0
+    amsgrad: false
+
+lr_scheduler:
+  class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
+  init_args:
+    warmup_epochs: 10
+    max_epochs: 20   # this should be set to trainer.max_epochs
+    warmup_start_lr: 0.0
+    eta_min: 0.0
+    last_epoch: -1

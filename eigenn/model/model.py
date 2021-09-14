@@ -6,9 +6,8 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+from pytorch_lightning.utilities.cli import instantiate_class
 from torch import Tensor
-from torch.optim import lr_scheduler
 
 from eigenn.model.task import ClassificationTask, RegressionTask, Task
 from eigenn.model.utils import TimeMeter
@@ -16,6 +15,14 @@ from eigenn.model.utils import TimeMeter
 
 class BaseModel(pl.LightningModule):
     """
+    Base Eigenn model for regression and classification tasks.
+
+    Args:
+        backbone_params: params for the backbone model
+        task_params: params for the regression (or classification) tasks
+        optimizer_params: params for the optimizer (e.g. Adam)
+        lr_scheduler_params: params for the learning rate scheduler (e.g.
+        ReduceLROnPlateau)
 
     Subclass must implement:
         - init_backbone(): create the underlying torch model
@@ -26,16 +33,23 @@ class BaseModel(pl.LightningModule):
         - compute_loss(): compute the loss using model prediction and the target
     """
 
-    def __init__(self, **kwargs):
-        super().__init__()
+    def __init__(
+        self,
+        backbone_params: Dict[str, Any] = None,
+        task_params: Dict[str, Any] = None,
+        optimizer_params: Dict[str, Any] = None,
+        lr_scheduler_params: Dict[str, Any] = None,
+        **kwargs,
+    ):
 
+        super().__init__()
         self.save_hyperparameters()
 
         # backbone model
-        self.backbone = self.init_backbone(self.hparams)
+        self.backbone = self.init_backbone(backbone_params)
 
         # tasks
-        tasks = self.init_tasks(self.hparams)
+        tasks = self.init_tasks(task_params)
         if isinstance(tasks, Task):
             tasks = [tasks]
         assert isinstance(tasks, Sequence)
@@ -344,13 +358,12 @@ class BaseModel(pl.LightningModule):
         return individual_score, total_score
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            filter(lambda p: p.requires_grad, self.parameters()),
-            lr=self.hparams.lr,
-            weight_decay=self.hparams.weight_decay,
-        )
 
-        # learning rate scheduler
+        # optimizer
+        model_params = (filter(lambda p: p.requires_grad, self.parameters()),)
+        optimizer = instantiate_class(model_params, self.hparams.optimizer_params)
+
+        # lr scheduler
         scheduler = self._config_lr_scheduler(optimizer)
 
         if scheduler is None:
@@ -363,23 +376,21 @@ class BaseModel(pl.LightningModule):
             }
 
     def _config_lr_scheduler(self, optimizer):
+        """
+        Configure lr scheduler.
 
-        scheduler_name = self.hparams.lr_scheduler["scheduler_name"].lower()
+        This allows not to use a lr scheduler. To achieve this, set `class_path` under
+        `lr_scheduler` to `none` or `null`.
 
-        if scheduler_name == "reduce_on_plateau":
-            scheduler = lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="max", factor=0.4, patience=50, verbose=True
-            )
-        elif scheduler_name == "cosine":
-            scheduler = LinearWarmupCosineAnnealingLR(
-                optimizer,
-                warmup_epochs=self.hparams.lr_scheduler["lr_warmup_step"],
-                max_epochs=self.hparams.lr_scheduler["epochs"],
-                eta_min=self.hparams.lr_scheduler["lr_min"],
-            )
-        elif scheduler_name == "none":
+        Return:
+            lr scheduler or None
+        """
+        params = self.hparams.lr_scheduler_params
+
+        class_path = params.get("class_path").lower()
+        if class_path is None or class_path == "none" or class_path == "null":
             scheduler = None
         else:
-            raise ValueError(f"Not supported lr scheduler: {self.hparams.lr_scheduler}")
+            scheduler = instantiate_class(optimizer, params)
 
         return scheduler

@@ -1,5 +1,7 @@
 """
 Regression or classification tasks that define the loss function and metrics.
+
+The tasks are helper classes for defining the lighting model.
 """
 
 from typing import Dict, Optional, Tuple
