@@ -7,6 +7,12 @@ data:
     r_cut: 5.0
     root: /tmp
 
+model:
+  backbone_params:
+    num_layers: 3
+  task_params:
+    task_name: energy
+
 trainer:
   max_epochs: 20
   logger: true
