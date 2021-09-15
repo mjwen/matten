@@ -5,9 +5,11 @@ This is a recreation of class GraphModuleMixin
 https://github.com/mir-group/nequip/blob/main/nequip/nn/_graph_mixin.py
 to make it general for different data.
 """
+from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Dict, Final, Sequence
+from typing import Dict, Final, Sequence, overload
 
+import torch.nn
 from e3nn.o3 import Irreps
 
 
@@ -50,9 +52,9 @@ class ModuleIrreps:
         irreps_out = {} if irreps_out is None else irreps_out
         required_irreps_in = [] if required_irreps_in is None else required_irreps_in
 
-        irreps_in = self._fix_irreps_dict(irreps_in)
-        my_irreps_in = self._fix_irreps_dict(my_irreps_in)
-        irreps_out = self._fix_irreps_dict(irreps_out)
+        irreps_in = _fix_irreps_dict(irreps_in)
+        my_irreps_in = _fix_irreps_dict(my_irreps_in)
+        irreps_out = _fix_irreps_dict(irreps_out)
 
         self.sanity_check(irreps_in, my_irreps_in, irreps_out, required_irreps_in)
 
@@ -116,19 +118,69 @@ class ModuleIrreps:
                 f"Edge indexes must have irreps `None`, got `{irreps_in[edge_index]}`"
             )
 
-    @staticmethod
-    def _fix_irreps_dict(irreps: Dict[str, Irreps]) -> Dict[str, Irreps]:
-        """
-        Fix irreps:
-          - convert string representation to object
-          - deal with None. ``None`` is a valid irreps in the context for anything that
-            is invariant but not well described by an ``e3nn.o3.Irreps``. An example are
-            edge indexes in a graph, which are invariant but are integers, not ``0e``
-            scalars.
-        """
-        special_irreps = [None]
-        irreps = {
-            k: (i if i in special_irreps else Irreps(i)) for k, i in irreps.items()
-        }
 
-        return irreps
+class Sequential(ModuleIrreps, torch.nn.Sequential):
+    """
+    This is the same as torch.nn.Sequential, with additional check on irreps
+    compatibility between consecutive modules.
+    """
+
+    @overload
+    def __init__(self, *args: ModuleIrreps) -> None:
+        ...
+
+    @overload
+    def __init__(self, arg: "OrderedDict[str, ModuleIrreps]") -> None:
+        ...
+
+    def __init__(self, *args):
+
+        # dict input
+        if len(args) == 1 and isinstance(args[0], OrderedDict):
+            module_dict = args[0]
+            module_list = list(module_dict.values())
+        # sequence input
+        else:
+            module_list = list(args)
+            module_dict = OrderedDict(
+                (f"{m.__class__.__name__}_{i}", m) for i, m in enumerate(module_list)
+            )
+
+        # check in/out irreps compatibility
+        for i, (m1, m2) in enumerate(zip(module_list, module_list[1:])):
+            if not _check_irreps_compatible(m1.irreps_out, m2.irreps_in):
+                raise ValueError(
+                    f"Output irreps of module {i} `{m1.__class__.__name__}`: "
+                    f"{m1.irreps_out}` is incompatible with input irreps of module {i+1} "
+                    f"`{m2.__class__.__name__}`: {m2.irreps_in}."
+                )
+
+        self.init_irreps(
+            irreps_in=module_list[0].irreps_in, irreps_out=module_list[-1].irreps_out
+        )
+
+        super().__init__(module_dict)
+
+
+# copied from nequip:
+# https://github.com/mir-group/nequip/blob/main/nequip/data/AtomicData.py
+def _fix_irreps_dict(irreps: Dict[str, Irreps]) -> Dict[str, Irreps]:
+    """
+    Fix irreps.
+
+      - convert string representation to object
+      - deal with None. ``None`` is a valid irreps in the context for anything that
+        is invariant but not well described by an ``e3nn.o3.Irreps``. An example are
+        edge indexes in a graph, which are invariant but are integers, not ``0e``
+        scalars.
+    """
+    special_irreps = [None]
+    irreps = {k: (i if i in special_irreps else Irreps(i)) for k, i in irreps.items()}
+
+    return irreps
+
+
+# copied from nequip:
+# https://github.com/mir-group/nequip/blob/main/nequip/data/AtomicData.py
+def _check_irreps_compatible(ir1: Dict[str, Irreps], ir2: Dict[str, Irreps]):
+    return all(ir1[k] == ir2[k] for k in ir1 if k in ir2)

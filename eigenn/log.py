@@ -6,7 +6,7 @@ from loguru import logger
 LOG_LEVEL = None
 
 
-def set_logger(level: str = "INFO", stderr: bool = True):
+def set_logger(level: str = "INFO", filename: str = "eigenn.log", stderr: bool = True):
     """
     Set up loguru loggers.
 
@@ -15,12 +15,13 @@ def set_logger(level: str = "INFO", stderr: bool = True):
 
     Args:
         level: log level, e.g. DEBUG, INFO, WARNING, ERROR, and CRITICAL.
+        filename: name of the file to log to
         stderr: whether to log to  stderr.
     """
     global LOG_LEVEL
     LOG_LEVEL = level
 
-    file_handler = {"sink": "kliff.log", "level": level}
+    file_handler = {"sink": filename, "level": level}
     stderr_handler = {"sink": sys.stderr, "level": level}
 
     if stderr:
