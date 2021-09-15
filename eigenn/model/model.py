@@ -18,10 +18,10 @@ class BaseModel(pl.LightningModule):
     Base Eigenn model for regression and classification tasks.
 
     Args:
-        backbone_params: params for the backbone model
-        task_params: params for the regression (or classification) tasks
-        optimizer_params: params for the optimizer (e.g. Adam)
-        lr_scheduler_params: params for the learning rate scheduler (e.g.
+        backbone_hparams: hparams for the backbone model
+        task_hparams: hparams for the regression (or classification) tasks
+        optimizer_hparams: hparams for the optimizer (e.g. Adam)
+        lr_scheduler_hparams: hparams for the learning rate scheduler (e.g.
         ReduceLROnPlateau)
 
     Subclass must implement:
@@ -35,10 +35,10 @@ class BaseModel(pl.LightningModule):
 
     def __init__(
         self,
-        backbone_params: Dict[str, Any] = None,
-        task_params: Dict[str, Any] = None,
-        optimizer_params: Dict[str, Any] = None,
-        lr_scheduler_params: Dict[str, Any] = None,
+        backbone_hparams: Dict[str, Any] = None,
+        task_hparams: Dict[str, Any] = None,
+        optimizer_hparams: Dict[str, Any] = None,
+        lr_scheduler_hparams: Dict[str, Any] = None,
         **kwargs,
     ):
 
@@ -46,10 +46,10 @@ class BaseModel(pl.LightningModule):
         self.save_hyperparameters()
 
         # backbone model
-        self.backbone = self.init_backbone(backbone_params)
+        self.backbone = self.init_backbone(backbone_hparams)
 
         # tasks
-        tasks = self.init_tasks(task_params)
+        tasks = self.init_tasks(task_hparams)
         if isinstance(tasks, Task):
             tasks = [tasks]
         assert isinstance(tasks, Sequence)
@@ -73,7 +73,7 @@ class BaseModel(pl.LightningModule):
         # timer
         self.timer = TimeMeter()
 
-    def init_backbone(self, params) -> nn.Module:
+    def init_backbone(self, hparams: Dict[str, Any]) -> nn.Module:
         """
         Create a backbone torch model.
 
@@ -90,7 +90,7 @@ class BaseModel(pl.LightningModule):
         """
         raise NotImplementedError
 
-    def init_tasks(self, params) -> Dict:
+    def init_tasks(self, hparams: Dict[str, Any]) -> Dict:
         """
         Define the tasks used to compute loss and metrics.
 
@@ -361,7 +361,7 @@ class BaseModel(pl.LightningModule):
 
         # optimizer
         model_params = (filter(lambda p: p.requires_grad, self.parameters()),)
-        optimizer = instantiate_class(model_params, self.hparams.optimizer_params)
+        optimizer = instantiate_class(model_params, self.hparams.optimizer_hparams)
 
         # lr scheduler
         scheduler = self._config_lr_scheduler(optimizer)
@@ -385,12 +385,12 @@ class BaseModel(pl.LightningModule):
         Return:
             lr scheduler or None
         """
-        params = self.hparams.lr_scheduler_params
+        hparams = self.hparams.lr_scheduler_hparams
 
-        class_path = params.get("class_path").lower()
+        class_path = hparams.get("class_path").lower()
         if class_path is None or class_path == "none" or class_path == "null":
             scheduler = None
         else:
-            scheduler = instantiate_class(optimizer, params)
+            scheduler = instantiate_class(optimizer, hparams)
 
         return scheduler

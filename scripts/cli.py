@@ -20,7 +20,7 @@ class EigennCLI(LightningCLI):
         # line_to should be argument of the model
         parser.add_optimizer_args(
             (torch.optim.Adam, torch.optim.SGD),
-            link_to="model.optimizer_params",
+            link_to="model.optimizer_hparams",
         )
 
         # line_to should be argument of the model
@@ -29,5 +29,5 @@ class EigennCLI(LightningCLI):
                 pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR,
                 torch.optim.lr_scheduler.ReduceLROnPlateau,
             ),
-            link_to="model.lr_scheduler_params",
+            link_to="model.lr_scheduler_hparams",
         )

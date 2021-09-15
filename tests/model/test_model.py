@@ -21,11 +21,11 @@ class Backbone(nn.Module):
 
 
 class BasicModel(BaseModel):
-    def init_backbone(self, params):
+    def init_backbone(self, hparams):
         backbone = Backbone()
         return backbone
 
-    def init_tasks(self, params):
+    def init_tasks(self, hparams):
         task = CanonicalClassificationTask(name=TASK_NAME, num_classes=2)
 
         return task
@@ -37,7 +37,7 @@ def test_basic_model():
     labels = {TASK_NAME: torch.tensor([0, 1])}
 
     # model
-    model = BasicModel(random_params=1)
+    model = BasicModel()
     preds = model.decode(input, None, None)
 
     # output

@@ -1,9 +1,7 @@
 import torch.nn as nn
-from pytorch_lightning import seed_everything
 
 from eigenn.model.model import BaseModel
 from eigenn.model.task import CanonicalRegressionTask
-
 
 TASK_NAME = "n"
 
@@ -19,11 +17,11 @@ class Backbone(nn.Module):
 
 
 class BasicModel(BaseModel):
-    def init_backbone(self, params):
+    def init_backbone(self, hparams):
         backbone = Backbone()
         return backbone
 
-    def init_tasks(self, params):
+    def init_tasks(self, hparams):
         task = CanonicalRegressionTask(name=TASK_NAME)
 
         return task

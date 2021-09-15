@@ -9,6 +9,7 @@ python train.py --config configs/minimal.yaml
 
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.model_factory.model_basic import BasicModel
+from eigenn.model_factory.nequip_energy_model import EnergyModel
 from eigenn.utils import to_path
 from scripts.cli import EigennCLI
 
@@ -22,7 +23,7 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
-        model_class=BasicModel,
+        model_class=EnergyModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         parser_kwargs={

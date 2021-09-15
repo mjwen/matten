@@ -9,10 +9,25 @@ from nequip.nn.embedding import (
     SphericalHarmonicEdgeAttrs,
 )
 
+from eigenn.model.model import BaseModel
+from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 
+TASK_NAME = "total_energy"
 
-def energy_model(hparams: Dict[str, Any]):
+
+class EnergyModel(BaseModel):
+    def init_backbone(self, hparams):
+        backbone = create_energy_model(hparams)
+        return backbone
+
+    def init_tasks(self, hparams):
+        task = CanonicalRegressionTask(name=TASK_NAME)
+
+        return task
+
+
+def create_energy_model(hparams: Dict[str, Any]):
 
     num_layers = hparams.pop("num_layers", 3)
 
@@ -83,8 +98,6 @@ def energy_model(hparams: Dict[str, Any]):
 if __name__ == "__main__":
     from eigenn.log import set_logger
 
-    set_logger(level="DEBUG")
-
     params = {
         "species_embedding_irreps_out": "16x0e",
         "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
@@ -92,4 +105,4 @@ if __name__ == "__main__":
         "num_layers": 3,
         "r_max": 4,
     }
-    energy_model(params)
+    create_energy_model(params)

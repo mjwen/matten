@@ -8,9 +8,13 @@ data:
     root: /tmp
 
 model:
-  backbone_params:
+  backbone_hparams:
     num_layers: 3
-  task_params:
+    species_embedding_irreps_out: 16x0e
+    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
+    irreps_edge_sh: 0e + 1o
+    r_max: 4
+  task_hparams:
     task_name: energy
 
 trainer:
@@ -33,8 +37,8 @@ optimizer:
   init_args:
     lr: 0.001
     betas:
-    - 0.9
-    - 0.999
+      - 0.9
+      - 0.999
     eps: 1.0e-08
     weight_decay: 0
     amsgrad: false
@@ -43,7 +47,7 @@ lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
   init_args:
     warmup_epochs: 10
-    max_epochs: 20   # this should be set to trainer.max_epochs
+    max_epochs: 20 # this should be set to trainer.max_epochs
     warmup_start_lr: 0.0
     eta_min: 0.0
     last_epoch: -1
