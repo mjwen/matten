@@ -85,33 +85,17 @@ class DataPoint(Data):
                 "both `edge_cell_shift` and `cell` should " "be provided"
             )
 
+        # TODO, think about how to represent node/edge/global features features
+        #  Maybe define separate class for it, but convert to dict here?
+        #  We need to check the shape of the features
+
         # convert input and output to tensors
         if x is not None:
             x = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in x.items()}
-        else:
-            x = {}
         if y is not None:
             y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
-        else:
-            y = {}
+
         self.sanity_check()
-
-        # pyG Data only accepts tensor as input, not dict.
-        # Here, we convert each key in x (y) by prepending `x_` (`y_`) and assign it as
-        # an attribute.
-        for k, v in x.items():
-            new_k = f"x_{k}"
-            assert (
-                new_k not in kwargs
-            ), f"Cannot assign input `{k}` in the `x` dict as Data attribute."
-            kwargs[new_k] = v
-
-        for k, v in y.items():
-            new_k = f"y_{k}"
-            assert (
-                new_k not in kwargs
-            ), f"Cannot assign input `{k}` in the `y` dict as Data attribute."
-            kwargs[new_k] = v
 
         super().__init__(
             pos=pos,
@@ -119,6 +103,8 @@ class DataPoint(Data):
             edge_cell_shift=edge_cell_shift,
             cell=cell,
             num_nodes=num_nodes,
+            x=x,
+            y=y,
             **kwargs,
         )
 
@@ -213,6 +199,7 @@ class Crystal(DataPoint):
             **kwargs:
         """
 
+        # deal with periodic boundary conditions
         edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(
             pos=pos,
             r_max=r_cut,

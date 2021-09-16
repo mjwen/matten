@@ -131,3 +131,6 @@ dmypy.json
 # IDEs
 .idea/
 .vscode/
+
+# package specific ignores
+lightning_logs/

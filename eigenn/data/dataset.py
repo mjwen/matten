@@ -1,12 +1,9 @@
-from itertools import product
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import requests
 import torch
 import tqdm
-from torch import Tensor
-from torch_geometric.data import Data
 from torch_geometric.data import InMemoryDataset as PyGInMemoryDataset
 from torch_geometric.data import extract_bz2, extract_gz, extract_tar, extract_zip
 

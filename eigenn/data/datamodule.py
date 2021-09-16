@@ -24,7 +24,7 @@ class BaseDataModule(LightningDataModule):
             about how the initial state dict is obtained: it could be restored from
             `restore_state_dict_file` or computed from the dataset.
             pretrained model used in finetune?
-        kwargs: extra arguments passed to DataLoader, e.g. shuffle, batch size...
+        loader_kwargs: extra arguments passed to DataLoader, e.g. shuffle, batch_size...
     """
 
     def __init__(
@@ -35,7 +35,7 @@ class BaseDataModule(LightningDataModule):
         *,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
-        **kwargs,
+        loader_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
 
@@ -44,7 +44,7 @@ class BaseDataModule(LightningDataModule):
         self.testset_filename = testset_filename
         self.state_dict_filename = state_dict_filename
         self.restore_state_dict_filename = restore_state_dict_filename
-        self.kwargs = kwargs
+        self.loader_kwargs = loader_kwargs
 
         self.train_data = None
         self.val_data = None
@@ -76,13 +76,13 @@ class BaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     def train_dataloader(self):
-        return DataLoader(dataset=self.train_data, **self.kwargs)
+        return DataLoader(dataset=self.train_data, **self.loader_kwargs)
 
     def val_dataloader(self):
-        return DataLoader(dataset=self.val_data, **self.kwargs)
+        return DataLoader(dataset=self.val_data, **self.loader_kwargs)
 
     def test_dataloader(self):
-        return DataLoader(dataset=self.test_data, **self.kwargs)
+        return DataLoader(dataset=self.test_data, **self.loader_kwargs)
 
     def get_to_model_info(self) -> Dict[str, Any]:
         """

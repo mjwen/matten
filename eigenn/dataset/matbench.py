@@ -11,6 +11,9 @@ from eigenn.data.dataset import InMemoryDataset
 class MatbenchDataset(InMemoryDataset):
     """
     The matbench dataset of material properties.
+
+    This will have whatever in the `column` as `y` for the dataset.
+
     Args:
         task_name: matbench task names, e.g. ``matbench_log_gvrh``. For a fully list, see
             https://hackingmaterials.lbl.gov/automatminer/datasets.html
@@ -52,7 +55,7 @@ class MatbenchDataset(InMemoryDataset):
                     if i != struct_idx
                 }
 
-                c = Crystal.from_pymatgen(struct=struct, r_cut=self.r_cut, x=y, y=y)
+                c = Crystal.from_pymatgen(struct=struct, r_cut=self.r_cut, x=None, y=y)
                 crystals.append(c)
             except Exception as e:
                 raise Exception(f"Failed converting structure {irow}. " + str(e))
