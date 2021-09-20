@@ -9,6 +9,7 @@ import torch.nn as nn
 from pytorch_lightning.utilities.cli import instantiate_class
 from torch import Tensor
 
+from eigenn.data.data import DataPoint
 from eigenn.model.task import ClassificationTask, RegressionTask, Task
 from eigenn.model.utils import TimeMeter
 
@@ -16,6 +17,9 @@ from eigenn.model.utils import TimeMeter
 class BaseModel(pl.LightningModule):
     """
     Base Eigenn model for regression and classification tasks.
+
+    This class accepts any type of data as batch. Subclass determines how the batch
+    should be dealt with.
 
     Args:
         backbone_hparams: hparams for the backbone model
@@ -27,9 +31,11 @@ class BaseModel(pl.LightningModule):
     Subclass must implement:
         - init_backbone(): create the underlying torch model
         - init_tasks(): create tasks that defines initialize the loss function and metrics
+        - preprocess_batch(): preprocess the batched data to get input for the model
+          and labels
+        - decode(): compute model prediction using the torch model
 
     subclass may implement:
-        - decode(): compute model prediction using the torch model
         - compute_loss(): compute the loss using model prediction and the target
     """
 
@@ -78,7 +84,7 @@ class BaseModel(pl.LightningModule):
         Create a backbone torch model.
 
         A pytorch or lightning model that can be called like:
-        `model(graphs, feats, metadata)`
+        `model(graphs, *args, **kwargs)`
         The model should return a dictionary of {task_name: task_prediction}, where the
         task_name should the name of one task defined in `init_tasks()` and
         task_prediction should be a tensor.
@@ -104,52 +110,50 @@ class BaseModel(pl.LightningModule):
 
         raise NotImplementedError
 
-    def forward(
-        self,
-        graphs,
-        feats: [str, Any] = None,
-        metadata: Dict[str, Any] = None,
-        mode: Optional[str] = None,
-    ):
+    def forward(self, model_input, mode: Optional[str] = None, **kwargs):
         """
         Args:
             graphs:
-            feats:
-            metadata:
             mode: select what to return. See below.
 
         Returns:
             If `None`, directly return the value returned by the backbone forward method.
         """
 
+        # TODO, need to add functionality similar to preprocess_batch here, but ignore
+        #  label
+
         if mode is None:
-            return self.backbone(graphs, feats, metadata)
+            return self.backbone(model_input, **kwargs)
         elif mode == "decoder":
-            return self.decode(graphs, feats, metadata)
+            return self.decode(model_input, **kwargs)
         else:
             raise ValueError(f"Not supported return mode: {mode}")
 
-    def decode(
-        self,
-        graphs,
-        feats: Dict[str, Tensor],
-        metadata: Dict[str, Tensor],
-    ) -> Dict[str, Tensor]:
+    def preprocess_batch(self, batch) -> Tuple[Any, Dict[str, Tensor]]:
+        """
+        preprocess the batch data to get model input and labels.
+
+        Args:
+            batch: batched data
+
+        Returns:
+            A tuple of (model_input, labels), where labels should be a dict of tensors,
+            i.e. {task_name: task_label}
+        """
+        raise NotImplementedError
+
+    def decode(self, model_input, *args, **kwargs) -> Dict[str, Tensor]:
         """
         Compute prediction for each task using the backbone model.
 
         Args:
-            graphs: batched graphs
-            feats: batched features for the model
-            metadata: extra metadata needed by the model to compute the prediction
+            model_input: input for the model to make predictions, e.g. batched graphs
 
         Returns:
             {task_name: task_prediction}
         """
-
-        preds = self.backbone(graphs, feats, metadata)
-
-        return preds
+        raise NotImplementedError
 
     def compute_loss(
         self, preds: Dict[str, Tensor], labels: Dict[str, Tensor]
@@ -171,6 +175,7 @@ class BaseModel(pl.LightningModule):
         for task_name, task in self.tasks.items():
             p = preds[task_name]
             l = labels[task_name]
+
             if task.task_type() == "classification" and task.is_binary():
                 # this will use BCEWithLogitsLoss, which requires label be of float
                 p = p.reshape(-1)
@@ -196,8 +201,7 @@ class BaseModel(pl.LightningModule):
         loss, preds, labels = self.shared_step(batch, "val")
         self.update_metrics(preds, labels, "val")
 
-        # TODO, remove this
-        # return {"loss": loss}
+        return {"loss": loss}
 
     def validation_epoch_end(self, outputs):
         _, score = self.compute_metrics("val")
@@ -217,8 +221,7 @@ class BaseModel(pl.LightningModule):
         loss, preds, labels = self.shared_step(batch, "test")
         self.update_metrics(preds, labels, "test")
 
-        # TODO, remove this
-        # return {"loss": loss}
+        return {"loss": loss}
 
     def test_epoch_end(self, outputs):
         self.compute_metrics("test")
@@ -232,21 +235,11 @@ class BaseModel(pl.LightningModule):
             mode: train, val, or test
         """
 
+        # ========== preprocess batch ==========
+        graphs, labels = self.preprocess_batch(batch)
+
         # ========== compute predictions ==========
-        graphs = batch
-        graphs = graphs.to(self.device)  # lightning cannot move graphs to gpu
-
-        # task labels
-        labels = {name: graphs.y[name] for name in self.tasks}
-
-        # TODO, get feats from batched graphs
-        # nodes = ["atom", "global"]
-        # feats = {nt: mol_graphs.nodes[nt].data.pop("feat") for nt in nodes}
-        # feats["bond"] = mol_graphs.edges["bond"].data.pop("feat")
-        feats = None
-        metadata = None
-
-        preds = self.decode(graphs, feats, metadata)
+        preds = self.decode(graphs)
 
         # ========== compute losses ==========
         individual_loss, total_loss = self.compute_loss(preds, labels)
@@ -396,3 +389,97 @@ class BaseModel(pl.LightningModule):
             scheduler = instantiate_class(optimizer, hparams)
 
         return scheduler
+
+
+class ModelForPyGData(BaseModel):
+    """
+    A lightning model working with data provided as PyG batched data.
+
+    Subclass must implement:
+        - init_backbone(): create the underlying torch model
+        - init_tasks(): create tasks that defines initialize the loss function and metrics
+
+    """
+
+    def preprocess_batch(self, batch) -> Tuple[DataPoint, Dict[str, Tensor]]:
+        """
+        Preprocess the batch data to get model input and labels.
+
+        Note, this requires all the labels be stored as a dict in `y` of PyG data.
+
+        Args:
+            batch: PyG batched data
+
+        Returns:
+            (model_input, labels), where model_input is batched graph and labels
+                is a dict of tensors, i.e. {task_name: task_label}
+        """
+
+        graphs = batch
+        graphs = graphs.to(self.device)  # lightning cannot move graphs to gpu
+
+        # task labels
+        labels = {name: graphs.y[name] for name in self.tasks}
+
+        return graphs, labels
+
+    def decode(self, model_input: DataPoint, *args, **kwargs) -> Dict[str, Tensor]:
+        """
+        Compute prediction for each task using the backbone model.
+
+        Args:
+            model_input: (batched) PyG graph
+
+        Returns:
+            {task_name: task_prediction}
+        """
+
+        preds = self.backbone(model_input)
+
+        return preds
+
+
+class ModelForDictData(BaseModel):
+    """
+    A lightning model working with data provided as PyG batched data.
+
+    Subclass must implement:
+        - init_backbone(): create the underlying torch model
+        - init_tasks(): create tasks that defines initialize the loss function and metrics
+    """
+
+    def preprocess_batch(self, batch) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
+        """
+        preprocess the batch data to get model input and labels.
+
+        Args:
+            batch: dict
+
+        Returns:
+            (model_input, labels), where model_input is a dict of model input and labels
+                is a dict of tensors, i.e. {task_name: task_label}
+        """
+
+        # task labels
+        labels = {name: batch.pop(name) for name in self.tasks}
+
+        model_input = batch
+
+        return model_input, labels
+
+    def decode(
+        self, model_input: Dict[str, Tensor], *args, **kwargs
+    ) -> Dict[str, Tensor]:
+        """
+        Compute prediction for each task using the backbone model.
+
+        Args:
+            model_input: input for the model to make predictions
+
+        Returns:
+            {task_name: task_prediction}
+        """
+
+        preds = self.backbone(model_input)
+
+        return preds

@@ -9,12 +9,12 @@ from nequip.nn.embedding import (
     SphericalHarmonicEdgeAttrs,
 )
 
-from eigenn.model.model import BaseModel
+from eigenn.model.model import ModelForDictData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 
 
-class EnergyModel(BaseModel):
+class EnergyModel(ModelForDictData):
     def init_backbone(self, hparams):
         backbone = create_energy_model(hparams)
         return backbone

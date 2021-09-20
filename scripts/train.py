@@ -8,7 +8,6 @@ python train.py --config configs/minimal.yaml
 """
 
 from eigenn.data.datamodule import BaseDataModule
-from eigenn.model_factory.model_basic import BasicModel
 from eigenn.model_factory.nequip_energy_model import EnergyModel
 from eigenn.utils import to_path
 from scripts.cli import EigennCLI
