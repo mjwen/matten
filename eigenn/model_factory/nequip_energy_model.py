@@ -13,8 +13,6 @@ from eigenn.model.model import BaseModel
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 
-TASK_NAME = "total_energy"
-
 
 class EnergyModel(BaseModel):
     def init_backbone(self, hparams):
@@ -22,7 +20,7 @@ class EnergyModel(BaseModel):
         return backbone
 
     def init_tasks(self, hparams):
-        task = CanonicalRegressionTask(name=TASK_NAME)
+        task = CanonicalRegressionTask(name=hparams["task_name"])
 
         return task
 

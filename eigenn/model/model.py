@@ -233,16 +233,18 @@ class BaseModel(pl.LightningModule):
         """
 
         # ========== compute predictions ==========
-        graphs, labels, metadata = batch
+        graphs = batch
+        graphs = graphs.to(self.device)  # lightning cannot move graphs to gpu
 
-        # lightning cannot move graphs to gpu, so do it manually
-        graphs = graphs.to(self.device)
+        # task labels
+        labels = {name: graphs.y[name] for name in self.tasks}
 
         # TODO, get feats from batched graphs
         # nodes = ["atom", "global"]
         # feats = {nt: mol_graphs.nodes[nt].data.pop("feat") for nt in nodes}
         # feats["bond"] = mol_graphs.edges["bond"].data.pop("feat")
         feats = None
+        metadata = None
 
         preds = self.decode(graphs, feats, metadata)
 

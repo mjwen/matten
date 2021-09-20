@@ -1,3 +1,4 @@
+seed_everything: 35
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
@@ -6,6 +7,8 @@ data:
     testset_filename: matbench_dielectric.json
     r_cut: 5.0
     root: /tmp
+    loader_kwargs:
+      batch_size: 2
 
 model:
   backbone_hparams:
@@ -15,7 +18,7 @@ model:
     irreps_edge_sh: 0e + 1o
     r_max: 4
   task_hparams:
-    task_name: energy
+    task_name: n
 
 trainer:
   max_epochs: 20
