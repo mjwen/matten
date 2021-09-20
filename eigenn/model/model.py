@@ -24,6 +24,7 @@ class BaseModel(pl.LightningModule):
     Args:
         backbone_hparams: hparams for the backbone model
         task_hparams: hparams for the regression (or classification) tasks
+        dataset_hparams: info from the dataset to initialize the model or tasks
         optimizer_hparams: hparams for the optimizer (e.g. Adam)
         lr_scheduler_hparams: hparams for the learning rate scheduler (e.g.
         ReduceLROnPlateau)
@@ -43,6 +44,7 @@ class BaseModel(pl.LightningModule):
         self,
         backbone_hparams: Dict[str, Any] = None,
         task_hparams: Dict[str, Any] = None,
+        dataset_hparams: Dict[str, Any] = None,
         optimizer_hparams: Dict[str, Any] = None,
         lr_scheduler_hparams: Dict[str, Any] = None,
         **kwargs,
@@ -52,10 +54,10 @@ class BaseModel(pl.LightningModule):
         self.save_hyperparameters()
 
         # backbone model
-        self.backbone = self.init_backbone(backbone_hparams)
+        self.backbone = self.init_backbone(backbone_hparams, dataset_hparams)
 
         # tasks
-        tasks = self.init_tasks(task_hparams)
+        tasks = self.init_tasks(task_hparams, dataset_hparams)
         if isinstance(tasks, Task):
             tasks = [tasks]
         assert isinstance(tasks, Sequence)
@@ -79,7 +81,9 @@ class BaseModel(pl.LightningModule):
         # timer
         self.timer = TimeMeter()
 
-    def init_backbone(self, hparams: Dict[str, Any]) -> nn.Module:
+    def init_backbone(
+        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+    ) -> nn.Module:
         """
         Create a backbone torch model.
 
@@ -96,7 +100,9 @@ class BaseModel(pl.LightningModule):
         """
         raise NotImplementedError
 
-    def init_tasks(self, hparams: Dict[str, Any]) -> Dict:
+    def init_tasks(
+        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+    ) -> Dict:
         """
         Define the tasks used to compute loss and metrics.
 
@@ -429,52 +435,6 @@ class ModelForPyGData(BaseModel):
 
         Args:
             model_input: (batched) PyG graph
-
-        Returns:
-            {task_name: task_prediction}
-        """
-
-        preds = self.backbone(model_input)
-
-        return preds
-
-
-class ModelForDictData(BaseModel):
-    """
-    A lightning model working with data provided as PyG batched data.
-
-    Subclass must implement:
-        - init_backbone(): create the underlying torch model
-        - init_tasks(): create tasks that defines initialize the loss function and metrics
-    """
-
-    def preprocess_batch(self, batch) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
-        """
-        preprocess the batch data to get model input and labels.
-
-        Args:
-            batch: dict
-
-        Returns:
-            (model_input, labels), where model_input is a dict of model input and labels
-                is a dict of tensors, i.e. {task_name: task_label}
-        """
-
-        # task labels
-        labels = {name: batch.pop(name) for name in self.tasks}
-
-        model_input = batch
-
-        return model_input, labels
-
-    def decode(
-        self, model_input: Dict[str, Tensor], *args, **kwargs
-    ) -> Dict[str, Tensor]:
-        """
-        Compute prediction for each task using the backbone model.
-
-        Args:
-            model_input: input for the model to make predictions
 
         Returns:
             {task_name: task_prediction}

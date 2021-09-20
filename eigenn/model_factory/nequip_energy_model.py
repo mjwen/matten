@@ -9,23 +9,23 @@ from nequip.nn.embedding import (
     SphericalHarmonicEdgeAttrs,
 )
 
-from eigenn.model.model import ModelForDictData
+from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 
 
-class EnergyModel(ModelForDictData):
-    def init_backbone(self, hparams):
-        backbone = create_energy_model(hparams)
+class EnergyModel(ModelForPyGData):
+    def init_backbone(self, hparams, dataset_hparams):
+        backbone = create_energy_model(hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(self, hparams):
+    def init_tasks(self, hparams, dataset_hparams):
         task = CanonicalRegressionTask(name=hparams["task_name"])
 
         return task
 
 
-def create_energy_model(hparams: Dict[str, Any]):
+def create_energy_model(hparams, dataset_hparams):
 
     num_layers = hparams.pop("num_layers", 3)
 
@@ -35,7 +35,7 @@ def create_energy_model(hparams: Dict[str, Any]):
         "one_hot": (
             OneHotAtomEncoding,
             {
-                "num_species": 3,
+                "num_species": dataset_hparams["num_species"],
                 "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
             },
         ),
