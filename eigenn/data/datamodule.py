@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from pytorch_lightning import LightningDataModule
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 
 from eigenn.utils import to_path
 
@@ -44,7 +44,7 @@ class BaseDataModule(LightningDataModule):
         self.testset_filename = testset_filename
         self.state_dict_filename = state_dict_filename
         self.restore_state_dict_filename = restore_state_dict_filename
-        self.loader_kwargs = loader_kwargs
+        self.loader_kwargs = {} if loader_kwargs is None else loader_kwargs
 
         self.train_data = None
         self.val_data = None
@@ -86,9 +86,12 @@ class BaseDataModule(LightningDataModule):
 
     def get_to_model_info(self) -> Dict[str, Any]:
         """
-        Pack necessary dataset info as as dict, and this dict will be passed as
-        arguments to the model. Such info might include feature size, number of classes
-        for reaction.
+        Pack dataset info need by a model.
+
+        This may include info for initialization of the model (e.g. number of classes),
+        and info needed by label postprocessing (e.g. label mean and standard deviation).
+
+        Such info will be pass as arguments to the model.
         """
         raise NotImplementedError
 

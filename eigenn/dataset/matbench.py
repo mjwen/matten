@@ -1,6 +1,7 @@
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
+import numpy as np
 from monty.serialization import loadfn
 
 from eigenn.data.data import Crystal
@@ -55,8 +56,22 @@ class MatbenchDataset(InMemoryDataset):
                     if i != struct_idx
                 }
 
-                c = Crystal.from_pymatgen(struct=struct, r_cut=self.r_cut, x=None, y=y)
+                # metadata needed by the model
+
+                # atomic numbers, shape (N_atom, 1)
+                atomic_numbers = np.asarray(
+                    struct.atomic_numbers, dtype=np.int64
+                ).reshape(-1, 1)
+
+                c = Crystal.from_pymatgen(
+                    struct=struct,
+                    r_cut=self.r_cut,
+                    x=None,
+                    y=y,
+                    atomic_numbers=atomic_numbers,
+                )
                 crystals.append(c)
+
             except Exception as e:
                 raise Exception(f"Failed converting structure {irow}. " + str(e))
 
@@ -97,6 +112,17 @@ class MatbenchDataMoldule(BaseDataModule):
         self.val_data = MatbenchDataset(self.valset_filename, self.r_cut, self.root)
         self.test_data = MatbenchDataset(self.testset_filename, self.r_cut, self.root)
 
+    def get_to_model_info(self) -> Dict[str, Any]:
+
+        # TODO This Should be moved to dataset
+        atomic_numbers = set()
+        for data in self.train_dataloader():
+            a = data.atomic_numbers[0].reshape(-1).tolist()
+            atomic_numbers.update(a)
+        num_species = len(atomic_numbers)
+
+        return {"num_species": num_species}
+
 
 if __name__ == "__main__":
     dataset = MatbenchDataset.from_task_name(
@@ -110,3 +136,5 @@ if __name__ == "__main__":
         r_cut=5.0,
         root="/tmp",
     )
+    dm.setup()
+    dm.get_to_model_info()
