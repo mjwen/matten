@@ -8,12 +8,14 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from pymatgen.core.structure import Structure
+from torch import Tensor
 from torch_geometric.data import Data
 
 from eigenn.core.configuration import Configuration
 from eigenn.typing import PBC, IntVector, Vector
 
 DTYPE = torch.get_default_dtype()
+DTYPE_INT = torch.int64
 
 
 class DataPoint(Data):
@@ -65,14 +67,14 @@ class DataPoint(Data):
             num_nodes = None
 
         if edge_index is not None:
-            edge_index = torch.as_tensor(edge_index, dtype=torch.int64)
+            edge_index = torch.as_tensor(edge_index, dtype=DTYPE_INT)
             assert edge_index.shape[0] == 2
             num_edges = edge_index.shape[1]
         else:
             num_edges = None
 
         if edge_cell_shift is not None:
-            edge_cell_shift = torch.as_tensor(edge_cell_shift, dtype=torch.int64)
+            edge_cell_shift = torch.as_tensor(edge_cell_shift, dtype=DTYPE_INT)
             assert edge_cell_shift.shape == (num_edges, 3)
             assert cell is not None, (
                 "both `edge_cell_shift` and `cell` should be " "provided"
@@ -95,6 +97,28 @@ class DataPoint(Data):
         if y is not None:
             y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
 
+        # convert kwargs to tensor
+        tensor_kwargs = {}
+        for k, v in kwargs.items():
+            if isinstance(v, np.ndarray):
+                if np.issubdtype(v.dtype, np.floating):
+                    v = torch.as_tensor(v, dtype=DTYPE)
+                else:
+                    v = torch.as_tensor(v, dtype=DTYPE_INT)
+            elif isinstance(v, Tensor):
+                if v.dtype in (torch.float16, torch.float32, torch.float64):
+                    v = torch.as_tensor(v, dtype=DTYPE)
+                else:
+                    v = torch.as_tensor(v, dtype=DTYPE_INT)
+            else:
+                raise ValueError(
+                    f"Only accepts np.ndarray or torch.Tensor. kwarg `{k}` is of type "
+                    f" `{type(v)}`."
+                )
+
+            tensor_kwargs[k] = v
+
+        # sanity check
         self.sanity_check()
 
         super().__init__(
@@ -105,7 +129,7 @@ class DataPoint(Data):
             num_nodes=num_nodes,
             x=x,
             y=y,
-            **kwargs,
+            **tensor_kwargs,
         )
 
     def sanity_check(self):
