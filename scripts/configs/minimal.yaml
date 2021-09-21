@@ -22,7 +22,6 @@ model:
 
 trainer:
   max_epochs: 20
-  logger: true
   checkpoint_callback: true
   num_nodes: 1
   num_processes: 1
@@ -33,7 +32,26 @@ trainer:
   num_sanity_val_steps: 2
   terminate_on_nan: false
   precision: 32
-#  callbacks:
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/score
+        mode: min
+        save_top_k: 3
+        save_last: true
+        verbose: False
+    - class_path: pytorch_lightning.callbacks.EarlyStopping
+      init_args:
+        monitor: val/score
+        mode: min
+        patience: 100
+        min_delta: 0
+        verbose: true
+  logger:
+    class_path: pytorch_lightning.loggers.wandb.WandbLogger
+    init_args:
+      save_dir: wandb_logs # should be provided to make cli save config work
+      project: tmp-eigenn
 
 optimizer:
   class_path: torch.optim.Adam

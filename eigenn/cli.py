@@ -5,9 +5,19 @@ See pytorch_lightning docs for info on how to use this:
 https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html
 """
 
+import os
+from typing import Optional
+
 import pl_bolts
 import torch
-from pytorch_lightning.utilities.cli import LightningCLI, instantiate_class
+from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.utilities.cli import LightningCLI
+from pytorch_lightning.utilities.cli import (
+    SaveConfigCallback as LightningSaveConfigCallback,
+)
+from pytorch_lightning.utilities.cli import instantiate_class
+
+from eigenn.utils_wandb import get_wandb_logger, save_files_to_wandb
 
 
 class EigennCLI(LightningCLI):
@@ -76,7 +86,30 @@ class EigennCLI(LightningCLI):
         datamodule = instantiate_class(args, data_config)
 
         # setup datamodule and get to model into
+        datamodule.prepare_data()
         datamodule.setup()
         to_model_info = datamodule.get_to_model_info()
 
         return datamodule, to_model_info
+
+
+class SaveConfigCallback(LightningSaveConfigCallback):
+    """
+    Saves a LightningCLI config to the log_dir when training starts.
+
+    Here, we add the functionality to save the config to wandb if a wandb logger exists.
+    """
+
+    def setup(
+        self, trainer: Trainer, pl_module: LightningModule, stage: Optional[str] = None
+    ) -> None:
+
+        super().setup(trainer, pl_module, stage)
+
+        # save to wandb
+        log_dir = trainer.log_dir
+        config_path = os.path.join(log_dir, self.config_filename)
+
+        wandb_logger = get_wandb_logger(trainer.logger)
+        if wandb_logger is not None:
+            save_files_to_wandb(wandb_logger.experiment, [config_path])

@@ -7,10 +7,10 @@ python train.py --config configs/minimal.yaml
 
 """
 
+from eigenn.cli import EigennCLI, SaveConfigCallback
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.model_factory.nequip_energy_model import EnergyModel
 from eigenn.utils import to_path
-from scripts.cli import EigennCLI
 
 CWD = to_path(__file__).parent
 
@@ -25,6 +25,9 @@ def main():
         model_class=EnergyModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
+        save_config_callback=SaveConfigCallback,
+        save_config_filename="cli_config.yaml",
+        description="Eigenn training command line tool",
         parser_kwargs={
             "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
         },
