@@ -286,8 +286,8 @@ class BaseModel(pl.LightningModule):
 
             # regression metrics
             if isinstance(task, RegressionTask):
-                pr, la = task.transform(preds[task_name], labels[task_name])
-                metric(pr, la)
+                p, l = task.transform(preds[task_name], labels[task_name])
+                metric(p, l)
 
             # classification metrics
             elif isinstance(task, ClassificationTask):
@@ -407,7 +407,7 @@ class ModelForPyGData(BaseModel):
 
     """
 
-    def preprocess_batch(self, batch) -> Tuple[DataPoint, Dict[str, Tensor]]:
+    def preprocess_batch(self, batch: DataPoint) -> Tuple[DataPoint, Dict[str, Tensor]]:
         """
         Preprocess the batch data to get model input and labels.
 
@@ -426,6 +426,9 @@ class ModelForPyGData(BaseModel):
 
         # task labels
         labels = {name: graphs.y[name] for name in self.tasks}
+
+        # convert graphs to a dict to use NequIP stuff
+        graphs = graphs.tensor_property_to_dict()
 
         return graphs, labels
 

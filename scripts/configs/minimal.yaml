@@ -8,7 +8,7 @@ data:
     r_cut: 5.0
     root: /tmp
     loader_kwargs:
-      batch_size: 2
+      batch_size: 10
 
 model:
   backbone_hparams:

@@ -15,6 +15,10 @@ from eigenn.model_factory.utils import create_sequential_module
 
 
 class EnergyModel(ModelForPyGData):
+    """
+    A model to predict the energy of an atomic configuration.
+    """
+
     def init_backbone(self, hparams, dataset_hparams):
         backbone = create_energy_model(hparams, dataset_hparams)
         return backbone
@@ -23,6 +27,13 @@ class EnergyModel(ModelForPyGData):
         task = CanonicalRegressionTask(name=hparams["task_name"])
 
         return task
+
+    def decode(self, model_input):
+        out = self.backbone(model_input)
+        n = out["total_energy"].reshape(-1)
+        preds = {"n": n}
+
+        return preds
 
 
 def create_energy_model(hparams, dataset_hparams):
@@ -35,7 +46,8 @@ def create_energy_model(hparams, dataset_hparams):
         "one_hot": (
             OneHotAtomEncoding,
             {
-                "num_species": dataset_hparams["num_species"],
+                # "num_species": dataset_hparams["num_species"],
+                "allowed_species": dataset_hparams["allowed_species"],
                 "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
             },
         ),
