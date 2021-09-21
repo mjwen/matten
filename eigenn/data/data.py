@@ -74,7 +74,9 @@ class DataPoint(Data):
             num_edges = None
 
         if edge_cell_shift is not None:
-            edge_cell_shift = torch.as_tensor(edge_cell_shift, dtype=DTYPE_INT)
+            # the dtype can be int, but we use float here because it's going to
+            # be multiplied with `cell`, which is float
+            edge_cell_shift = torch.as_tensor(edge_cell_shift, dtype=DTYPE)
             assert edge_cell_shift.shape == (num_edges, 3)
             assert cell is not None, (
                 "both `edge_cell_shift` and `cell` should be " "provided"
@@ -94,8 +96,10 @@ class DataPoint(Data):
         # convert input and output to tensors
         if x is not None:
             x = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in x.items()}
+            self._check_tensor_dict(x, dict_name="x")
         if y is not None:
             y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
+            self._check_tensor_dict(y, dict_name="y")
 
         # convert kwargs to tensor
         tensor_kwargs = {}
@@ -115,11 +119,8 @@ class DataPoint(Data):
                     f"Only accepts np.ndarray or torch.Tensor. kwarg `{k}` is of type "
                     f" `{type(v)}`."
                 )
-
             tensor_kwargs[k] = v
-
-        # sanity check
-        self.sanity_check()
+        self._check_tensor_dict(tensor_kwargs, dict_name="kwargs")
 
         super().__init__(
             pos=pos,
@@ -132,11 +133,32 @@ class DataPoint(Data):
             **tensor_kwargs,
         )
 
-    def sanity_check(self):
+    def tensor_property_to_dict(self):
         """
-        Check the shape of the input x and output y.
+        Convert all tensor properties to a dict.
         """
-        pass
+        d = self.to_dict()
+        return {k: v for k, v in d.items() if isinstance(v, Tensor)}
+
+    @staticmethod
+    def _check_tensor_dict(d: Dict[str, Tensor], dict_name: str = "name_unknown"):
+        """
+        Check the values of a dict are at least 1D tensors.
+
+        Args:
+            d: the dict to check
+            dict_name: name of the dictionary
+        """
+
+        for k, v in d.items():
+            assert isinstance(
+                v, Tensor
+            ), f"Expect `{k}` in dict `{dict_name}` to be a tensor, got `{type(v)}`"
+
+            assert len(v.shape) >= 1, (
+                f"Expect `{k}` in dict `{dict_name}` to be a tensor at least 1D, "
+                f"but its shape is `{v.shape}`."
+            )
 
 
 class Molecule(DataPoint):

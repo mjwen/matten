@@ -50,18 +50,16 @@ class MatbenchDataset(InMemoryDataset):
                 struct = row[struct_idx]
 
                 # get property
-                y = {
-                    name: value
-                    for i, (name, value) in enumerate(zip(columns, row))
-                    if i != struct_idx
-                }
+                y = {}
+                for i, (name, value) in enumerate(zip(columns, row)):
+                    # not structure column, then property column
+                    if i != struct_idx:
+                        y[name] = np.atleast_1d(value)
 
                 # metadata needed by the model
 
-                # atomic numbers, shape (N_atom, 1)
-                atomic_numbers = np.asarray(
-                    struct.atomic_numbers, dtype=np.int64
-                ).reshape(-1, 1)
+                # atomic numbers, shape (N_atom,)
+                atomic_numbers = np.asarray(struct.atomic_numbers, dtype=np.int64)
 
                 c = Crystal.from_pymatgen(
                     struct=struct,
@@ -73,7 +71,7 @@ class MatbenchDataset(InMemoryDataset):
                 crystals.append(c)
 
             except Exception as e:
-                raise Exception(f"Failed converting structure {irow}. " + str(e))
+                raise Exception(f"Failed converting structure {irow}.")
 
         return crystals
 
@@ -117,11 +115,13 @@ class MatbenchDataMoldule(BaseDataModule):
         # TODO This Should be moved to dataset
         atomic_numbers = set()
         for data in self.train_dataloader():
-            a = data.atomic_numbers[0].reshape(-1).tolist()
+            a = data.atomic_numbers.tolist()
             atomic_numbers.update(a)
         num_species = len(atomic_numbers)
 
-        return {"num_species": num_species}
+        # return {"num_species": num_species}
+
+        return {"allowed_species": tuple(atomic_numbers)}
 
 
 if __name__ == "__main__":
