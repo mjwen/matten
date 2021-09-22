@@ -27,6 +27,7 @@ def main():
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
         save_config_filename="cli_config.yaml",
+        save_config_overwrite=True,
         description="Eigenn training command line tool",
         parser_kwargs={
             "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
