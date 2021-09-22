@@ -15,20 +15,23 @@ class Backbone(nn.Module):
         super().__init__()
         self.layer = nn.Linear(in_features=input_dim, out_features=1)
 
-    def forward(self, graphs, labels=None, metadata=None):
+    def forward(self, graphs):
         output = self.layer(graphs)
         return {TASK_NAME: output}
 
 
 class BasicModel(BaseModel):
-    def init_backbone(self, hparams):
+    def init_backbone(self, hparams, dataset_hparams):
         backbone = Backbone()
         return backbone
 
-    def init_tasks(self, hparams):
+    def init_tasks(self, hparams, dataset_hparams):
         task = CanonicalClassificationTask(name=TASK_NAME, num_classes=2)
 
         return task
+
+    def decode(self, model_input):
+        return self.backbone(model_input)
 
 
 def test_basic_model():
@@ -38,7 +41,7 @@ def test_basic_model():
 
     # model
     model = BasicModel()
-    preds = model.decode(input, None, None)
+    preds = model.decode(input)
 
     # output
     reference = torch.tensor([[-0.4218], [-0.6598]])
