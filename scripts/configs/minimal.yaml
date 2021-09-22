@@ -2,11 +2,11 @@ seed_everything: 35
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
-    trainset_filename: matbench_dielectric.json
-    valset_filename: matbench_dielectric.json
-    testset_filename: matbench_dielectric.json
+    trainset_filename: matbench_dielectric_val.json
+    valset_filename: matbench_dielectric_val.json
+    testset_filename: matbench_dielectric_test.json
     r_cut: 5.0
-    root: /tmp
+    root: /Users/mjwen/Documents/Dataset/matbench/matbench_dielectric
     loader_kwargs:
       batch_size: 10
 

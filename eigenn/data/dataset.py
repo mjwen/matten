@@ -35,9 +35,6 @@ class InMemoryDataset(PyGInMemoryDataset):
         self.filenames = to_list(filenames)
         self.url = url
 
-        self.data = None
-        self.slices = None
-
         # !!! don't delete this block.
         # otherwise the inherent children class will ignore the download function here
         class_type = type(self)
@@ -49,8 +46,7 @@ class InMemoryDataset(PyGInMemoryDataset):
 
         super().__init__(root=root)
 
-        if self.data is None or self.slices is None:
-            self.data, self.slices = torch.load(self.processed_paths[0])
+        self.data, self.slices = torch.load(self.processed_paths[0])
 
     def get_data(self) -> List[DataPoint]:
         """
@@ -69,7 +65,10 @@ class InMemoryDataset(PyGInMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["data.pt"]
+        """
+        Original filenames with _data.pt appended.
+        """
+        return [to_path(f).stem + "_data.pt" for f in self.filenames]
 
     def download(self):
         # from torch_geometric.data import download_url
@@ -89,9 +88,6 @@ class InMemoryDataset(PyGInMemoryDataset):
             data_list = [self.pre_transform(data) for data in data_list]
 
         data, slices = self.collate(data_list)
-
-        self.data = data
-        self.slices = slices
 
         torch.save((data, slices), self.processed_paths[0])
 
