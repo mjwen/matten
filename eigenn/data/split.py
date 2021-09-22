@@ -3,8 +3,6 @@ from typing import Optional, Tuple, Union
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-train_test_split()
-
 
 def train_test_split_dataframe(
     df: pd.DataFrame,
