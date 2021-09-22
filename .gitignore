@@ -134,3 +134,4 @@ dmypy.json
 
 # package specific ignores
 lightning_logs/
+wandb_logs/
