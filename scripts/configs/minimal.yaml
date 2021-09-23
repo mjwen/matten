@@ -13,10 +13,10 @@ data:
 model:
   backbone_hparams:
     num_layers: 3
+    r_max: 4
     species_embedding_irreps_out: 16x0e
     feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
     irreps_edge_sh: 0e + 1o
-    r_max: 4
   task_hparams:
     task_name: n
 

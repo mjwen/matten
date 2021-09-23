@@ -46,9 +46,18 @@ def create_energy_model(hparams, dataset_hparams):
         "one_hot": (
             OneHotAtomEncoding,
             {
-                # "num_species": dataset_hparams["num_species"],
                 "allowed_species": dataset_hparams["allowed_species"],
-                "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
+                # node_features determines output irreps. It must be used together with
+                # set_features=False, which disables overriding of the given
+                # node_features. Otherwise, node_features irreps will be set to
+                # node_attrs irreps, which is determined by the `allowed_species`.
+                #
+                # Well, the OneHOtAtomEncoding has to sue set_features = True, because
+                # otherwise, node_features will not be include in the output data for
+                # latter use.
+                # "set_features": False,
+                # "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
+                "set_features": True,
             },
         ),
         "spharm_edges": (
@@ -108,11 +117,15 @@ def create_energy_model(hparams, dataset_hparams):
 if __name__ == "__main__":
     from eigenn.log import set_logger
 
-    params = {
+    set_logger("DEBUG")
+
+    hparams = {
         "species_embedding_irreps_out": "16x0e",
         "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_layers": 3,
         "r_max": 4,
     }
-    create_energy_model(params)
+
+    dataset_hyarmas = {"allowed_species": [6, 1, 8]}
+    create_energy_model(hparams, dataset_hyarmas)
