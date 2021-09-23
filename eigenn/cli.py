@@ -27,6 +27,10 @@ class EigennCLI(LightningCLI):
         # TODO, this does not work now due to a lightning bug
         # parser.link_arguments("trainer.max_epochs", "lr_scheduler.max_epochs")
 
+        parser.add_argument(
+            "--skip_test", default=False, help="Whether to skip the test?"
+        )
+
         # line_to should be argument of the model
         parser.add_optimizer_args(
             (torch.optim.Adam, torch.optim.SGD),

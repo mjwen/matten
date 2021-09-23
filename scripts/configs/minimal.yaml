@@ -4,7 +4,7 @@ data:
   init_args:
     trainset_filename: matbench_dielectric_val.json
     valset_filename: matbench_dielectric_val.json
-    testset_filename: matbench_dielectric_test.json
+    testset_filename: matbench_dielectric_val.json
     r_cut: 5.0
     root: /Users/mjwen/Documents/Dataset/matbench/matbench_dielectric
     loader_kwargs:
@@ -21,7 +21,7 @@ model:
     task_name: n
 
 trainer:
-  max_epochs: 20
+  max_epochs: 5
   checkpoint_callback: true
   num_nodes: 1
   num_processes: 1

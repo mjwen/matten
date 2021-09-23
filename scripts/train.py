@@ -6,6 +6,10 @@ python train.py # use the default config file specified below
 python train.py --config configs/minimal.yaml
 
 """
+import sys
+
+import yaml
+from loguru import logger
 
 from eigenn.cli import EigennCLI, SaveConfigCallback
 from eigenn.data.datamodule import BaseDataModule
@@ -16,6 +20,8 @@ CWD = to_path(__file__).parent
 
 
 def main():
+
+    logger.info("Start parsing experiment config and instantiating model!")
 
     # create cli
     cli = EigennCLI(
@@ -35,10 +41,43 @@ def main():
         run=False,
     )
 
+    # print config to stderr
+    print(file=sys.stderr, flush=True)  # flush buffer to avoid them entering config
+    print("=" * 80, file=sys.stderr)
+    print(
+        "Configurations (also saved as cli_config.yaml):", end="\n\n", file=sys.stderr
+    )
+    # print(cli.parser.dump(cli.config, skip_none=False), file=sys.stderr)
+    yaml.dump(cli.config, stream=sys.stderr)  # also prints out __default_config__
+    print("=" * 80, end="\n\n\n", file=sys.stderr, flush=True)
+
     # TODO, we may want to jit the cli.model here
 
     # fit the model
+    logger.info("Start training!")
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
+
+    # test the model
+    if not cli.config["skip_test"]:
+        logger.info("Start testing!")
+        test_metric_score = cli.trainer.test()
+    else:
+        test_metric_score = [{}]
+
+    # TODO save other file, e.g. submit.sh, run.log
+
+    # Print path to best checkpoint
+    logger.info(
+        f"Best checkpoint path: {cli.trainer.checkpoint_callback.best_model_path}"
+    )
+
+    # final validation metric score
+    monitor = cli.model.monitor_key  # e.g. val/score
+    val_metric_score = cli.trainer.callback_metrics[monitor]
+    logger.info(f"Validation metric score ({monitor}): {val_metric_score}")
+
+    # final test metric score
+    logger.info(f"Test metric score: {test_metric_score}")
 
 
 if __name__ == "__main__":
