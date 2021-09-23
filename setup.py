@@ -29,12 +29,8 @@ setup(
         "requests",
         "scipy",
         "pymatgen",
-        "pytorch",
-        "pyg",
         "pytorch-lightning",
-        "torchmetrics",
         "lightning-bolts",
-        "jsonargparse",
         "e3nn",
     ],
     extras_require={
