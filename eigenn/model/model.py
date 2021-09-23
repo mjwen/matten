@@ -81,6 +81,10 @@ class BaseModel(pl.LightningModule):
         # timer
         self.timer = TimeMeter()
 
+        # callback monitor key. Should set argument `monitor` of the ModelCheckpoint to
+        # this. Same for other callbacks
+        self.monitor_key = "val/score"
+
     def init_backbone(
         self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
     ) -> nn.Module:
@@ -214,7 +218,9 @@ class BaseModel(pl.LightningModule):
 
         # val/score used for early stopping and learning rate scheduler
         if score is not None:
-            self.log(f"val/score", score, on_step=False, on_epoch=True, prog_bar=True)
+            self.log(
+                self.monitor_key, score, on_step=False, on_epoch=True, prog_bar=True
+            )
 
         # time it
         delta_t, cumulative_t = self.timer.update()
@@ -373,7 +379,7 @@ class BaseModel(pl.LightningModule):
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": scheduler,
-                "monitor": "val/score",
+                "monitor": self.monitor_key,
             }
 
     def _config_lr_scheduler(self, optimizer):

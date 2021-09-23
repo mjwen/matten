@@ -128,9 +128,9 @@ class Task:
 
         This function should return a dict: {metric_name: metric_weight}, and it should
         be used together with `init_metric()`.
-        `metric_name` is the name of the metric that contributes to the score and
-        `metric_weight` is the corresponding score. The total score is a weighted sum
-        of individual scores.
+        `metric_name` is the name of the metric (class name) that contributes to the
+        score and `metric_weight` is the corresponding score. The total score is a
+        weighted sum of individual scores.
 
         By default, this is an empty dict, meaning that no total metric score will be
         computed.
