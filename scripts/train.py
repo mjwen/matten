@@ -64,7 +64,6 @@ def main():
     else:
         test_metric_score = [{}]
 
-    # TODO save other file, e.g. submit.sh, run.log
 
     # Print path to best checkpoint
     logger.info(
@@ -77,7 +76,7 @@ def main():
     logger.info(f"Validation metric score ({monitor}): {val_metric_score}")
 
     # final test metric score
-    logger.info(f"Test metric score: {test_metric_score}")
+    logger.info(f"Test loss and metric score: {test_metric_score}")
 
 
 if __name__ == "__main__":

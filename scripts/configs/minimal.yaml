@@ -21,7 +21,7 @@ model:
     task_name: n
 
 trainer:
-  max_epochs: 5
+  max_epochs: 2
   checkpoint_callback: true
   num_nodes: 1
   num_processes: 1

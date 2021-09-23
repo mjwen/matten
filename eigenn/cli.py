@@ -117,3 +117,14 @@ class SaveConfigCallback(LightningSaveConfigCallback):
         wandb_logger = get_wandb_logger(trainer.logger)
         if wandb_logger is not None:
             save_files_to_wandb(wandb_logger.experiment, [config_path])
+
+    def teardown(
+        self, trainer: Trainer, pl_module: LightningModule, stage: Optional[str] = None
+    ) -> None:
+
+        # TODO save running meta, e.g. git commit
+        # save other files to wandb
+        files_to_save = ["run.log", "submit.sh"]
+        wandb_logger = get_wandb_logger(trainer.logger)
+        if wandb_logger is not None:
+            save_files_to_wandb(wandb_logger.experiment, files_to_save)
