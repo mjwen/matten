@@ -30,8 +30,10 @@ class EnergyModel(ModelForPyGData):
 
     def decode(self, model_input):
         out = self.backbone(model_input)
-        n = out["total_energy"].reshape(-1)
-        preds = {"n": n}
+        out = out["total_energy"].reshape(-1)
+
+        task_name = self.hparams.task_hparams["task_name"]
+        preds = {task_name: out}
 
         return preds
 

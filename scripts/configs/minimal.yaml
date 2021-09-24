@@ -2,18 +2,18 @@ seed_everything: 35
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
+    root: /Users/mjwen/Documents/Dataset/matbench/matbench_dielectric
     trainset_filename: matbench_dielectric_val.json
     valset_filename: matbench_dielectric_val.json
     testset_filename: matbench_dielectric_val.json
     r_cut: 5.0
-    root: /Users/mjwen/Documents/Dataset/matbench/matbench_dielectric
     loader_kwargs:
       batch_size: 10
 
 model:
   backbone_hparams:
     num_layers: 3
-    r_max: 4
+    r_max: 5.0 # this should be the same as r_cut in dataset
     species_embedding_irreps_out: 16x0e
     feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
     irreps_edge_sh: 0e + 1o

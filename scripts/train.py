@@ -48,7 +48,8 @@ def main():
         "Configurations (also saved as cli_config.yaml):", end="\n\n", file=sys.stderr
     )
     # print(cli.parser.dump(cli.config, skip_none=False), file=sys.stderr)
-    yaml.dump(cli.config, stream=sys.stderr)  # also prints out __default_config__
+    # the below line also prints out __default_config__
+    yaml.dump(cli.config, stream=sys.stderr, sort_keys=True)
     print("=" * 80, end="\n\n\n", file=sys.stderr, flush=True)
 
     # TODO, we may want to jit the cli.model here
@@ -63,7 +64,6 @@ def main():
         test_metric_score = cli.trainer.test()
     else:
         test_metric_score = [{}]
-
 
     # Print path to best checkpoint
     logger.info(
