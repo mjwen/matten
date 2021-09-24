@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -105,8 +106,8 @@ class MatbenchDataset(InMemoryDataset):
                 )
                 crystals.append(c)
 
-            except Exception:
-                raise Exception(f"Failed converting structure {irow}.")
+            except Exception as e:
+                warnings.warn(f"Failed converting structure {irow}: {str(e)}. Skip it.")
 
         return crystals
 
