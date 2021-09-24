@@ -101,7 +101,7 @@ class SaveConfigCallback(LightningSaveConfigCallback):
     """
     Saves a LightningCLI config to the log_dir when training starts.
 
-    Here, we add the functionality to save the config to wandb if a wandb logger exists.
+    Here, we add the functionalty to save the config to wandb if a wandb logger exists.
     """
 
     def setup(
