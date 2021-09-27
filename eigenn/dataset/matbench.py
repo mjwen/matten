@@ -10,6 +10,7 @@ from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
 
 
+# TODO, keep info of cut. If cutoff changes, should reprocess data.
 class MatbenchDataset(InMemoryDataset):
     """
     The matbench dataset of material properties.

@@ -1,17 +1,14 @@
-import logging
 import os
 import shutil
 import subprocess
-import warnings
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
+from loguru import logger
 from pytorch_lightning.loggers import LightningLoggerBase, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from eigenn.utils import to_path, yaml_dump
-
-logger = logging.getLogger(__name__)
 
 
 def get_git_repo_commit(repo_path: Path) -> str:
@@ -85,7 +82,7 @@ def save_files_to_wandb(wandb, paths: List[Union[str, Path]]):
             shutil.copy(p, target)
             wandb.save(target.as_posix(), policy="now")
         else:
-            warnings.warn(f"File `{str(p)}` does not exist. Won't save it to wandb.")
+            logger.warning(f"File `{str(p)}` does not exist. Won't save it to wandb.")
 
 
 def get_wandb_run_path(identifier: str, path: Union[str, Path] = "."):
@@ -113,6 +110,8 @@ def get_wandb_run_path(identifier: str, path: Union[str, Path] = "."):
 
 def get_wandb_checkpoint_path(identifier: str, path: Union[str, Path] = "."):
     """
+    Get path to the checkpoint directory.
+
     Args:
         identifier: wandb unique identifier of experiment, e.g. 2i3rocdl
         path: root path to search
@@ -124,7 +123,7 @@ def get_wandb_checkpoint_path(identifier: str, path: Union[str, Path] = "."):
         if root.endswith(f"{identifier}/checkpoints"):
             return os.path.abspath(root)
 
-    raise RuntimeError(f"Cannot found job {identifier} in {path}")
+    return None
 
 
 def get_wandb_logger(loggers: Union[List[LightningLoggerBase], LightningLoggerBase]):
@@ -143,3 +142,39 @@ def get_wandb_logger(loggers: Union[List[LightningLoggerBase], LightningLoggerBa
             return loggers
 
     return None
+
+
+def get_wandb_checkpoint_and_identifier_latest(
+    save_dir: Union[str, Path], run_directory: str = "latest-run"
+) -> Tuple[Union[str, None], Union[str, None]]:
+    """
+    Get the latest checkpoint path and the identifier of the wandb logger from wandb logs.
+
+    Args:
+        save_dir: name of the directory to save wandb log, e.g. /path/to/wandb_log/
+        run_directory: the directory for the run that stores files, logs, and run info,
+            e.g. run-20210203_142512-6eooscnj
+    Returns:
+        ckpt_path: path to the latest run
+        identifier: identifier of the wandb run
+    """
+    save_dir = to_path(save_dir)
+
+    latest_run = save_dir.joinpath("wandb", run_directory).resolve()
+
+    if latest_run.exists():
+        # identifier of latest_run
+        identifier = str(latest_run).split("-")[-1]
+
+        # checkpoint path of latest_run
+        ckpt_dir = get_wandb_checkpoint_path(identifier, save_dir)
+        if ckpt_dir is not None:
+            ckpt_path = str(to_path(ckpt_dir).joinpath("last.ckpt").resolve())
+        else:
+            ckpt_path = None
+            identifier = None
+    else:
+        ckpt_path = None
+        identifier = None
+
+    return ckpt_path, identifier
