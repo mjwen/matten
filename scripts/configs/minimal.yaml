@@ -18,6 +18,7 @@ model:
     species_embedding_irreps_out: 16x0e
     feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
     irreps_edge_sh: 0e + 1o
+    reduce: sum
   task_hparams:
     task_name: n
 

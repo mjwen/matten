@@ -1,5 +1,5 @@
+import sys
 from collections import OrderedDict
-from typing import Any, Dict
 
 from nequip.data import AtomicDataDict
 from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
@@ -100,10 +100,11 @@ def create_energy_model(hparams, dataset_hparams):
         }
     )
 
-    layers["total_energy_sum"] = (
+    reduce = hparams["reduce"]
+    layers[f"total_energy_{reduce}"] = (
         AtomwiseReduce,
         dict(
-            reduce="sum",
+            reduce=reduce,
             field=AtomicDataDict.PER_ATOM_ENERGY_KEY,
             out_field=AtomicDataDict.TOTAL_ENERGY_KEY,
         ),
@@ -112,6 +113,9 @@ def create_energy_model(hparams, dataset_hparams):
     model = create_sequential_module(
         modules=OrderedDict(layers), use_kwargs_irreps_in=True
     )
+
+    # print the model
+    print(model, file=sys.stderr)
 
     return model
 
@@ -127,6 +131,7 @@ if __name__ == "__main__":
         "irreps_edge_sh": "0e + 1o",
         "num_layers": 3,
         "r_max": 4,
+        "reduce": "sum",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
