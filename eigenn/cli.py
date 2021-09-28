@@ -29,10 +29,6 @@ from eigenn.utils_wandb import (
 class EigennCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
 
-        # argument link
-        # TODO, this does not work now due to a lightning bug
-        # parser.link_arguments("trainer.max_epochs", "lr_scheduler.max_epochs")
-
         parser.add_argument(
             "--restore",
             default=None,
@@ -45,13 +41,13 @@ class EigennCLI(LightningCLI):
             "--skip_test", default=False, help="Whether to skip the test?"
         )
 
-        # line_to should be argument of the model
+        # link_to should be argument of the model
         parser.add_optimizer_args(
             (torch.optim.Adam, torch.optim.SGD),
             link_to="model.optimizer_hparams",
         )
 
-        # line_to should be argument of the model
+        # link_to should be argument of the model
         parser.add_lr_scheduler_args(
             (
                 pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR,
@@ -60,7 +56,15 @@ class EigennCLI(LightningCLI):
             link_to="model.lr_scheduler_hparams",
         )
 
-    # NOTE Reimplement instantiate_classes to call datamodule setup() and pass necessary
+        # argument link
+        # TODO, this does not work now due to a lightning bug
+        # parser.link_arguments("trainer.max_epochs", "lr_scheduler.init_args.max_epochs")
+
+        # link trainer and data configs to model to let wandb log them
+        parser.link_arguments("trainer", "model.trainer_hparams")
+        parser.link_arguments("data", "model.data_hparams")
+
+    # Reimplement instantiate_classes to call datamodule setup() and pass necessary
     # dataset info to model as `hparams_dataset`
     def instantiate_classes(self) -> None:
         """Instantiates the classes and sets their attributes."""
@@ -94,16 +98,23 @@ class EigennCLI(LightningCLI):
         # instantiate datamodule
         self.datamodule, to_model_info = self._instantiate_datamodule(data_config)
 
-        # add model dataset_hparams from dataset
-        # Note, `dataset_hparams` is an argument of the lightning model
+        # add to_model_info to config of model `dataset_hparams` (required by the model)
         self.config["model"]["dataset_hparams"] = to_model_info
 
         # instantiate others
         self.config_init = self.parser.instantiate_classes(self.config)
 
-        # add data and datamodule back
-        self.config["data"] = data_config
+        # add data datamodule back
         self.config_init["data"] = self.datamodule
+
+        # add data config back to let lightning cli log it
+        self.config["data"] = data_config
+
+        # remove linked config to model, where were added in `add_arguments_to_parser`
+        self.config["model"].pop("lr_scheduler_hparams")
+        self.config["model"].pop("optimizer_hparams")
+        self.config["model"].pop("trainer_hparams")
+        self.config["model"].pop("data_hparams")
 
         self.model = self._get(self.config_init, "model")
         self._add_configure_optimizers_method_to_model(self.subcommand)

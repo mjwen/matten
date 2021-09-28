@@ -27,7 +27,12 @@ class BaseModel(pl.LightningModule):
         dataset_hparams: info from the dataset to initialize the model or tasks
         optimizer_hparams: hparams for the optimizer (e.g. Adam)
         lr_scheduler_hparams: hparams for the learning rate scheduler (e.g.
-        ReduceLROnPlateau)
+            ReduceLROnPlateau)
+        trainer_hparams: trainer config params. These should not be used by the model,
+            but to let the wandb logger log. Then we can filter info on the wandb
+            web interface.
+        data_hparams: data config params. Similar to trainer_hparams, for the purpose
+            of wandb filtering.
 
     Subclass must implement:
         - init_backbone(): create the underlying torch model
@@ -47,11 +52,15 @@ class BaseModel(pl.LightningModule):
         dataset_hparams: Dict[str, Any] = None,
         optimizer_hparams: Dict[str, Any] = None,
         lr_scheduler_hparams: Dict[str, Any] = None,
+        trainer_hparams: Dict[str, Any] = None,
+        data_hparams: Dict[str, Any] = None,
         **kwargs,
     ):
-
         super().__init__()
+
         self.save_hyperparameters()
+        self.optimizer_hparams = optimizer_hparams
+        self.lr_scheduler_hparams = lr_scheduler_hparams
 
         # backbone model
         self.backbone = self.init_backbone(backbone_hparams, dataset_hparams)
@@ -368,7 +377,7 @@ class BaseModel(pl.LightningModule):
 
         # optimizer
         model_params = (filter(lambda p: p.requires_grad, self.parameters()),)
-        optimizer = instantiate_class(model_params, self.hparams.optimizer_hparams)
+        optimizer = instantiate_class(model_params, self.optimizer_hparams)
 
         # lr scheduler
         scheduler = self._config_lr_scheduler(optimizer)
@@ -392,13 +401,11 @@ class BaseModel(pl.LightningModule):
         Return:
             lr scheduler or None
         """
-        hparams = self.hparams.lr_scheduler_hparams
-
-        class_path = hparams.get("class_path").lower()
-        if class_path is None or class_path == "none" or class_path == "null":
+        class_path = self.lr_scheduler_hparams.get("class_path")
+        if class_path is None or class_path == "none" :
             scheduler = None
         else:
-            scheduler = instantiate_class(optimizer, hparams)
+            scheduler = instantiate_class(optimizer, self.lr_scheduler_hparams)
 
         return scheduler
 

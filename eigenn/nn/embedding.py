@@ -55,10 +55,10 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
     @torch.jit.export
     def index_for_atomic_numbers(self, atomic_nums: torch.Tensor):
         if atomic_nums.min() < self._min_Z or atomic_nums.max() > self._max_Z:
-            raise RuntimeError("Invalid atomic numbers for this OneHotEncoding")
+            raise RuntimeError(f"Invalid atomic numbers")
 
         out = self._Z_to_index[atomic_nums - self._min_Z]
-        assert out.min() >= 0, "Invalid atomic numbers for this OneHotEncoding"
+        assert out.min() >= 0, f"Invalid atomic numbers"
         return out
 
     def forward(self, data: DataKey.Type):
