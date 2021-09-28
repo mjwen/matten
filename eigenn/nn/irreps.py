@@ -9,14 +9,40 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Dict, Final, Sequence, overload
 
+import torch
 import torch.nn
 from e3nn.o3 import Irreps
 
 
+# This is a recreation of nequip.data.AtomicDataDict
 @dataclass
 class DataKey:
+    # type of atomic data
+    Type = Dict[str, torch.Tensor]
+
     POSITIONS: Final[str] = "pos"
+    # WEIGHTS_KEY: Final[str] = "weights"
+
+    NODE_ATTRS: Final[str] = "node_attrs"
+    NODE_FEATURES: Final[str] = "node_features"
+
     EDGE_INDEX: Final[str] = "edge_index"
+    EDGE_CELL_SHIFT: Final[str] = "edge_cell_shift"
+    EDGE_VECTORS: Final[str] = "edge_vectors"
+    # EDGE_LENGTH: Final[str] = "edge_lengths"
+    EDGE_ATTRS: Final[str] = "edge_attrs"
+    EDGE_EMBEDDING: Final[str] = "edge_embedding"
+
+    # CELL: Final[str] = "cell"
+    # PBC: Final[str] = "pbc"
+
+    ATOMIC_NUMBERS: Final[str] = "atomic_numbers"
+    SPECIES_INDEX: Final[str] = "species_index"
+    # PER_ATOM_ENERGY: Final[str] = "atomic_energy"
+    # TOTAL_ENERGY: Final[str] = "total_energy"
+    # FORCE: Final[str] = "forces"
+
+    # BATCH: Final[str] = "batch"
 
 
 class ModuleIrreps:
@@ -104,19 +130,17 @@ class ModuleIrreps:
 
         # positions are always 1o and should always be present
         pos = DataKey.POSITIONS
-        assert pos in irreps_in, "Positions (1o) should be present in irreps_in."
-        if irreps_in[pos] != Irreps("1x1o"):
+        if pos in irreps_in and irreps_in[pos] != Irreps("1x1o"):
             raise ValueError(f"Positions must have irreps 1o, got `{irreps_in[pos]}`")
+        irreps_in[pos] = Irreps("1o")
 
         # edges are always None and should always be present
         edge_index = DataKey.EDGE_INDEX
-        assert (
-            edge_index in irreps_in
-        ), "Edge indexes (None) should be present in irreps_in"
-        if irreps_in[edge_index] is not None:
+        if edge_index in irreps_in and irreps_in[edge_index] is not None:
             raise ValueError(
                 f"Edge indexes must have irreps `None`, got `{irreps_in[edge_index]}`"
             )
+        irreps_in[edge_index] = None
 
 
 class Sequential(ModuleIrreps, torch.nn.Sequential):

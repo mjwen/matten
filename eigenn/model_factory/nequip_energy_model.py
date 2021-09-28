@@ -3,15 +3,12 @@ from collections import OrderedDict
 
 from nequip.data import AtomicDataDict
 from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
-from nequip.nn.embedding import (
-    OneHotAtomEncoding,
-    RadialBasisEdgeEncoding,
-    SphericalHarmonicEdgeAttrs,
-)
+from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn.embedding import SpeciesEmbedding
 
 
 class EnergyModel(ModelForPyGData):
@@ -46,8 +43,9 @@ def create_energy_model(hparams, dataset_hparams):
     layers = {
         # -- Encode --
         "one_hot": (
-            OneHotAtomEncoding,
+            SpeciesEmbedding,
             {
+                "embedding_dim": hparams["species_embedding_dim"],
                 "allowed_species": dataset_hparams["allowed_species"],
                 # node_features determines output irreps. It must be used together with
                 # set_features=False, which disables overriding of the given
@@ -126,6 +124,7 @@ if __name__ == "__main__":
     set_logger("DEBUG")
 
     hparams = {
+        "species_embedding_dim": 16,
         "species_embedding_irreps_out": "16x0e",
         "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
