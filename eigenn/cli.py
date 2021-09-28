@@ -18,6 +18,7 @@ from pytorch_lightning.utilities.cli import (
 )
 from pytorch_lightning.utilities.cli import instantiate_class
 
+from eigenn.log import set_logger
 from eigenn.utils import to_path
 from eigenn.utils_wandb import (
     get_wandb_checkpoint_and_identifier_latest,
@@ -36,9 +37,11 @@ class EigennCLI(LightningCLI):
             "automatically find the checkpoint in wandb logs. Will not try to restore "
             "if `None` or `False`.",
         )
-
         parser.add_argument(
             "--skip_test", default=False, help="Whether to skip the test?"
+        )
+        parser.add_argument(
+            "--log_level", default="INFO", help="Log level, e.g. INFO, DEBUG..."
         )
 
         # link_to should be argument of the model
@@ -63,6 +66,10 @@ class EigennCLI(LightningCLI):
         # link trainer and data configs to model to let wandb log them
         parser.link_arguments("trainer", "model.trainer_hparams")
         parser.link_arguments("data", "model.data_hparams")
+
+    def before_instantiate_classes(self) -> None:
+        level = self.config["log_level"].upper()
+        set_logger(level=level)
 
     # Reimplement instantiate_classes to call datamodule setup() and pass necessary
     # dataset info to model as `hparams_dataset`

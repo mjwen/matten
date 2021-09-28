@@ -1,5 +1,6 @@
 seed_everything: 35
-restore: false
+log_level: info
+
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
