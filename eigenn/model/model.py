@@ -402,7 +402,7 @@ class BaseModel(pl.LightningModule):
             lr scheduler or None
         """
         class_path = self.lr_scheduler_hparams.get("class_path")
-        if class_path is None or class_path == "none" :
+        if class_path is None or class_path == "none":
             scheduler = None
         else:
             scheduler = instantiate_class(optimizer, self.lr_scheduler_hparams)
