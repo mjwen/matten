@@ -14,7 +14,10 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
     Embed atomic species (number) to node attrs and node features with fixed-size lookup
     table using torch.nn.Embedding.
 
-    The generated embedding will be set to DataKey.NODE_ATTR
+    # TODO set these as output field to make them explict
+    This adds:
+        - DataKey.NODE_ATTR
+        - DataKey.NODE_FEATURES (if set_features is True)
 
     Args:
         embedding_dim: output dim of the species embedding
@@ -59,7 +62,7 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
         # learnable embedding layer
         self.embedding = nn.Embedding(num_species, embedding_dim)
 
-    def forward(self, data: DataKey.Type):
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
 
         if DataKey.SPECIES_INDEX in data:
             type_numbers = data[DataKey.SPECIES_INDEX]

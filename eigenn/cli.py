@@ -32,16 +32,20 @@ class EigennCLI(LightningCLI):
 
         parser.add_argument(
             "--restore",
-            default=None,
+            type=bool,
+            default=False,
             help="Path to checkpoint to restore the training. If `True`, will try to "
             "automatically find the checkpoint in wandb logs. Will not try to restore "
             "if `None` or `False`.",
         )
         parser.add_argument(
-            "--skip_test", default=False, help="Whether to skip the test?"
+            "--skip_test", type=bool, default=False, help="Whether to skip the test?"
         )
         parser.add_argument(
-            "--log_level", default="INFO", help="Log level, e.g. INFO, DEBUG..."
+            "--log_level",
+            type=str,
+            default="INFO",
+            help="Log level, e.g. INFO, DEBUG...",
         )
 
         # link_to should be argument of the model
