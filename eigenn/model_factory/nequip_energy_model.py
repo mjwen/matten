@@ -71,8 +71,11 @@ def create_energy_model(hparams, dataset_hparams):
         "radial_basis": (
             RadialBasisEdgeEncoding,
             {
-                "basis_kwargs": {"r_max": hparams["r_max"]},
-                "cutoff_kwargs": {"r_max": hparams["r_max"]},
+                "basis_kwargs": {
+                    "num_basis": hparams["num_radial_basis"],
+                    "r_max": hparams["radial_basis_r_cut"],
+                },
+                "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
         # -- Embed features --
@@ -132,8 +135,9 @@ if __name__ == "__main__":
         "species_embedding_irreps_out": "16x0e",
         "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
+        "num_radial_basis": 8,
+        "radial_basis_r_cut": 4,
         "num_layers": 3,
-        "r_max": 4,
         "reduce": "sum",
     }
 

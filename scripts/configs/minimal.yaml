@@ -14,12 +14,25 @@ data:
 
 model:
   backbone_hparams:
-    num_layers: 3
+    #
+    # input embedding
+    #
+    # atom species embedding
     species_embedding_dim: 16
     species_embedding_irreps_out: 16x0e
-    r_max: 5.0 # this should be the same as r_cut in dataset
-    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
+    # spherical harmonics embedding of edge direction
     irreps_edge_sh: 0e + 1o
+    # radial edge distance embedding
+    num_radial_basis: 8
+    radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
+    #
+    # conv layers
+    #
+    num_layers: 3
+    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
+    #
+    # output
+    #
     reduce: sum
   task_hparams:
     task_name: n
