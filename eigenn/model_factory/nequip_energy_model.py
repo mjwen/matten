@@ -78,8 +78,32 @@ def create_energy_model(hparams, dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
+        # This embed features is not necessary any more when we change OneHotEmbedding to
+        # SpeciesEmbedding.
+        # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
+        # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
+        # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
+        # To be less error prone, we use SpeciesEmbedding.
+        #
+        # NOTE, there is some subtle difference:
+        # - In OneHotEmbedding+AtowiseLinear, NODE_ATTRS is set to the one-hot
+        # encoding, which is fixed throughout the model, while NODE_FEATURES is the
+        # embedding, which ls learnable.
+        # - In SpeciesEmbedding, both NODE_ATTRS and NODE_FEATURES are set to the
+        # learnable embedding.
+        # - The only use of NODE_ATTRS  in nequip is in InteractionBlock (which is in
+        # ConvNetLayer), where it is used for the self-interaction layer.
+        # So, if self-interaction is enabled, these two modes will give different
+        # results.
+        # - A side note, the self-interaction layer in nequip is different from the one
+        # used in TFN paper, where self-interaction is on NODE_FEATURES only. So,
+        # if we use SpeciesEmbedding, we agree with the original TFN paper.
+        #
+        # We can simply generalize both to see which one works better.
+        #
+        ##
         # -- Embed features --
-        "chemical_embedding": (AtomwiseLinear, {}),
+        # "chemical_embedding": (AtomwiseLinear, {}),  # a linear layer on node_feats
     }
 
     # ===== convnet layers =====

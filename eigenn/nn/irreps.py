@@ -20,17 +20,26 @@ class DataKey:
     # type of atomic data
     Type = Dict[str, torch.Tensor]
 
+    # positions of nodes in 3D space
     POSITIONS: Final[str] = "pos"
     # WEIGHTS_KEY: Final[str] = "weights"
 
+    # attributes on node; fixed
     NODE_ATTRS: Final[str] = "node_attrs"
+
+    # features on node, e.g. embedding of atomic species; learnable
     NODE_FEATURES: Final[str] = "node_features"
 
     EDGE_INDEX: Final[str] = "edge_index"
     EDGE_CELL_SHIFT: Final[str] = "edge_cell_shift"
     EDGE_VECTORS: Final[str] = "edge_vectors"
     # EDGE_LENGTH: Final[str] = "edge_lengths"
+
+    # spherical part of edge vector (i.e. expansion of the unit displacement vector
+    # on spherical harmonics); fixed
     EDGE_ATTRS: Final[str] = "edge_attrs"
+
+    # radial part of the edge vector (i.e. distance between atoms), learnable
     EDGE_EMBEDDING: Final[str] = "edge_embedding"
 
     # CELL: Final[str] = "cell"
@@ -56,6 +65,10 @@ class ModuleIrreps:
     well described by an ``e3nn.o3.Irreps``. An example are edge indexes in a graph,
     which are invariant but are integers, not ``0e`` scalars.
 
+
+    # TODO, rename my_irreps_in -> required_exact_irreps_in
+    #  require_irreps_in -> required_name_irreps_in
+
     Args:
         irreps_in:
         my_irreps_in: exact check
@@ -63,8 +76,6 @@ class ModuleIrreps:
         irreps_out:
     """
 
-    # TODO, rename my_irreps_in -> required_exact_irreps_in
-    #  require_irreps_in -> required_name_irreps_in
     def init_irreps(
         self,
         irreps_in: Dict[str, Irreps] = None,

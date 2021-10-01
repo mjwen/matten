@@ -1,5 +1,5 @@
 seed_everything: 35
-log_level: info
+log_level: debug
 
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
