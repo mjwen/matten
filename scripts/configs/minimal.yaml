@@ -17,23 +17,39 @@ model:
     #
     # input embedding
     #
+
     # atom species embedding
-    species_embedding_dim: 16
-    species_embedding_irreps_out: 16x0e
+    species_embedding_dim: 32
+    # species_embedding_irreps_out: 16x0e # not needed when using SpeciesEmbedding
+
     # spherical harmonics embedding of edge direction
-    irreps_edge_sh: 0e + 1o
+    irreps_edge_sh: 0e + 1o + 2e
+
     # radial edge distance embedding
     num_radial_basis: 8
     radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
+
     #
     # conv layers
     #
     num_layers: 3
-    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e
+
+    # radial network
+    invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
+    invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
+    avg_num_neighbors: null # number of neighbors to divide by, None => no normalization.
+    use_sc: true
+
+    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
+    nonlinearity_type: gate
+    resnet: true
+
     #
     # output
     #
+    conv_to_output_hidden_irreps_out: 16x0e
     reduce: sum
+
   task_hparams:
     task_name: n
 

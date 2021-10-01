@@ -1,3 +1,14 @@
+"""
+Species embedding using torch.nn.Embedding. As a results, NOTE_ATTRS are learnable and
+it is the same as NODE_FEATURES in the first layer. NOTE, they are the same only at the
+first layer. In the model, NODE_FEATURES will be updated, but NODE_ATTRS are not.
+
+The original NequIP uses ONE-hot embedding for NODE_ATTRS, and then use a linear layer
+to map it to NODE_FEATURES.
+
+For large number of species, we'd better use the SpeciesEmbedding one to minimize the
+number of params.
+"""
 import sys
 from collections import OrderedDict
 
@@ -36,8 +47,6 @@ class EnergyModel(ModelForPyGData):
 
 
 def create_energy_model(hparams, dataset_hparams):
-
-    num_layers = hparams.pop("num_layers", 3)
 
     # ===== embedding layers =====
     layers = {
@@ -108,11 +117,20 @@ def create_energy_model(hparams, dataset_hparams):
 
     # ===== convnet layers =====
     # insertion preserves order
-    for i in range(num_layers):
+
+    for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
             ConvNetLayer,
             {
                 "feature_irreps_hidden": hparams["feature_irreps_hidden"],
+                "nonlinearity_type": hparams["nonlinearity_type"],
+                "resnet": hparams["resnet"],
+                "convolution_kwargs": {
+                    "invariant_layers": hparams["invariant_layers"],
+                    "invariant_neurons": hparams["invariant_neurons"],
+                    "avg_num_neighbors": hparams["avg_num_neighbors"],
+                    "use_sc": hparams["use_sc"],
+                },
             },
         )
 
@@ -121,7 +139,10 @@ def create_energy_model(hparams, dataset_hparams):
         {
             # TODO: the next linear throws out all L > 0, don't create them in the last layer of convnet
             # -- output block --
-            "conv_to_output_hidden": (AtomwiseLinear, {}),
+            "conv_to_output_hidden": (
+                AtomwiseLinear,
+                {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
+            ),
             "output_hidden_to_scalar": (
                 AtomwiseLinear,
                 dict(irreps_out="1x0e", out_field=AtomicDataDict.PER_ATOM_ENERGY_KEY),
@@ -156,13 +177,20 @@ if __name__ == "__main__":
 
     hparams = {
         "species_embedding_dim": 16,
-        "species_embedding_irreps_out": "16x0e",
+        # "species_embedding_irreps_out": "16x0e",
         "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
         "radial_basis_r_cut": 4,
         "num_layers": 3,
         "reduce": "sum",
+        "invariant_layers": 2,
+        "invariant_neurons": 64,
+        "avg_num_neighbors": None,
+        "use_sc": True,
+        "nonlinearity_type": "gate",
+        "resnet": True,
+        "conv_to_output_hidden_irreps_out": "16x0e",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
