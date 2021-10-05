@@ -30,17 +30,19 @@ class MatbenchDataset(InMemoryDataset):
     """
 
     MATBENCH_WEBSITE = "https://hackingmaterials.lbl.gov/automatminer/datasets.html"
-    WITH_STRUCTURE = [
-        "matbench_dielectric",
-        "matbench_jdft2d",
-        "matbench_log_gvrh",
-        "matbench_log_kvrh",
-        "matbench_mp_e_form",
-        "matbench_mp_gap",
-        "matbench_mp_is_metal",
-        "matbench_perovskites",
-        "matbench_phonons",
-    ]
+
+    # tasks with structure info and their target
+    WITH_STRUCTURE = {
+        "matbench_dielectric": "n",
+        "matbench_jdft2d": "exfoliation_en",
+        "matbench_log_gvrh": "log10(G_VRH)",
+        "matbench_log_kvrh": "log10(K_VRH)",
+        "matbench_mp_e_form": "e_form",
+        "matbench_mp_gap": "gap pbe",
+        "matbench_mp_is_metal": "is_metal",
+        "matbench_perovskites": "e_form",
+        "matbench_phonons": "last phdos peak",
+    }
 
     def __init__(self, filename, r_cut: float, root="."):
         self.r_cut = r_cut
@@ -72,8 +74,9 @@ class MatbenchDataset(InMemoryDataset):
             raise ValueError(
                 f"Unsupported task `{self.filename}`. Eigenn only works with data having "
                 f"geometric information (i.e. with `structure` in the matbench data). "
-                "The provided dataset does not have this. Matbench tasks with "
-                f"`structure` information include: {', '.join(self.WITH_STRUCTURE)}. "
+                f"The provided dataset does not have this. Matbench tasks with "
+                f"`structure` information include: "
+                f"{', '.join(self.WITH_STRUCTURE.keys())}. "
                 f"See {self.MATBENCH_WEBSITE} for more."
             )
 
