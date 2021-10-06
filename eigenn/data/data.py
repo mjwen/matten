@@ -201,6 +201,7 @@ class Molecule(DataPoint):
                     n=1 is the same as ``bonds`` and a very large n is most likely the
                     same as ``complete``.
         """
+        # TODO, `bonds` is not correct, we need to create bidirectional graph
         if edges_from == "bonds":
             bonds = config.get_bonds()
             edge_index = list(zip(*bonds))

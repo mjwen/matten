@@ -9,7 +9,6 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Dict, Final, Sequence, overload
 
-import torch
 import torch.nn
 from e3nn.o3 import Irreps
 
@@ -65,48 +64,55 @@ class ModuleIrreps:
     well described by an ``e3nn.o3.Irreps``. An example are edge indexes in a graph,
     which are invariant but are integers, not ``0e`` scalars.
 
-
-    # TODO, rename my_irreps_in -> required_exact_irreps_in
-    #  require_irreps_in -> required_name_irreps_in
-
     Args:
-        irreps_in:
-        my_irreps_in: exact check
-        required_irreps_in: only check key is present
-        irreps_out:
+        irreps_in: input irreps, availables keys in `DataKey`
+        irreps_out: output irreps, availables keys in `DataKey`
+        required_keys_irreps_in: gives the required keys should be present in irreps_in.
+            This only requires the irreps is given in `irreps_in`; does not specify
+            what the irreps look like.
+        optional_exact_irreps_in: for irreps in this dict, if it given in `irreps_in`,
+            they two should match (i.e. be the same). It's not required that irreps
+            specified in this dict has to be present in `irreps_in`.
     """
 
     def init_irreps(
         self,
         irreps_in: Dict[str, Irreps] = None,
-        my_irreps_in: Dict[str, Irreps] = None,
         irreps_out: Dict[str, Irreps] = None,
-        required_irreps_in: Sequence[str] = None,
+        *,
+        required_keys_irreps_in: Sequence[str] = None,
+        optional_exact_irreps_in: Dict[str, Irreps] = None,
     ):
         # set default
         irreps_in = {} if irreps_in is None else irreps_in
-        my_irreps_in = {} if my_irreps_in is None else my_irreps_in
+        optional_exact_irreps_in = (
+            {} if optional_exact_irreps_in is None else optional_exact_irreps_in
+        )
         irreps_out = {} if irreps_out is None else irreps_out
-        required_irreps_in = [] if required_irreps_in is None else required_irreps_in
+        required_keys_irreps_in = (
+            [] if required_keys_irreps_in is None else required_keys_irreps_in
+        )
 
         irreps_in = _fix_irreps_dict(irreps_in)
-        my_irreps_in = _fix_irreps_dict(my_irreps_in)
+        optional_exact_irreps_in = _fix_irreps_dict(optional_exact_irreps_in)
         irreps_out = _fix_irreps_dict(irreps_out)
 
-        self.sanity_check(irreps_in, my_irreps_in, irreps_out, required_irreps_in)
+        self.sanity_check(
+            irreps_in, irreps_out, required_keys_irreps_in, optional_exact_irreps_in
+        )
 
         # Check compatibility
 
-        # with my_irreps_in
-        for k in my_irreps_in:
-            if k in irreps_in and irreps_in[k] != my_irreps_in[k]:
+        # check optional_exact_irreps_in
+        for k in optional_exact_irreps_in:
+            if k in irreps_in and irreps_in[k] != optional_exact_irreps_in[k]:
                 raise ValueError(
-                    f"Input irreps {irreps_in[k]} for `{k}` is incompatible with "
-                    f"this configuration {type(self)}. Should be {my_irreps_in[k]}."
+                    f"Input irreps {irreps_in[k]} for `{k}` is incompatible with this "
+                    f"configuration {type(self)}. Should be {optional_exact_irreps_in[k]}"
                 )
 
-        # with required_irreps_in
-        for k in required_irreps_in:
+        # check required_keys_irreps_in
+        for k in required_keys_irreps_in:
             if k not in irreps_in:
                 raise ValueError(
                     f"This configuration {type(self)} requires `{k}` in `irreps_in`."
@@ -131,9 +137,9 @@ class ModuleIrreps:
     def sanity_check(
         self,
         irreps_in=None,
-        my_irreps_in=None,
         irreps_out=None,
-        required_irreps_in=None,
+        required_key_irreps_in=None,
+        optional_exact_irreps_in=None,
     ):
         """
         Check the input of the class.
