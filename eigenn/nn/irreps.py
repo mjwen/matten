@@ -38,6 +38,7 @@ class DataKey:
     # on spherical harmonics); fixed
     EDGE_ATTRS: Final[str] = "edge_attrs"
 
+    # TDDO change this to EDGE_FEATURES?
     # radial part of the edge vector (i.e. distance between atoms), learnable
     EDGE_EMBEDDING: Final[str] = "edge_embedding"
 
