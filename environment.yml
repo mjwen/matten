@@ -13,3 +13,4 @@ dependencies:
   - pip:
       - pytorch-lightning==1.4.6
       - lightning-bolts==0.4.0
+      - https://github.com/mir-group/nequip.git
