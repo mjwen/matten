@@ -15,6 +15,14 @@ from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
 
 @compile_mode("script")
 class TFNConv(nn.Module, ModuleIrreps):
+
+    REQUIRED_KEYS_IRREPS_IN = [
+        DataKey.NODE_FEATURES,
+        DataKey.NODE_ATTRS,
+        DataKey.EDGE_EMBEDDING,
+        DataKey.EDGE_ATTRS,
+    ]
+
     def __init__(
         self,
         irreps_in: Dict[str, Irreps],
@@ -50,28 +58,8 @@ class TFNConv(nn.Module, ModuleIrreps):
 
         self.avg_num_neighbors = avg_num_neighbors
 
-        #
-        # set up irreps
-        #
-        required_irreps_in = [
-            DataKey.NODE_FEATURES,
-            DataKey.NODE_ATTRS,
-            DataKey.EDGE_EMBEDDING,
-            DataKey.EDGE_ATTRS,
-        ]
-
-        # ensure EDGE_EMBEDDING (e.g. embedding of radial distance) to be invariant
-        # scalars (i.e. 0e) in order to use a dense network
-        ok = _check_irreps_type(irreps_in[DataKey.EDGE_EMBEDDING], [Irrep("0e")])
-        if not ok:
-            raise ValueError(
-                f"Expect edge embedding irreps only contain `0e`; "
-                f"got {irreps_in[DataKey.EDGE_EMBEDDING]}"
-            )
-
-        self.init_irreps(
-            irreps_in, irreps_out, required_keys_irreps_in=required_irreps_in
-        )
+        # init irreps
+        self.init_irreps(irreps_in, irreps_out)
 
         node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
         node_feats_irreps_out = self.irreps_out[DataKey.NODE_FEATURES]
@@ -209,6 +197,22 @@ class TFNConv(nn.Module, ModuleIrreps):
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
+
+    @staticmethod
+    def fix_irreps_in(irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
+
+        irreps_in = super().fix_irreps_in(irreps_in)
+
+        # ensure EDGE_EMBEDDING (e.g. embedding of radial distance) to be invariant
+        # scalars (i.e. 0e) in order to use a dense network
+        ok = _check_irreps_type(irreps_in[DataKey.EDGE_EMBEDDING], [Irrep("0e")])
+        if not ok:
+            raise ValueError(
+                f"Expect edge embedding irreps only contain `0e`; "
+                f"got {irreps_in[DataKey.EDGE_EMBEDDING]}"
+            )
+
+        return irreps_in
 
 
 @compile_mode("script")
