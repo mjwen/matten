@@ -4,7 +4,8 @@ from typing import Dict, Optional, Tuple
 from e3nn.o3 import Irreps
 from loguru import logger
 
-from eigenn.nn.irreps import ModuleIrreps, Sequential
+from eigenn.nn.irreps import ModuleIrreps
+from eigenn.nn.sequential import Sequential
 
 
 def create_sequential_module(

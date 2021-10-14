@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List
+from typing import Callable, Dict
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from e3nn.util.jit import compile_mode
 from nequip.nn.nonlinearities import ShiftedSoftPlus
 from torch_scatter import scatter
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
 
 
 @compile_mode("script")
@@ -474,24 +474,3 @@ class SE3Transformer(nn.Module, ModuleIrreps):
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
-
-
-# TODO, move this to irreps.py?
-def _check_irreps_type(irreps: Irreps, allowed: List[Irrep]) -> bool:
-    """
-    Check the irreps only contains the allowed type.
-
-    This only checks the type, not the multiplicity.
-
-    Args:
-        irreps: the irreps to check
-        allowed: allowed irrep (degree and parity), e.g. ['0e', '1o']
-    """
-    irreps = Irreps(irreps)
-    allowed = [Irrep(i) for i in allowed]
-
-    for m, ir in irreps:
-        if ir not in allowed:
-            return False
-
-    return True

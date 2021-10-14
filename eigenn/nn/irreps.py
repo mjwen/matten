@@ -5,12 +5,11 @@ This is a recreation of class GraphModuleMixin
 https://github.com/mir-group/nequip/blob/main/nequip/nn/_graph_mixin.py
 to make it general for different data.
 """
-from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Dict, Final, Sequence, overload
+from typing import Dict, Final, List, Sequence
 
 import torch.nn
-from e3nn.o3 import Irreps
+from e3nn.o3 import Irrep, Irreps
 
 
 # This is a recreation of nequip.data.AtomicDataDict
@@ -59,7 +58,9 @@ class ModuleIrreps:
     Expected input and output irreps of a module.
 
     subclass can implement:
-      - sanity_check
+      - REQUIRED_KEY_IRREPS_IN
+      - OPTIONAL_EXACT_IRREPS_IN
+      - fix_irreps_in
 
     ``None`` is a valid irreps in the context for anything that is invariant but not
     well described by an ``e3nn.o3.Irreps``. An example are edge indexes in a graph,
@@ -67,14 +68,23 @@ class ModuleIrreps:
 
     Args:
         irreps_in: input irreps, availables keys in `DataKey`
-        irreps_out: output irreps, availables keys in `DataKey`
+        irreps_out: a dict of output irreps, availables keys in `DataKey`. If a string,
+            it should be a key in irreps_in, and then irreps_out will be
+            {key: irreps_in[key]}
         required_keys_irreps_in: gives the required keys should be present in irreps_in.
             This only requires the irreps is given in `irreps_in`; does not specify
             what the irreps look like.
         optional_exact_irreps_in: for irreps in this dict, if it given in `irreps_in`,
             they two should match (i.e. be the same). It's not required that irreps
             specified in this dict has to be present in `irreps_in`.
+
+    Attrs:
+        REQUIRED_KEY_IRREPS_IN
+        OPTIONAL_EXACT_IRREPS_IN
     """
+
+    REQUIRED_KEYS_IRREPS_IN = None
+    OPTIONAL_EXACT_IRREPS_IN = None
 
     def init_irreps(
         self,
@@ -84,36 +94,51 @@ class ModuleIrreps:
         required_keys_irreps_in: Sequence[str] = None,
         optional_exact_irreps_in: Dict[str, Irreps] = None,
     ):
-        # set default
-        irreps_in = {} if irreps_in is None else irreps_in
-        optional_exact_irreps_in = (
-            {} if optional_exact_irreps_in is None else optional_exact_irreps_in
-        )
-        irreps_out = {} if irreps_out is None else irreps_out
-        required_keys_irreps_in = (
-            [] if required_keys_irreps_in is None else required_keys_irreps_in
-        )
 
+        # input irreps
+        irreps_in = {} if irreps_in is None else irreps_in
         irreps_in = _fix_irreps_dict(irreps_in)
-        optional_exact_irreps_in = _fix_irreps_dict(optional_exact_irreps_in)
+        irreps_in = self.fix_irreps_in(irreps_in)
+
+        # output irreps
+        if irreps_out is None:
+            irreps_out = {}
+        elif isinstance(irreps_out, str):
+            assert (
+                irreps_out in irreps_in
+            ), f"`irreps_in` does not contain key for `irreps_out = {irreps_out}`"
+            irreps_out = {irreps_out, irreps_in[irreps_out]}
         irreps_out = _fix_irreps_dict(irreps_out)
 
-        self.sanity_check(
-            irreps_in, irreps_out, required_keys_irreps_in, optional_exact_irreps_in
+        # required input irreps
+        required = (
+            [] if self.REQUIRED_KEYS_IRREPS_IN is None else self.REQUIRED_KEYS_IRREPS_IN
         )
+        if required_keys_irreps_in is not None:
+            required += list(required_keys_irreps_in)
+
+        # optional exact irreps
+        optional = (
+            {}
+            if self.OPTIONAL_EXACT_IRREPS_IN is None
+            else self.OPTIONAL_EXACT_IRREPS_IN
+        )
+        if optional_exact_irreps_in is not None:
+            optional.update(optional_exact_irreps_in)
+        optional = _fix_irreps_dict(optional)
 
         # Check compatibility
 
         # check optional_exact_irreps_in
-        for k in optional_exact_irreps_in:
-            if k in irreps_in and irreps_in[k] != optional_exact_irreps_in[k]:
+        for k in optional:
+            if k in irreps_in and irreps_in[k] != optional[k]:
                 raise ValueError(
                     f"Input irreps {irreps_in[k]} for `{k}` is incompatible with this "
-                    f"configuration {type(self)}. Should be {optional_exact_irreps_in[k]}"
+                    f"configuration {type(self)}. Should be {optional[k]}"
                 )
 
         # check required_keys_irreps_in
-        for k in required_keys_irreps_in:
+        for k in required:
             if k not in irreps_in:
                 raise ValueError(
                     f"This configuration {type(self)} requires `{k}` in `irreps_in`."
@@ -135,18 +160,14 @@ class ModuleIrreps:
     def irreps_out(self):
         return self._irreps_out
 
-    def sanity_check(
-        self,
-        irreps_in=None,
-        irreps_out=None,
-        required_key_irreps_in=None,
-        optional_exact_irreps_in=None,
-    ):
+    @staticmethod
+    def fix_irreps_in(irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
         """
-        Check the input of the class.
+        Fix the input irreps.
         """
+        irreps_in = irreps_in.copy()
 
-        # positions are always 1o and should always be present
+        # positions are always 1o and should always be present in
         pos = DataKey.POSITIONS
         if pos in irreps_in and irreps_in[pos] != Irreps("1x1o"):
             raise ValueError(f"Positions must have irreps 1o, got `{irreps_in[pos]}`")
@@ -160,48 +181,7 @@ class ModuleIrreps:
             )
         irreps_in[edge_index] = None
 
-
-class Sequential(ModuleIrreps, torch.nn.Sequential):
-    """
-    This is the same as torch.nn.Sequential, with additional check on irreps
-    compatibility between consecutive modules.
-    """
-
-    @overload
-    def __init__(self, *args: ModuleIrreps) -> None:
-        ...
-
-    @overload
-    def __init__(self, arg: "OrderedDict[str, ModuleIrreps]") -> None:
-        ...
-
-    def __init__(self, *args):
-
-        # dict input
-        if len(args) == 1 and isinstance(args[0], OrderedDict):
-            module_dict = args[0]
-            module_list = list(module_dict.values())
-        # sequence input
-        else:
-            module_list = list(args)
-            module_dict = OrderedDict(
-                (f"{m.__class__.__name__}_{i}", m) for i, m in enumerate(module_list)
-            )
-
-        # check in/out irreps compatibility
-        for i, (m1, m2) in enumerate(zip(module_list, module_list[1:])):
-            if not _check_irreps_compatible(m1.irreps_out, m2.irreps_in):
-                raise ValueError(
-                    f"Output irreps of module {i} `{m1.__class__.__name__}`: "
-                    f"{m1.irreps_out}` is incompatible with input irreps of module {i+1} "
-                    f"`{m2.__class__.__name__}`: {m2.irreps_in}."
-                )
-
-        self.init_irreps(
-            irreps_in=module_list[0].irreps_in, irreps_out=module_list[-1].irreps_out
-        )
-
-        super().__init__(module_dict)
+        return irreps_in
 
 
 # copied from nequip:
@@ -226,3 +206,23 @@ def _fix_irreps_dict(irreps: Dict[str, Irreps]) -> Dict[str, Irreps]:
 # https://github.com/mir-group/nequip/blob/main/nequip/data/AtomicData.py
 def _check_irreps_compatible(ir1: Dict[str, Irreps], ir2: Dict[str, Irreps]):
     return all(ir1[k] == ir2[k] for k in ir1 if k in ir2)
+
+
+def _check_irreps_type(irreps: Irreps, allowed: List[Irrep]) -> bool:
+    """
+    Check the irreps only contains the allowed type.
+
+    This only checks the type (degree and parity), not the multiplicity.
+
+    Args:
+        irreps: the irreps to check
+        allowed: allowed irrep (degree and parity), e.g. ['0e', '1o']
+    """
+    irreps = Irreps(irreps)
+    allowed = [Irrep(i) for i in allowed]
+
+    for m, ir in irreps:
+        if ir not in allowed:
+            return False
+
+    return True
