@@ -42,7 +42,17 @@ supports installing via conda, much easier than before. And the installing guide
   cd eigenn
   pip install -e .
   ```
+ 
+- [Weights & Biases](https://docs.wandb.ai/quickstart)
   
+  We use wandb for experiments tracking and management; it is free. Get an account at 
+  their website and then the below commands are all you need.
+
+  ```bash
+  pip install wandb
+  wandb login
+  ```
+ 
 
 ## Quick example
 
