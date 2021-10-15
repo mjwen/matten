@@ -5,7 +5,7 @@ Equivariant Invariant Graph Enabled Neural Network
 
 ## Install 
 
-This below installing guide show get you started on Mac, without using GPUs.  
+This below installing guide should get you started on Mac, without using GPUs.  
 
 - [PyTorch](https://pytorch.org)
   ```bash
@@ -20,8 +20,8 @@ supports installing via conda, much easier than before. And the installing guide
   ```
 
 - [Lightning](https://www.pytorchlightning.ai/)
-  ```
-  install pytorch-lightning
+  ```bash
+  pip install pytorch-lightning
   ```
   
 - [e3nn](https://docs.e3nn.org/en/stable/guide/installation.html) 
