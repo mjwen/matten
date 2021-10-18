@@ -115,7 +115,7 @@ class BaseModel(pl.LightningModule):
 
     def init_tasks(
         self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
-    ) -> Dict:
+    ) -> Union[Task, Sequence[Task]]:
         """
         Define the tasks used to compute loss and metrics.
 
@@ -129,10 +129,12 @@ class BaseModel(pl.LightningModule):
 
         raise NotImplementedError
 
-    def forward(self, model_input, mode: Optional[str] = None, **kwargs):
+    def forward(
+        self, model_input: Dict[str, Any], mode: Optional[str] = None, **kwargs
+    ):
         """
         Args:
-            graphs:
+            model_input:
             mode: select what to return. See below.
 
         Returns:
