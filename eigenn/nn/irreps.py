@@ -160,8 +160,7 @@ class ModuleIrreps:
     def irreps_out(self):
         return self._irreps_out
 
-    @staticmethod
-    def fix_irreps_in(irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
+    def fix_irreps_in(self, irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
         """
         Fix the input irreps.
         """

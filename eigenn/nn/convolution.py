@@ -198,8 +198,7 @@ class TFNConv(nn.Module, ModuleIrreps):
 
         return data
 
-    @staticmethod
-    def fix_irreps_in(irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
+    def fix_irreps_in(self, irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
 
         irreps_in = super().fix_irreps_in(irreps_in)
 
