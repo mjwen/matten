@@ -3,16 +3,19 @@ from e3nn.io import CartesianTensor as E3NNCartesianTensor
 
 
 class CartesianTensor(E3NNCartesianTensor):
-    def to_cartesian(self, irreps_tensor: torch.Tensor):
+    def to_cartesian(self, irreps_tensor: torch.Tensor) -> torch.Tensor:
         """
         Convert an irreps tensor to a Cartesian tensor.
 
         This is the inverse operation of `from_cartesian`.
 
-        args:
+        Args:
             irreps_tensor: irreps tensor of shape (..., D), and `D` is the dim of the
-                irreps data, and ... indicates additional axis can be added, e.g.
-                batch dimension.
+                irreps data, and ... indicates additional axes can be added, e.g.
+                batch dimensions.
+
+        Returns:
+            the tensor in Cartesian view
         """
 
         Q = self.change_of_basis()
