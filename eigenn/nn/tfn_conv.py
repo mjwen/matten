@@ -1,18 +1,31 @@
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as fn
-from e3nn.nn import FullyConnectedNet
+from e3nn.nn import FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import FullyConnectedTensorProduct, Irrep, Irreps, Linear, TensorProduct
 from e3nn.util.jit import compile_mode
+from loguru import logger
 from nequip.nn.nonlinearities import ShiftedSoftPlus
+from nequip.utils.tp_utils import tp_path_exists
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
 
+ACTIVATION = {
+    "abs": torch.abs,
+    "tanh": torch.tanh,
+    "ssp": ShiftedSoftPlus,
+    "silu": torch.nn.functional.silu,
+}
+
 
 @compile_mode("script")
 class TFNConv(nn.Module, ModuleIrreps):
+    """
+    TFN convolution.
+    """
 
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
@@ -210,3 +223,162 @@ class TFNConv(nn.Module, ModuleIrreps):
             )
 
         return irreps_in
+
+
+@compile_mode("script")
+class TFNLayer(ModuleIrreps, nn.Module):
+
+    REQUIRED_KEYS_IRREPS_IN = [
+        DataKey.NODE_FEATURES,
+        DataKey.NODE_ATTRS,
+        DataKey.EDGE_EMBEDDING,
+        DataKey.EDGE_ATTRS,
+    ]
+
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        conv_layer_irreps: Irreps,
+        conv=TFNConv,
+        conv_kwargs: Optional[Dict] = None,
+        activation_type: str = "gate",
+        activation_scalars: Dict[int, str] = None,
+        activation_gates: Dict[int, str] = None,
+        use_resnet: bool = True,
+    ):
+        """
+        TFN layer, basically TFN conv with nonlinear activation functions.
+
+        Args:
+            irreps_out:
+            conv_layer_irreps: irreps for the node features in the conv layer
+            conv:
+            conv_kwargs:
+            use_resnet:
+            activation_type:
+            activation_scalars:
+            activation_gates:
+        """
+        super().__init__()
+
+        #
+        # check input
+        #
+        assert activation_type in ("gated", "norm")
+
+        #
+        # set defaults
+        #
+        conv_kwargs = {} if conv_kwargs is None else conv_kwargs
+
+        # activation function for even (i.e. 1) and odd (i.e. -1) irreps
+        if activation_scalars is None:
+            activation_scalars = {1: ACTIVATION["ssp"], -1: ACTIVATION["tanh"]}
+        if activation_gates is None:
+            activation_gates = {1: ACTIVATION["ssp"], -1: ACTIVATION["abs"]}
+
+        ir, _, _ = Irreps(conv_layer_irreps).simplify().sort()
+        self.conv_layer_irreps = ir
+
+        #
+        # irreps_out will be set later when we know them
+        #
+        self.init_irreps(irreps_in)
+
+        edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
+        layer_out_prev_irreps = self.irreps_in[DataKey.NODE_FEATURES]
+
+        irreps_scalars = Irreps(
+            [
+                (mul, ir)
+                for mul, ir in self.conv_layer_irreps
+                if ir.l == 0
+                and tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, ir)
+            ]
+        )
+
+        irreps_gated = Irreps(
+            [
+                (mul, ir)
+                for mul, ir in self.conv_layer_irreps
+                if ir.l > 0
+                and tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, ir)
+            ]
+        )
+
+        layer_out_irreps = (irreps_scalars + irreps_gated).simplify()
+
+        if activation_type == "gate":
+            ir = (
+                "0e"
+                if tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, "0e")
+                else "0o"
+            )
+            irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
+
+            equivariant_nonlinear = Gate(
+                irreps_scalars=irreps_scalars,
+                act_scalars=[activation_scalars[ir.p] for _, ir in irreps_scalars],
+                irreps_gates=irreps_gates,
+                act_gates=[activation_gates[ir.p] for _, ir in irreps_gates],
+                irreps_gated=irreps_gated,
+            )
+
+            conv_irreps_out = equivariant_nonlinear.irreps_in.simplify()
+
+        else:
+            conv_irreps_out = layer_out_irreps.simplify()
+
+            equivariant_nonlinear = NormActivation(
+                irreps_in=conv_irreps_out,
+                # norm is an even scalar, so activation_scalars[1]
+                scalar_nonlinearity=activation_gates[1],
+                normalize=True,
+                epsilon=1e-8,
+                bias=False,
+            )
+
+        self.equivariant_nonlinear = equivariant_nonlinear
+
+        # TODO: partial resnet?
+        if layer_out_irreps == layer_out_prev_irreps and use_resnet:
+            self.use_resnet = True
+        else:
+            self.use_resnet = False
+
+        # TODO: last convolution should go to explicit irreps out
+        logger.debug(f"{conv.__name__} initialized with: {conv_kwargs}")
+
+        # override defaults for irreps
+        conv_kwargs.pop("irreps_in", None)
+        conv_kwargs.pop("irreps_out", None)
+        self.conv = conv(
+            irreps_in=self.irreps_in, irreps_out=conv_irreps_out, **conv_kwargs
+        )
+
+        # The output features are whatever we got updated from the conv outputs (which
+        # is a full graph module), but the node features updated by the nonlinearity
+        self.irreps_out.update(self.conv.irreps_out)
+        self.irreps_out[DataKey.NODE_FEATURES] = self.equivariant_nonlinear.irreps_out
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        # shallow copy to not modify the input
+        data = data.copy()
+
+        # save old features for resnet
+        old_x = data[DataKey.NODE_FEATURES]
+
+        # run convolution
+        data = self.conv(data)
+
+        # do nonlinearity
+        x = data[DataKey.NODE_FEATURES]
+        x = self.equivariant_nonlinear(x)
+
+        # do resnet
+        if self.use_resnet:
+            data[DataKey.NODE_FEATURES] = old_x + x
+        else:
+            data[DataKey.NODE_FEATURES] = x
+
+        return data

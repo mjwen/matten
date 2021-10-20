@@ -112,7 +112,7 @@ def create_energy_model(hparams, dataset_hparams):
         layers[f"layer{i}_convnet"] = (
             SE3Transformer,
             {
-                # "feature_irreps_hidden": hparams["feature_irreps_hidden"],
+                # "conv_layer_irreps": hparams["conv_layer_irreps"],
                 # "nonlinearity_type": hparams["nonlinearity_type"],
                 # "resnet": hparams["resnet"],
                 "irreps_query_key": hparams["feature_irreps_hidden"],
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     hparams = {
         "species_embedding_dim": 16,
         # "species_embedding_irreps_out": "16x0e",
-        "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
+        "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
         "radial_basis_r_cut": 4,

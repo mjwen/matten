@@ -40,7 +40,7 @@ model:
     avg_num_neighbors: null # number of neighbors to divide by, None => no normalization.
     use_sc: true
 
-    feature_irreps_hidden: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
+    conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
     resnet: true
 

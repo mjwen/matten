@@ -1,16 +1,16 @@
-from typing import Dict, Callable
+from typing import Callable, Dict
 
 import torch
 from e3nn.math import soft_unit_step
 from e3nn.nn import FullyConnectedNet
-from e3nn.o3 import Irreps, Irrep, Linear, TensorProduct, FullyConnectedTensorProduct
+from e3nn.o3 import FullyConnectedTensorProduct, Irrep, Irreps, Linear, TensorProduct
 from e3nn.util.jit import compile_mode
 from nequip.nn.nonlinearities import ShiftedSoftPlus
 from torch import nn as nn
 from torch.nn import functional as fn
 from torch_scatter import scatter
 
-from eigenn.nn.irreps import ModuleIrreps, DataKey, _check_irreps_type
+from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
 
 
 @compile_mode("script")
