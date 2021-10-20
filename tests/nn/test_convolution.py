@@ -1,6 +1,7 @@
 from e3nn.o3 import Irreps
 
-from eigenn.nn.convolution import SE3Transformer, TFNConv
+from eigenn.nn.tfn_conv import TFNConv
+from eigenn.nn.transformer_conv import SE3Transformer
 from eigenn.nn.irreps import DataKey
 
 

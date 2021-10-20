@@ -8,7 +8,7 @@ from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAt
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.convolution import SE3Transformer
+from eigenn.nn.transformer_conv import SE3Transformer
 from eigenn.nn.embedding import SpeciesEmbedding
 
 

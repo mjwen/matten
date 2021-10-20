@@ -30,9 +30,9 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
-        # model_class=EnergyModel,
+        model_class=EnergyModel,
         # model_class=TransformerEnergyModel,
-        model_class=AtomicTensorModel,
+        # model_class=AtomicTensorModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
