@@ -20,6 +20,7 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.tfn_conv import TFNLayer
 
 
 class EnergyModel(ModelForPyGData):
@@ -120,16 +121,28 @@ def create_energy_model(hparams, dataset_hparams):
 
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
-            ConvNetLayer,
+            # ConvNetLayer,
+            # {
+            #     "feature_irreps_hidden": hparams["conv_layer_irreps"],
+            #     "nonlinearity_type": hparams["nonlinearity_type"],
+            #     "resnet": hparams["resnet"],
+            #     "convolution_kwargs": {
+            #         "invariant_layers": hparams["invariant_layers"],
+            #         "invariant_neurons": hparams["invariant_neurons"],
+            #         "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #         "use_sc": hparams["use_sc"],
+            #     },
+            # },
+            TFNLayer,
             {
-                "feature_irreps_hidden": hparams["conv_layer_irreps"],
-                "nonlinearity_type": hparams["nonlinearity_type"],
-                "resnet": hparams["resnet"],
-                "convolution_kwargs": {
-                    "invariant_layers": hparams["invariant_layers"],
-                    "invariant_neurons": hparams["invariant_neurons"],
+                "conv_layer_irreps": hparams["conv_layer_irreps"],
+                "activation_type": hparams["nonlinearity_type"],
+                "use_resnet": hparams["resnet"],
+                "conv_kwargs": {
+                    "fc_num_hidden_layers": hparams["invariant_layers"],
+                    "fc_hidden_size": hparams["invariant_neurons"],
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
-                    "use_sc": hparams["use_sc"],
+                    "use_self_connection": hparams["use_sc"],
                 },
             },
         )

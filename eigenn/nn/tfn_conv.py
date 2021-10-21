@@ -14,10 +14,16 @@ from torch_scatter import scatter
 from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
 
 ACTIVATION = {
-    "abs": torch.abs,
-    "tanh": torch.tanh,
-    "ssp": ShiftedSoftPlus,
-    "silu": torch.nn.functional.silu,
+    # for even irreps
+    "e": {
+        "ssp": ShiftedSoftPlus,
+        "silu": torch.nn.functional.silu,
+    },
+    # for odd irreps
+    "o": {
+        "abs": torch.abs,
+        "tanh": torch.tanh,
+    },
 }
 
 
@@ -40,7 +46,7 @@ class TFNConv(nn.Module, ModuleIrreps):
         irreps_out: Dict[str, Irreps],
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
-        activation_scalars: Dict[str, Callable] = None,
+        activation_scalars: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
     ):
@@ -58,11 +64,11 @@ class TFNConv(nn.Module, ModuleIrreps):
             fc_hidden_size: hidden layer size for the radial MLP
             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
                 SE3-Transformer paper.
-            activation_scalars: activation function for scalars (i.e. irreps l=0).
-                Should be something like {'e': act1 'o':act2}, where act1 is for even
-                parity irreps (i.e. 0e) and act2 is for odd parity irreps (i.e. 0o);
-                both should be callable.
-
+            activation_scalars: activation function for scalar irreps (i.e. l=0).
+                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
+                name of the activation function ('ssp' or 'silu') for even irreps;
+                `act_o` is the name of the activation function ('abs' or 'tanh') for
+                odd irreps.
         """
 
         super().__init__()
@@ -86,8 +92,8 @@ class TFNConv(nn.Module, ModuleIrreps):
 
         # first linear on node feats
         self.linear_1 = Linear(
-            node_feats_irreps_in,
-            node_feats_irreps_in,
+            irreps_in=node_feats_irreps_in,
+            irreps_out=node_feats_irreps_in,
             internal_weights=True,
             shared_weights=True,
         )
@@ -129,30 +135,34 @@ class TFNConv(nn.Module, ModuleIrreps):
             shared_weights=False,
         )
 
+        # radial network on scalar edge embedding (e.g. edge distance)
+        layer_sizes = (
+            [self.irreps_in[DataKey.EDGE_EMBEDDING].num_irreps]
+            + fc_num_hidden_layers * [fc_hidden_size]
+            + [self.tp.weight_numel]
+        )
+        if activation_scalars is None:
+            act = ACTIVATION["e"]["ssp"]
+        else:
+            act = ACTIVATION["e"][activation_scalars["e"]]
+        self.radial_nn = FullyConnectedNet(layer_sizes, act=act)
+
         # second linear on node feats
         #
         # In the tensor product using `uvu` instruction above, its output (i.e.
         # irreps_mid) can be uncoallesed (for example, irreps_mid =1x0e+2x0e+2x1e).
         # Here, we simplify it to combine irreps of the same the together (for example,
         # irreps_mid.simplify()='3x0e+2x1e').
-        # The normalization in Linear is different for unsimplified and simplified irreps.
+        # The normalization in Linear is different for unsimplified and simplified
+        # irreps.
+        #
+        # Note, the data corresponds to irreps_mid before and after simplification will
+        # be the same, i.e. their order does not change, since irreps_mid is sorted.
         self.linear_2 = Linear(
-            irreps_mid.simplify(),
-            node_feats_irreps_out,
+            irreps_in=irreps_mid.simplify(),
+            irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
-        )
-
-        # radial network on edge embedding (e.g. edge distance)
-
-        # TODO silu may also be used
-        if activation_scalars is None:
-            activation_scalars = {"e": ShiftedSoftPlus, "o": fn.tanh}
-        self.radial_nn = FullyConnectedNet(
-            [self.irreps_in[DataKey.EDGE_EMBEDDING].num_irreps]
-            + fc_num_hidden_layers * [fc_hidden_size]
-            + [self.tp.weight_numel],
-            act=activation_scalars["e"],
         )
 
         # # inspired by https://arxiv.org/pdf/2002.10444.pdf
@@ -174,6 +184,8 @@ class TFNConv(nn.Module, ModuleIrreps):
             self.self_connection = None
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
+        # shallow copy to avoid modifying the input
+        data = data.copy()
 
         node_feats_in = data[DataKey.NODE_FEATURES]
         node_attrs = data[DataKey.NODE_ATTRS]
@@ -187,12 +199,12 @@ class TFNConv(nn.Module, ModuleIrreps):
 
         weight = self.radial_nn(edge_embedding)
         edge_feats = self.tp(node_feats[edge_src], edge_attrs, weight)
-        node_feats = scatter(edge_feats, edge_dst, dim=0, dim_size=node_feats.shape[0])
+        node_feats = scatter(edge_feats, edge_dst, dim=0, dim_size=len(node_feats))
 
         if self.avg_num_neighbors is not None:
             node_feats = node_feats / self.avg_num_neighbors ** 0.5
 
-        node_feats = self.lin2(node_feats)
+        node_feats = self.linear_2(node_feats)
 
         # alpha = self.alpha(node_features, node_attr)
         #
@@ -202,13 +214,14 @@ class TFNConv(nn.Module, ModuleIrreps):
         # return node_self_connection + alpha * node_conv_out
 
         if self.self_connection is not None:
-            sc = +self.self_connection(node_feats_in, node_attrs)
-            node_feats = sc + node_feats
+            node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
 
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
 
+    # TODO, update ModuleIrreps to use a new key, required_type_irreps_in for this check
+    # this is called in init_irreps
     def fix_irreps_in(self, irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
 
         irreps_in = super().fix_irreps_in(irreps_in)
@@ -242,8 +255,8 @@ class TFNLayer(ModuleIrreps, nn.Module):
         conv=TFNConv,
         conv_kwargs: Optional[Dict] = None,
         activation_type: str = "gate",
-        activation_scalars: Dict[int, str] = None,
-        activation_gates: Dict[int, str] = None,
+        activation_scalars: Dict[str, str] = None,
+        activation_gates: Dict[str, str] = None,
         use_resnet: bool = True,
     ):
         """
@@ -256,15 +269,23 @@ class TFNLayer(ModuleIrreps, nn.Module):
             conv_kwargs:
             use_resnet:
             activation_type:
-            activation_scalars:
-            activation_gates:
+            activation_scalars: activation function for scalar irreps (i.e. l=0).
+                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
+                name of the activation function ('ssp' or 'silu') for even irreps;
+                `act_o` is the name of the activation function ('abs' or 'tanh') for
+                odd irreps.
+            activation_gates: activation function for tensor irreps (i.e. l>0).
+                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
+                name of the activation function ('ssp' or 'silu') for even irreps;
+                `act_o` is the name of the activation function ('abs' or 'tanh') for
+                odd irreps.
         """
         super().__init__()
 
         #
         # check input
         #
-        assert activation_type in ("gated", "norm")
+        assert activation_type in ("gate", "norm")
 
         #
         # set defaults
@@ -273,9 +294,24 @@ class TFNLayer(ModuleIrreps, nn.Module):
 
         # activation function for even (i.e. 1) and odd (i.e. -1) irreps
         if activation_scalars is None:
-            activation_scalars = {1: ACTIVATION["ssp"], -1: ACTIVATION["tanh"]}
+            activation_scalars = {
+                1: ACTIVATION["e"]["ssp"],
+                -1: ACTIVATION["o"]["tanh"],
+            }
+        else:
+            # change key from e or v to 1 or -1
+            key_mapping = {"e": 1, "o": -1}
+            activation_scalars = {
+                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_scalars.items()
+            }
         if activation_gates is None:
-            activation_gates = {1: ACTIVATION["ssp"], -1: ACTIVATION["abs"]}
+            activation_gates = {1: ACTIVATION["e"]["ssp"], -1: ACTIVATION["o"]["abs"]}
+        else:
+            # change key from e or v to 1 or -1
+            key_mapping = {"e": 1, "o": -1}
+            activation_gates = {
+                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_gates.items()
+            }
 
         ir, _, _ = Irreps(conv_layer_irreps).simplify().sort()
         self.conv_layer_irreps = ir
@@ -353,7 +389,9 @@ class TFNLayer(ModuleIrreps, nn.Module):
         conv_kwargs.pop("irreps_in", None)
         conv_kwargs.pop("irreps_out", None)
         self.conv = conv(
-            irreps_in=self.irreps_in, irreps_out=conv_irreps_out, **conv_kwargs
+            irreps_in=self.irreps_in,
+            irreps_out={DataKey.NODE_FEATURES: conv_irreps_out},
+            **conv_kwargs,
         )
 
         # The output features are whatever we got updated from the conv outputs (which
