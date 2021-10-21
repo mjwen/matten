@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional
+from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -6,7 +6,6 @@ import torch.nn.functional as fn
 from e3nn.nn import FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import FullyConnectedTensorProduct, Irrep, Irreps, Linear, TensorProduct
 from e3nn.util.jit import compile_mode
-from loguru import logger
 from nequip.nn.nonlinearities import ShiftedSoftPlus
 from nequip.utils.tp_utils import tp_path_exists
 from torch_scatter import scatter
@@ -38,6 +37,7 @@ class TFNConv(nn.Module, ModuleIrreps):
         DataKey.NODE_ATTRS,
         DataKey.EDGE_EMBEDDING,
         DataKey.EDGE_ATTRS,
+        DataKey.EDGE_INDEX,
     ]
 
     def __init__(
@@ -238,6 +238,7 @@ class TFNConv(nn.Module, ModuleIrreps):
         return irreps_in
 
 
+# TODO, the part to apply nonlinearity can be write as a separate class for reuse
 @compile_mode("script")
 class TFNLayer(ModuleIrreps, nn.Module):
 
@@ -262,13 +263,14 @@ class TFNLayer(ModuleIrreps, nn.Module):
         """
         TFN layer, basically TFN conv with nonlinear activation functions.
 
+        input -> conv layer -> nonlinear activation -> resnet (optional)
+
         Args:
-            irreps_out:
+            irreps_in:
             conv_layer_irreps: irreps for the node features in the conv layer
             conv:
-            conv_kwargs:
-            use_resnet:
-            activation_type:
+            conv_kwargs: dict of kwargs passed to `conv`
+            activation_type: `gate` or `norm`
             activation_scalars: activation function for scalar irreps (i.e. l=0).
                 Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
                 name of the activation function ('ssp' or 'silu') for even irreps;
@@ -279,13 +281,9 @@ class TFNLayer(ModuleIrreps, nn.Module):
                 name of the activation function ('ssp' or 'silu') for even irreps;
                 `act_o` is the name of the activation function ('abs' or 'tanh') for
                 odd irreps.
+            use_resnet:
         """
         super().__init__()
-
-        #
-        # check input
-        #
-        assert activation_type in ("gate", "norm")
 
         #
         # set defaults
@@ -313,41 +311,48 @@ class TFNLayer(ModuleIrreps, nn.Module):
                 key_mapping[k]: ACTIVATION[k][v] for k, v in activation_gates.items()
             }
 
-        ir, _, _ = Irreps(conv_layer_irreps).simplify().sort()
-        self.conv_layer_irreps = ir
-
         #
         # irreps_out will be set later when we know them
         #
         self.init_irreps(irreps_in)
 
         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
-        layer_out_prev_irreps = self.irreps_in[DataKey.NODE_FEATURES]
+        node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
+
+        #
+        # Nonlinear activation
+        #
+        # Chose activation function and determine their irreps
+        # The flow of the irreps are as follows:
+        # (node_feats_irreps_in) --> conv_layer
+        # -->(conv_irreps_out)--> activation
+        # -->(irreps_after_act)
+        #
+
+        ir, _, _ = Irreps(conv_layer_irreps).sort()
+        conv_layer_irreps = ir.simplify()
 
         irreps_scalars = Irreps(
             [
                 (mul, ir)
-                for mul, ir in self.conv_layer_irreps
+                for mul, ir in conv_layer_irreps
                 if ir.l == 0
-                and tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, ir)
+                and tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, ir)
             ]
         )
-
         irreps_gated = Irreps(
             [
                 (mul, ir)
-                for mul, ir in self.conv_layer_irreps
+                for mul, ir in conv_layer_irreps
                 if ir.l > 0
-                and tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, ir)
+                and tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, ir)
             ]
         )
-
-        layer_out_irreps = (irreps_scalars + irreps_gated).simplify()
 
         if activation_type == "gate":
             ir = (
                 "0e"
-                if tp_path_exists(layer_out_prev_irreps, edge_attrs_irreps, "0e")
+                if tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, "0e")
                 else "0o"
             )
             irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
@@ -360,32 +365,38 @@ class TFNLayer(ModuleIrreps, nn.Module):
                 irreps_gated=irreps_gated,
             )
 
+            # conv layer is applied before activation, so conv_irreps_out is the same
+            # as equivariant_nonlinear.irreps_in
             conv_irreps_out = equivariant_nonlinear.irreps_in.simplify()
 
-        else:
-            conv_irreps_out = layer_out_irreps.simplify()
+        elif activation_type == "norm":
+            conv_irreps_out = (irreps_scalars + irreps_gated).simplify()
 
             equivariant_nonlinear = NormActivation(
                 irreps_in=conv_irreps_out,
                 # norm is an even scalar, so activation_scalars[1]
-                scalar_nonlinearity=activation_gates[1],
+                scalar_nonlinearity=activation_scalars[1],
                 normalize=True,
                 epsilon=1e-8,
                 bias=False,
             )
 
-        self.equivariant_nonlinear = equivariant_nonlinear
-
-        # TODO: partial resnet?
-        if layer_out_irreps == layer_out_prev_irreps and use_resnet:
-            self.use_resnet = True
         else:
-            self.use_resnet = False
+            supported = ("gate", "norm")
+            raise ValueError(
+                f"Support `activation_type` includes {supported}, got {activation_type}"
+            )
 
-        # TODO: last convolution should go to explicit irreps out
-        logger.debug(f"{conv.__name__} initialized with: {conv_kwargs}")
+        self.equivariant_nonlinear = equivariant_nonlinear
+        irreps_after_act = self.equivariant_nonlinear.irreps_out
 
-        # override defaults for irreps
+        #
+        # Conv layer
+        #
+        # This is applied before activation, but need to initialize after
+        # activation because when using `Gate`, conv_irreps_out needs to be set based on
+        # Gate.irreps_in
+        # Remove user set irreps_in and irreps_out (if any) to use what determined here
         conv_kwargs.pop("irreps_in", None)
         conv_kwargs.pop("irreps_out", None)
         self.conv = conv(
@@ -394,10 +405,22 @@ class TFNLayer(ModuleIrreps, nn.Module):
             **conv_kwargs,
         )
 
-        # The output features are whatever we got updated from the conv outputs (which
-        # is a full graph module), but the node features updated by the nonlinearity
+        #
+        # Resnet
+        #
+        # TODO: partial resnet?
+        if use_resnet and irreps_after_act == node_feats_irreps_in:
+            self.use_resnet = True
+        else:
+            self.use_resnet = False
+
+        #
+        # Set irreps_out
+        #
+        # The output features are whatever we got updated from the conv outputs,
+        # but the irreps of node features should be from the activation
         self.irreps_out.update(self.conv.irreps_out)
-        self.irreps_out[DataKey.NODE_FEATURES] = self.equivariant_nonlinear.irreps_out
+        self.irreps_out[DataKey.NODE_FEATURES] = irreps_after_act
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         # shallow copy to not modify the input
@@ -409,11 +432,11 @@ class TFNLayer(ModuleIrreps, nn.Module):
         # run convolution
         data = self.conv(data)
 
-        # do nonlinearity
+        # nonlinear activation
         x = data[DataKey.NODE_FEATURES]
         x = self.equivariant_nonlinear(x)
 
-        # do resnet
+        # resnet
         if self.use_resnet:
             data[DataKey.NODE_FEATURES] = old_x + x
         else:

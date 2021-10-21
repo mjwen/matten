@@ -2,6 +2,7 @@ import torch
 from e3nn.io import CartesianTensor as E3NNCartesianTensor
 
 
+# TODO this has been PRed to e3nn, use that one
 class CartesianTensor(E3NNCartesianTensor):
     def to_cartesian(self, irreps_tensor: torch.Tensor) -> torch.Tensor:
         """
