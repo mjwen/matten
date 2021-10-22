@@ -6,10 +6,10 @@ https://github.com/mir-group/nequip/blob/main/nequip/nn/_graph_mixin.py
 to make it general for different data.
 """
 from dataclasses import dataclass
-from typing import Dict, Final, List, Sequence
+from typing import Dict, Final, Sequence
 
 import torch.nn
-from e3nn.o3 import Irrep, Irreps
+from e3nn.o3 import Irreps
 
 
 # This is a recreation of nequip.data.AtomicDataDict
@@ -59,32 +59,18 @@ class ModuleIrreps:
 
     subclass can implement:
       - REQUIRED_KEY_IRREPS_IN
-      - OPTIONAL_EXACT_IRREPS_IN
+      - REQUIRED_TYPE_IRREPS_IN
+      - OPTIONAL_MUL_TYPE_IRREPS_IN
       - fix_irreps_in
 
     ``None`` is a valid irreps in the context for anything that is invariant but not
     well described by an ``e3nn.o3.Irreps``. An example are edge indexes in a graph,
     which are invariant but are integers, not ``0e`` scalars.
-
-    Args:
-        irreps_in: input irreps, availables keys in `DataKey`
-        irreps_out: a dict of output irreps, availables keys in `DataKey`. If a string,
-            it should be a key in irreps_in, and then irreps_out will be
-            {key: irreps_in[key]}
-        required_keys_irreps_in: gives the required keys should be present in irreps_in.
-            This only requires the irreps is given in `irreps_in`; does not specify
-            what the irreps look like.
-        optional_exact_irreps_in: for irreps in this dict, if it given in `irreps_in`,
-            they two should match (i.e. be the same). It's not required that irreps
-            specified in this dict has to be present in `irreps_in`.
-
-    Attrs:
-        REQUIRED_KEY_IRREPS_IN
-        OPTIONAL_EXACT_IRREPS_IN
     """
 
     REQUIRED_KEYS_IRREPS_IN = None
-    OPTIONAL_EXACT_IRREPS_IN = None
+    REQUIRED_TYPE_IRREPS_IN = None
+    OPTIONAL_MUL_TYPE_IRREPS_IN = None
 
     def init_irreps(
         self,
@@ -92,8 +78,25 @@ class ModuleIrreps:
         irreps_out: Dict[str, Irreps] = None,
         *,
         required_keys_irreps_in: Sequence[str] = None,
-        optional_exact_irreps_in: Dict[str, Irreps] = None,
+        required_type_irreps_in: Dict[str, Irreps] = None,
+        optional_mul_type_irreps_in: Dict[str, Irreps] = None,
     ):
+        """
+        Args:
+            irreps_in: input irreps, availables keys in `DataKey`
+            irreps_out: a dict of output irreps, available keys in `DataKey`. If a
+                string, it should be a key in irreps_in, and then irreps_out will be
+                set to {key: irreps_in[key]}
+            required_keys_irreps_in: the required keys should be present in irreps_in.
+                This only requires the irreps is given in `irreps_in`; does not specify
+                what the irreps should be.
+            required_type_irreps_in: for irreps in this dict, it should be present in
+                irreps_in. In addition, their type (i.e. degree and parity) should
+                match; multiplicity is not needed to match.
+            optional_mul_type_irreps_in: for irreps in this dict, if it is given in
+                `irreps_in`, they should match (all multiplicity, degree, and parity).
+                If it is not given in `irreps_in`, no check will be made.
+        """
 
         # input irreps
         irreps_in = {} if irreps_in is None else irreps_in
@@ -110,38 +113,56 @@ class ModuleIrreps:
             irreps_out = {irreps_out, irreps_in[irreps_out]}
         irreps_out = _fix_irreps_dict(irreps_out)
 
-        # required input irreps
-        required = (
+        # required keys of input irreps
+        required_keys = (
             [] if self.REQUIRED_KEYS_IRREPS_IN is None else self.REQUIRED_KEYS_IRREPS_IN
         )
         if required_keys_irreps_in is not None:
-            required += list(required_keys_irreps_in)
+            required_keys += list(required_keys_irreps_in)
 
-        # optional exact irreps
+        # required type of input irreps
+        required_type = (
+            {} if self.REQUIRED_TYPE_IRREPS_IN is None else self.REQUIRED_TYPE_IRREPS_IN
+        )
+        if required_type_irreps_in is not None:
+            required_type.update(required_type_irreps_in)
+        required_type = _fix_irreps_dict(required_type)
+
+        # optional exact input irreps
         optional = (
             {}
-            if self.OPTIONAL_EXACT_IRREPS_IN is None
-            else self.OPTIONAL_EXACT_IRREPS_IN
+            if self.OPTIONAL_MUL_TYPE_IRREPS_IN is None
+            else self.OPTIONAL_MUL_TYPE_IRREPS_IN
         )
-        if optional_exact_irreps_in is not None:
-            optional.update(optional_exact_irreps_in)
+        if optional_mul_type_irreps_in is not None:
+            optional.update(optional_mul_type_irreps_in)
         optional = _fix_irreps_dict(optional)
 
         # Check compatibility
 
-        # check optional_exact_irreps_in
-        for k in optional:
-            if k in irreps_in and irreps_in[k] != optional[k]:
-                raise ValueError(
-                    f"Input irreps {irreps_in[k]} for `{k}` is incompatible with this "
-                    f"configuration {type(self)}. Should be {optional[k]}"
-                )
-
-        # check required_keys_irreps_in
-        for k in required:
+        # check required keys
+        for k in required_keys + list(required_type.keys()):
             if k not in irreps_in:
                 raise ValueError(
-                    f"This configuration {type(self)} requires `{k}` in `irreps_in`."
+                    f"This module {type(self)} requires `{k}` in `irreps_in`."
+                )
+
+        # check required type
+        for k, v in required_type.items():
+            ok = _check_irreps_type(irreps_in[k], v)
+            if not ok:
+                raise ValueError(
+                    f"This module {type(self)} expects irreps_in['{k}'] be of type {v}, "
+                    f"instead got {irreps_in[k]}. Note, type means degree and parity, "
+                    f"not multiplicity."
+                )
+
+        # check optional exact
+        for k, v in optional.items():
+            if k in irreps_in and irreps_in[k] != optional[k]:
+                raise ValueError(
+                    f"This module {type(self)} expects irreps_in['{k}'] to be {v}, "
+                    f"instead got {irreps_in[k]}."
                 )
 
         # Save stuff
@@ -207,21 +228,21 @@ def _check_irreps_compatible(ir1: Dict[str, Irreps], ir2: Dict[str, Irreps]):
     return all(ir1[k] == ir2[k] for k in ir1 if k in ir2)
 
 
-def _check_irreps_type(irreps: Irreps, allowed: List[Irrep]) -> bool:
+def _check_irreps_type(irreps1: Irreps, irreps2: Irreps) -> bool:
     """
-    Check the irreps only contains the allowed type.
+    Check the type of the two irreps are the same.
 
     This only checks the type (degree and parity), not the multiplicity.
 
     Args:
-        irreps: the irreps to check
-        allowed: allowed irrep (degree and parity), e.g. ['0e', '1o']
+        irreps1: the first irreps
+        irreps2: the second irreps
     """
-    irreps = Irreps(irreps)
-    allowed = [Irrep(i) for i in allowed]
+    irreps1 = Irreps(irreps1)
+    irreps2 = Irreps(irreps2)
 
-    for m, ir in irreps:
-        if ir not in allowed:
-            return False
-
-    return True
+    # ls gives all the l of an irreps
+    if set(irreps1.ls) == set(irreps2.ls):
+        return True
+    else:
+        return False

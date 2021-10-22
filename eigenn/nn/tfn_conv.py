@@ -4,13 +4,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as fn
 from e3nn.nn import FullyConnectedNet, Gate, NormActivation
-from e3nn.o3 import FullyConnectedTensorProduct, Irrep, Irreps, Linear, TensorProduct
+from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
 from e3nn.util.jit import compile_mode
 from nequip.nn.nonlinearities import ShiftedSoftPlus
 from nequip.utils.tp_utils import tp_path_exists
 from torch_scatter import scatter
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps, _check_irreps_type
+from eigenn.nn.irreps import DataKey, ModuleIrreps
 
 ACTIVATION = {
     # for even irreps
@@ -39,6 +39,8 @@ class TFNConv(nn.Module, ModuleIrreps):
         DataKey.EDGE_ATTRS,
         DataKey.EDGE_INDEX,
     ]
+
+    REQUIRED_TYPE_IRREPS_IN = {DataKey.EDGE_EMBEDDING: "0e"}
 
     def __init__(
         self,
@@ -219,23 +221,6 @@ class TFNConv(nn.Module, ModuleIrreps):
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
-
-    # TODO, update ModuleIrreps to use a new key, required_type_irreps_in for this check
-    # this is called in init_irreps
-    def fix_irreps_in(self, irreps_in: Dict[str, Irreps]) -> Dict[str, Irreps]:
-
-        irreps_in = super().fix_irreps_in(irreps_in)
-
-        # ensure EDGE_EMBEDDING (e.g. embedding of radial distance) to be invariant
-        # scalars (i.e. 0e) in order to use a dense network
-        ok = _check_irreps_type(irreps_in[DataKey.EDGE_EMBEDDING], [Irrep("0e")])
-        if not ok:
-            raise ValueError(
-                f"Expect edge embedding irreps only contain `0e`; "
-                f"got {irreps_in[DataKey.EDGE_EMBEDDING]}"
-            )
-
-        return irreps_in
 
 
 # TODO, the part to apply nonlinearity can be write as a separate class for reuse
