@@ -4,7 +4,7 @@ import torch.nn as nn
 from e3nn.o3 import Irreps
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.uitls import CartesianTensor
+from eigenn.nn.utils import CartesianTensor
 
 
 class IrrepsToCartesianTensor(ModuleIrreps, nn.Module):

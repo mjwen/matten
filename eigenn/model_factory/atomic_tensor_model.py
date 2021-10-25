@@ -17,7 +17,7 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.atomwise import AtomwiseSelect
 from eigenn.nn.embedding import SpeciesEmbedding
 from eigenn.nn.readout import IrrepsToCartesianTensor
-from eigenn.nn.uitls import CartesianTensor
+from eigenn.nn.utils import CartesianTensor
 
 # data key for hte
 OUT_FIELD_ATOM = "tensor_output_atom"
@@ -189,7 +189,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     )
 
     # select atomic tensor for prediction
-    layers[f"output_irreps_tensor"] = (
+    layers["output_irreps_tensor"] = (
         AtomwiseSelect,
         dict(field=OUT_FIELD_ATOM, out_field=OUT_FIELD, mask_field=NODE_MASKS),
     )

@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.nn.uitls import CartesianTensor
+from eigenn.nn.utils import CartesianTensor
 
 
 def test_cartesian_tensor():
