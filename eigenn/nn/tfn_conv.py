@@ -2,12 +2,12 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as fn
 from e3nn.nn import FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
 from e3nn.util.jit import compile_mode
 from nequip.nn.nonlinearities import ShiftedSoftPlus
 from nequip.utils.tp_utils import tp_path_exists
+from torch_geometric.nn import MessagePassing
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
@@ -27,7 +27,7 @@ ACTIVATION = {
 
 
 @compile_mode("script")
-class TFNConv(nn.Module, ModuleIrreps):
+class TFNConv(ModuleIrreps, MessagePassing):
     """
     TFN convolution.
     """
@@ -194,8 +194,9 @@ class TFNConv(nn.Module, ModuleIrreps):
         edge_embedding = data[DataKey.EDGE_EMBEDDING]
         edge_attrs = data[DataKey.EDGE_ATTRS]
 
-        edge_src = data[DataKey.EDGE_INDEX][0]
-        edge_dst = data[DataKey.EDGE_INDEX][1]
+        edge_index = data[DataKey.EDGE_INDEX]
+        edge_src = edge_index[0]
+        edge_dst = edge_index[1]
 
         node_feats = self.linear_1(node_feats_in)
 
@@ -221,6 +222,61 @@ class TFNConv(nn.Module, ModuleIrreps):
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
+
+    # NOTE this forward() and the message() function below is the same as the above
+    # forward() function. The above version should be a bit faster while this version is
+    # a bit cleaner.
+    # def forward(self, data: DataKey.Type) -> DataKey.Type:
+    #     # shallow copy to avoid modifying the input
+    #     data = data.copy()
+
+    #     node_feats_in = data[DataKey.NODE_FEATURES]
+    #     node_attrs = data[DataKey.NODE_ATTRS]
+    #     edge_embedding = data[DataKey.EDGE_EMBEDDING]
+    #     edge_attrs = data[DataKey.EDGE_ATTRS]
+
+    #     edge_index = data[DataKey.EDGE_INDEX]
+
+    #     # first linear layer
+    #     node_feats = self.linear_1(node_feats_in)
+
+    #     # message passing and update
+    #     node_feats = self.propagate(
+    #         edge_index,
+    #         x=node_feats,
+    #         edge_attrs=edge_attrs,
+    #         edge_embedding=edge_embedding,
+    #     )
+
+    #     if self.avg_num_neighbors is not None:
+    #         node_feats = node_feats / self.avg_num_neighbors ** 0.5
+
+    #     # second linear layer
+    #     node_feats = self.linear_2(node_feats)
+
+    #     # alpha = self.alpha(node_features, node_attr)
+    #     #
+    #     # m = self.sc.output_mask
+    #     # alpha = (1 - m) + alpha * m
+    #     #
+    #     # return node_self_connection + alpha * node_conv_out
+
+    #     # self connection
+    #     if self.self_connection is not None:
+    #         node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
+
+    #     data[DataKey.NODE_FEATURES] = node_feats
+
+    #     return data
+
+    # def message(
+    #     self, x_j: Tensor, edge_attrs: Tensor, edge_embedding: Tensor
+    # ) -> Tensor:
+
+    #     weight = self.radial_nn(edge_embedding)
+    #     msg = self.tp(x_j, edge_attrs, weight)
+
+    #     return msg
 
 
 # TODO, the part to apply nonlinearity can be write as a separate class for reuse
