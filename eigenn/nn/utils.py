@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as fn
 from e3nn.io import CartesianTensor as E3NNCartesianTensor
 from e3nn.o3 import Irreps
 from nequip.nn.nonlinearities import ShiftedSoftPlus
@@ -7,7 +8,7 @@ ACTIVATION = {
     # for even irreps
     "e": {
         "ssp": ShiftedSoftPlus,
-        "silu": torch.nn.functional.silu,
+        "silu": fn.silu,
     },
     # for odd irreps
     "o": {

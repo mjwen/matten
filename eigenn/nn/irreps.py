@@ -8,7 +8,7 @@ to make it general for different data.
 from dataclasses import dataclass
 from typing import Dict, Final, Sequence
 
-import torch.nn
+import torch
 from e3nn.o3 import Irreps
 
 

@@ -1,13 +1,13 @@
 from typing import Dict, Optional
 
-import torch.nn as nn
+import torch
 from e3nn.o3 import Irreps
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.utils import CartesianTensor
 
 
-class IrrepsToCartesianTensor(ModuleIrreps, nn.Module):
+class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
     def __init__(
         self,
         irreps_in: Dict[str, Irreps],

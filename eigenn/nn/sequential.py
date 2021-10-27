@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from typing import overload
 
-import torch.nn
+import torch
 
 from eigenn.nn.irreps import ModuleIrreps, _check_irreps_compatible
 

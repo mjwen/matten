@@ -1,7 +1,6 @@
 from typing import List
 
 import torch
-import torch.nn as nn
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
 
@@ -9,7 +8,7 @@ from eigenn.nn.irreps import DataKey, ModuleIrreps
 
 
 @compile_mode("script")
-class SpeciesEmbedding(nn.Module, ModuleIrreps):
+class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
     """
     Embed atomic species (number) to node attrs and node features with fixed-size lookup
     table using torch.nn.Embedding.
@@ -60,7 +59,7 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
         self.init_irreps(irreps_in=irreps_in, irreps_out=irreps_out)
 
         # learnable embedding layer
-        self.embedding = nn.Embedding(num_species, embedding_dim)
+        self.embedding = torch.nn.Embedding(num_species, embedding_dim)
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
 
@@ -85,7 +84,7 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
 
 
 @compile_mode("script")
-class _AtomicNumberToIndex(nn.Module):
+class _AtomicNumberToIndex(torch.nn.Module):
     """
     Map non-consecutive atomic numbers to consecutive atomic index.
 

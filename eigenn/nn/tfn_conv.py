@@ -1,5 +1,6 @@
 from typing import Dict
 
+import torch
 from e3nn.nn import FullyConnectedNet
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
 from torch_scatter import scatter
@@ -8,7 +9,7 @@ from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.utils import ACTIVATION, get_uvu_instructions
 
 
-class TFNConv(ModuleIrreps, MessagePassing):
+class TFNConv(ModuleIrreps, torch.nn.Module):
     """
     TFN convolution.
     """

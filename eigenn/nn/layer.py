@@ -1,10 +1,10 @@
 from typing import Dict, Optional
 
+import torch
 from e3nn.nn import Gate, NormActivation
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
 from nequip.utils.tp_utils import tp_path_exists
-from torch import nn as nn
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.tfn_conv import TFNConv
@@ -12,7 +12,7 @@ from eigenn.nn.utils import ACTIVATION
 
 
 @compile_mode("script")
-class EquivariantLayer(ModuleIrreps, nn.Module):
+class EquivariantLayer(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
