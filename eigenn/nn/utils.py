@@ -1,5 +1,54 @@
 import torch
 from e3nn.io import CartesianTensor as E3NNCartesianTensor
+from e3nn.o3 import Irreps
+
+
+def get_uvu_instructions(irreps_in1: Irreps, irreps_in2: Irreps, irreps_out: Irreps):
+    """
+    Get the instructions for the uvu tensor product.
+
+    This is a helper function to support two-step tensor product:
+    1. irreps_in1 \otimes irreps_in2 -> irreps_mid
+    2. linear(irreps_mid) -> irreps_out
+
+    This function prepares the instructions and irreps_mid for step 1.
+
+    Args:
+        irreps_in: the irreps of the input node features
+        irreps_out: the irreps of the output node features
+
+    Returns:
+        instructions: sorted instructions
+        irreps_mid: sorted irreps (should not simplified) for the mid layer
+    """
+
+    # uvu instructions
+    irreps_mid = []
+    instructions = []
+    for i, (mul, ir_in) in enumerate(irreps_in1):
+        for j, (_, ir_edge) in enumerate(irreps_in2):
+            for ir_out in ir_in * ir_edge:
+                if ir_out in irreps_out:
+                    k = len(irreps_mid)
+                    irreps_mid.append((mul, ir_out))
+                    instructions.append((i, j, k, "uvu", True))
+
+    # sort irreps_mid so we can simplify them later in the linear layer
+    irreps_mid = Irreps(irreps_mid)
+    irreps_mid, permutation, _ = irreps_mid.sort()
+
+    assert irreps_mid.dim > 0, (
+        f"irreps_in1={irreps_in1} times irreps_in2={irreps_in2} produces no "
+        f"instructions in irreps_out={irreps_out}"
+    )
+
+    # sort instructions accordingly
+    instructions = [
+        (i_1, i_2, permutation[i_out], mode, train)
+        for i_1, i_2, i_out, mode, train in instructions
+    ]
+
+    return instructions, irreps_mid
 
 
 # TODO this has been PRed to e3nn, use that one

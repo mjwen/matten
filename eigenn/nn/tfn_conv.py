@@ -11,6 +11,7 @@ from torch_geometric.nn import MessagePassing
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.nn.utils import get_uvu_instructions
 
 ACTIVATION = {
     # for even irreps
@@ -100,34 +101,10 @@ class TFNConv(ModuleIrreps, MessagePassing):
             shared_weights=True,
         )
 
-        # Construct `uvu` tensor product instructions for node feats and edge attrs
-        irreps_mid = []
-        instructions = []
-        for i, (mul, ir_in) in enumerate(node_feats_irreps_in):
-            for j, (_, ir_edge) in enumerate(edge_attrs_irreps):
-                for ir_out in ir_in * ir_edge:
-                    if ir_out in node_feats_irreps_out:
-                        k = len(irreps_mid)
-                        irreps_mid.append((mul, ir_out))
-                        instructions.append((i, j, k, "uvu", True))
-
-        # sort irreps_mid so we can simplify them when providing to self.linear_2 below
-        irreps_mid = Irreps(irreps_mid)
-        irreps_mid, permutation, _ = irreps_mid.sort()
-
-        # sort instructions accordingly
-        instructions = [
-            (i_1, i_2, permutation[i_out], mode, train)
-            for i_1, i_2, i_out, mode, train in instructions
-        ]
-
-        assert irreps_mid.dim > 0, (
-            f"node_feats_irreps_in={node_feats_irreps_in} times "
-            f"edge_attrs_irreps={edge_attrs_irreps} produces nothing in "
-            f"node_feats_irreps_out={node_feats_irreps_out}"
+        # tensor product for message function
+        instructions, irreps_mid = get_uvu_instructions(
+            node_feats_irreps_in, edge_attrs_irreps, node_feats_irreps_out
         )
-
-        # tensor product
         self.tp = TensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
@@ -193,90 +170,35 @@ class TFNConv(ModuleIrreps, MessagePassing):
         node_attrs = data[DataKey.NODE_ATTRS]
         edge_embedding = data[DataKey.EDGE_EMBEDDING]
         edge_attrs = data[DataKey.EDGE_ATTRS]
-
-        edge_index = data[DataKey.EDGE_INDEX]
-        edge_src = edge_index[0]
-        edge_dst = edge_index[1]
+        edge_src, edge_dst = data[DataKey.EDGE_INDEX]
 
         node_feats = self.linear_1(node_feats_in)
 
+        #
+        # message passing step
+        #
         weight = self.radial_nn(edge_embedding)
-        edge_feats = self.tp(node_feats[edge_src], edge_attrs, weight)
-        node_feats = scatter(edge_feats, edge_dst, dim=0, dim_size=len(node_feats))
+        msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, weight)
+
+        # aggregate message
+        msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))
 
         if self.avg_num_neighbors is not None:
-            node_feats = node_feats / self.avg_num_neighbors ** 0.5
+            msg = msg / self.avg_num_neighbors ** 0.5
 
-        node_feats = self.linear_2(node_feats)
+        msg = self.linear_2(msg)
 
-        # alpha = self.alpha(node_features, node_attr)
         #
-        # m = self.sc.output_mask
-        # alpha = (1 - m) + alpha * m
+        # update step
         #
-        # return node_self_connection + alpha * node_conv_out
-
         if self.self_connection is not None:
-            node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
+            node_feats = msg + self.self_connection(node_feats_in, node_attrs)
+        else:
+            node_feats = msg
 
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
-
-    # NOTE this forward() and the message() function below is the same as the above
-    # forward() function. The above version should be a bit faster while this version is
-    # a bit cleaner.
-    # def forward(self, data: DataKey.Type) -> DataKey.Type:
-    #     # shallow copy to avoid modifying the input
-    #     data = data.copy()
-
-    #     node_feats_in = data[DataKey.NODE_FEATURES]
-    #     node_attrs = data[DataKey.NODE_ATTRS]
-    #     edge_embedding = data[DataKey.EDGE_EMBEDDING]
-    #     edge_attrs = data[DataKey.EDGE_ATTRS]
-
-    #     edge_index = data[DataKey.EDGE_INDEX]
-
-    #     # first linear layer
-    #     node_feats = self.linear_1(node_feats_in)
-
-    #     # message passing and update
-    #     node_feats = self.propagate(
-    #         edge_index,
-    #         x=node_feats,
-    #         edge_attrs=edge_attrs,
-    #         edge_embedding=edge_embedding,
-    #     )
-
-    #     if self.avg_num_neighbors is not None:
-    #         node_feats = node_feats / self.avg_num_neighbors ** 0.5
-
-    #     # second linear layer
-    #     node_feats = self.linear_2(node_feats)
-
-    #     # alpha = self.alpha(node_features, node_attr)
-    #     #
-    #     # m = self.sc.output_mask
-    #     # alpha = (1 - m) + alpha * m
-    #     #
-    #     # return node_self_connection + alpha * node_conv_out
-
-    #     # self connection
-    #     if self.self_connection is not None:
-    #         node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
-
-    #     data[DataKey.NODE_FEATURES] = node_feats
-
-    #     return data
-
-    # def message(
-    #     self, x_j: Tensor, edge_attrs: Tensor, edge_embedding: Tensor
-    # ) -> Tensor:
-
-    #     weight = self.radial_nn(edge_embedding)
-    #     msg = self.tp(x_j, edge_attrs, weight)
-
-    #     return msg
 
 
 # TODO, the part to apply nonlinearity can be write as a separate class for reuse
