@@ -1,6 +1,20 @@
 import torch
 from e3nn.io import CartesianTensor as E3NNCartesianTensor
 from e3nn.o3 import Irreps
+from nequip.nn.nonlinearities import ShiftedSoftPlus
+
+ACTIVATION = {
+    # for even irreps
+    "e": {
+        "ssp": ShiftedSoftPlus,
+        "silu": torch.nn.functional.silu,
+    },
+    # for odd irreps
+    "o": {
+        "abs": torch.abs,
+        "tanh": torch.tanh,
+    },
+}
 
 
 def get_uvu_instructions(irreps_in1: Irreps, irreps_in2: Irreps, irreps_out: Irreps):
