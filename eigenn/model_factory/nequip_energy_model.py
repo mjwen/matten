@@ -19,7 +19,7 @@ from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAt
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.layer import EquivariantLayer
 from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.tfn_conv import TFNConv

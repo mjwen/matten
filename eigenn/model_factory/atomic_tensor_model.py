@@ -14,8 +14,8 @@ from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAt
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.atomwise import AtomwiseSelect
-from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.nodewise import NodewiseSelect
+from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.readout import IrrepsToCartesianTensor
 from eigenn.nn.utils import CartesianTensor
 
@@ -190,7 +190,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     # select atomic tensor for prediction
     layers["output_irreps_tensor"] = (
-        AtomwiseSelect,
+        NodewiseSelect,
         dict(field=OUT_FIELD_ATOM, out_field=OUT_FIELD, mask_field=NODE_MASKS),
     )
 

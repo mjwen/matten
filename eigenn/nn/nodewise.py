@@ -1,3 +1,7 @@
+"""
+Operations on node features/attrs.
+"""
+
 from typing import Dict, Optional
 
 import torch
@@ -6,7 +10,7 @@ from e3nn.o3 import Irreps
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 
 
-class AtomwiseSelect(ModuleIrreps, torch.nn.Module):
+class NodewiseSelect(ModuleIrreps, torch.nn.Module):
     def __init__(
         self,
         irreps_in: Dict[str, Irreps],
