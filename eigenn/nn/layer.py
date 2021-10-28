@@ -40,7 +40,7 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         Args:
             irreps_in:
             conv_layer_irreps: irreps for the node features in the conv layer
-            conv:
+            conv: the convolution layer, e.g. TFNConv
             conv_kwargs: dict of kwargs passed to `conv`
             activation_type: `gate` or `norm`
             activation_scalars: activation function for scalar irreps (i.e. l=0).

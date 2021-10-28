@@ -22,7 +22,7 @@ class DataKey:
     POSITIONS: Final[str] = "pos"
     # WEIGHTS_KEY: Final[str] = "weights"
 
-    # attributes on node; fixed
+    # (possibly equivariant) attributes on node; fixed
     NODE_ATTRS: Final[str] = "node_attrs"
 
     # features on node, e.g. embedding of atomic species; learnable
@@ -37,8 +37,7 @@ class DataKey:
     # on spherical harmonics); fixed
     EDGE_ATTRS: Final[str] = "edge_attrs"
 
-    # TDDO change this to EDGE_FEATURES?
-    # radial part of the edge vector (i.e. distance between atoms), learnable
+    # radial part of the edge vector (i.e. distance between atoms), fixed
     EDGE_EMBEDDING: Final[str] = "edge_embedding"
 
     # CELL: Final[str] = "cell"

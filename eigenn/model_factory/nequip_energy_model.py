@@ -59,21 +59,6 @@ def create_energy_model(hparams, dataset_hparams):
             {
                 "embedding_dim": hparams["species_embedding_dim"],
                 "allowed_species": dataset_hparams["allowed_species"],
-                # `node_features` determines output irreps. It must be used together with
-                # set_features=False, which disables overriding of the given
-                # node_features. Otherwise, node_features irreps will be set to
-                # node_attrs irreps, which is determined by the `allowed_species`.
-                #
-                # Well, the OneHOtAtomEncoding has to use set_features = True, because
-                # otherwise, node_features will not be include in the output data for
-                # latter use.
-                # "set_features": False,
-                # "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
-                # TODO fix this in SpeciesEmbedding, then we may not need to use
-                #  torch.nn.Embedding. (MW answer: well then we need to use a linear
-                #  layer to map it to species_embedding_irreps_out. We can just use
-                #  torch.nn.Embedding )
-                "set_features": True,
             },
         ),
         "spharm_edges": (

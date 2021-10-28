@@ -16,11 +16,13 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
         out_field: Optional[str] = None,
     ):
         """
+        Convert irreps tensor to cartesian tensor.
+
         Args:
             irreps_in:
             formula: formula to indicate the symmetry of the cartesian tensor,
-                e.g. `ij=ij` means a general 2D tensor. See the docs of `CartesianTensor`
-                for more.
+                e.g. `ij=ij` means a general 2D tensor. See the docs of
+                `CartesianTensor` for more.
             field:
             out_field:
         """
