@@ -19,7 +19,7 @@ from eigenn.nn.utils import ACTIVATION, get_uvu_instructions
 
 class SEGNNConv(ModuleIrreps, torch.nn.Module):
     """
-    TFN convolution.
+    SEGNN convolution.
     """
 
     REQUIRED_KEYS_IRREPS_IN = [
@@ -36,6 +36,7 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         self,
         irreps_in: Dict[str, Irreps],
         irreps_out: Dict[str, Irreps],
+        *,
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
         activation_scalars: Dict[str, str] = None,
@@ -116,13 +117,13 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         )
 
         # tensor product for message function
-        instructions, irreps_mid = get_uvu_instructions(
+        instructions, irreps_mid_msg = get_uvu_instructions(
             node_feats_irreps_in, edge_attrs_irreps, node_feats_irreps_out
         )
         self.tp = TensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            irreps_mid,
+            irreps_mid_msg,
             instructions,
             internal_weights=False,
             shared_weights=False,
@@ -152,16 +153,18 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         # Note, the data corresponds to irreps_mid before and after simplification will
         # be the same, i.e. their order does not change, since irreps_mid is sorted.
         self.linear_2 = Linear(
-            irreps_in=irreps_mid.simplify(),
+            irreps_in=irreps_mid_msg.simplify(),
             irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
         )
 
+        # TODO, nonlinearity should be added to per edge message, before aggregating
+
         #
         # tensor product for update function
         #
-        instructions, _ = get_uvu_instructions(
+        instructions, irreps_mid_update = get_uvu_instructions(
             node_feats_irreps_out, node_attrs_irreps, node_feats_irreps_out
         )
         # TODO, here the weights does not depend node feats and such, so we share them
@@ -171,14 +174,20 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         self.tp_update = TensorProduct(
             node_feats_irreps_out,
             node_attrs_irreps,
-            node_feats_irreps_out,
+            irreps_mid_update,
             instructions,
             internal_weights=True,
             shared_weights=True,
         )
-        # TODO we can explore to add another linear_layer3 after the tp_update, should
-        # think about what this means and whether it is necessary. Or maybe move
-        # linear_2 after self.tp_update.
+        # TODO, maybe remove linear2, then we replace `node_feats_irrep_out` in
+        #  get_uvu_instructions tp_update by irreps_mid_msg.
+        #  by doing so, we can reduce the number of needed params,
+        self.linear_3 = Linear(
+            irreps_in=irreps_mid_update.simplify(),
+            irreps_out=node_feats_irreps_out,
+            internal_weights=True,
+            shared_weights=True,
+        )
 
         #
         # self connection
@@ -207,6 +216,8 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         #
         weight = self.radial_nn(edge_embedding)
         msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, weight)
+
+        # TODO, nonlinearity should be added to per edge message, before aggregating
 
         # aggregate message
         msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))

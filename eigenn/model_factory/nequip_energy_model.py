@@ -19,10 +19,11 @@ from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAt
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.layer import EquivariantLayer
+from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.tfn_conv import TFNConv
+from eigenn.nn.transformer_conv import TransformerConv
 
 
 class EnergyModel(ModelForPyGData):
@@ -133,6 +134,16 @@ def create_energy_model(hparams, dataset_hparams):
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
                     "use_self_connection": hparams["use_sc"],
                 },
+                # # transformer conv
+                # "conv": TransformerConv,
+                # "conv_kwargs": {
+                #     "irreps_query_and_key": hparams["conv_layer_irreps"],
+                #     "r_max": hparams["radial_basis_r_cut"],
+                #     "fc_num_hidden_layers": hparams["invariant_layers"],
+                #     "fc_hidden_size": hparams["invariant_neurons"],
+                #     "avg_num_neighbors": hparams["avg_num_neighbors"],
+                #     "use_self_connection": hparams["use_sc"],
+                # },
             },
         )
 

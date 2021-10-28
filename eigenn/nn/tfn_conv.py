@@ -28,6 +28,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         self,
         irreps_in: Dict[str, Irreps],
         irreps_out: Dict[str, Irreps],
+        *,
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
         activation_scalars: Dict[str, str] = None,
@@ -64,7 +65,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
 
         node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
         node_feats_irreps_out = self.irreps_out[DataKey.NODE_FEATURES]
-        node_attrs_irreps_in = self.irreps_in[DataKey.NODE_ATTRS]
+        node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
 
         #
@@ -138,7 +139,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         #
         if use_self_connection:
             self.self_connection = FullyConnectedTensorProduct(
-                node_feats_irreps_in, node_attrs_irreps_in, node_feats_irreps_out
+                node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
             )
         else:
             self.self_connection = None

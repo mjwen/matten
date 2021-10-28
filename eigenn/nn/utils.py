@@ -40,9 +40,9 @@ def get_uvu_instructions(irreps_in1: Irreps, irreps_in2: Irreps, irreps_out: Irr
     # uvu instructions
     irreps_mid = []
     instructions = []
-    for i, (mul, ir_in) in enumerate(irreps_in1):
-        for j, (_, ir_edge) in enumerate(irreps_in2):
-            for ir_out in ir_in * ir_edge:
+    for i, (mul, ir_in1) in enumerate(irreps_in1):
+        for j, (_, ir_in2) in enumerate(irreps_in2):
+            for ir_out in ir_in1 * ir_in2:
                 if ir_out in irreps_out:
                     k = len(irreps_mid)
                     irreps_mid.append((mul, ir_out))
