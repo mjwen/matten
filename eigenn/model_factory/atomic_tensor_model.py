@@ -8,16 +8,16 @@ from collections import OrderedDict
 from typing import Any, Dict, Optional, Sequence, Union
 
 import torch.nn as nn
+from e3nn.io import CartesianTensor
 from nequip.nn import AtomwiseLinear, ConvNetLayer
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.nodewise import NodewiseSelect
 from eigenn.nn.node_embedding import SpeciesEmbedding
+from eigenn.nn.nodewise import NodewiseSelect
 from eigenn.nn.readout import IrrepsToCartesianTensor
-from eigenn.nn.utils import CartesianTensor
 
 # data key for hte
 OUT_FIELD_ATOM = "tensor_output_atom"

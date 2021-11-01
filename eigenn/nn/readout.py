@@ -1,10 +1,10 @@
 from typing import Dict, Optional
 
 import torch
+from e3nn.io import CartesianTensor
 from e3nn.o3 import Irreps
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import CartesianTensor
 
 
 class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
