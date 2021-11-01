@@ -66,6 +66,8 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         if activation_scalars is None:
             activation_scalars = {
                 1: ACTIVATION["e"]["ssp"],
+                # odd scalars requires either an even or ordd activation,
+                # not an arbitrary one like relu
                 -1: ACTIVATION["o"]["tanh"],
             }
         else:
@@ -122,6 +124,11 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         )
 
         if activation_type == "gate":
+            # Setting all ir to 0e if there is path exist, since 0e gates will not
+            # change the parity of the output, and we want to keep its parity.
+            # Note, there we only keep the parity of high-order irreps of note feats,
+            # but we keep them for later tensor product between note feats and attrs.
+            # If there is no 0e, we use 0o to change the party of the high-order irreps.
             ir = (
                 "0e"
                 if tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, "0e")

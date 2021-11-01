@@ -7,7 +7,7 @@ from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import ACTIVATION, get_uvu_instructions
+from eigenn.nn.utils import UVUTensorProduct
 
 
 class TransformerConv(ModuleIrreps, torch.nn.Module):
@@ -83,33 +83,25 @@ class TransformerConv(ModuleIrreps, torch.nn.Module):
         #
         # key and value
         #
-        instructions, irreps_mid = get_uvu_instructions(
-            node_feats_irreps_in, edge_attrs_irreps, node_feats_irreps_out
-        )
         # key and value use the same type of tensor product, we can share this
         # because we do not use internal weights
-        self.tp_k_v = TensorProduct(
+        self.tp_k = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            irreps_mid,
-            instructions,
-            internal_weights=False,
-            shared_weights=False,
+            node_feats_irreps_out,
+            mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
+            mlp_hidden_size=fc_hidden_size,
+            mlp_num_hidden_layers=fc_num_hidden_layers,
         )
 
-        # radial network on scalar edge embedding (e.g. edge distance)
-        layer_sizes = (
-            [self.irreps_in[DataKey.EDGE_EMBEDDING].num_irreps]
-            + fc_num_hidden_layers * [fc_hidden_size]
-            + [self.tp_k_v.weight_numel]
+        self.tp_v = UVUTensorProduct(
+            node_feats_irreps_in,
+            edge_attrs_irreps,
+            node_feats_irreps_out,
+            mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
+            mlp_hidden_size=fc_hidden_size,
+            mlp_num_hidden_layers=fc_num_hidden_layers,
         )
-        if activation_scalars is None:
-            act = ACTIVATION["e"]["ssp"]
-        else:
-            act = ACTIVATION["e"][activation_scalars["e"]]
-
-        self.radial_nn_k = FullyConnectedNet(layer_sizes, act=act)
-        self.radial_nn_v = FullyConnectedNet(layer_sizes, act=act)
 
         # In the tensor product using `uvu` instruction above, its output (i.e.
         # irreps_mid) can be uncoallesed (for example, irreps_mid =1x0e+2x0e+2x1e).
@@ -118,13 +110,13 @@ class TransformerConv(ModuleIrreps, torch.nn.Module):
         # The normalization in `Linear` is different for unsimplified and simplified
         # irreps.
         self.linear_k = Linear(
-            irreps_mid.simplify(),
+            self.tp_k.irreps_out.simplify(),
             irreps_query_and_key,
             internal_weights=True,
             shared_weights=True,
         )
         self.linear_v = Linear(
-            irreps_mid.simplify(),
+            self.tp_v.irreps_out.simplify(),
             node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
@@ -157,12 +149,10 @@ class TransformerConv(ModuleIrreps, torch.nn.Module):
 
         # TODO think carefully whether linear_k is needed, same for linear_v below
         #  well, it can be used to increase model capacity
-        weight_k = self.radial_nn_k(edge_embedding)
-        k = self.tp_k_v(node_feats_in[edge_src], edge_attrs, weight_k)
+        k = self.tp_k(node_feats_in[edge_src], edge_attrs, edge_embedding)
         k = self.linear_k(k)
 
-        weight_v = self.radial_nn_v(edge_embedding)
-        v = self.tp_k_v(node_feats_in[edge_src], edge_attrs, weight_v)
+        v = self.tp_v(node_feats_in[edge_src], edge_attrs, edge_embedding)
         v = self.linear_v(v)
 
         # use edge weight cutoff to make it smooth

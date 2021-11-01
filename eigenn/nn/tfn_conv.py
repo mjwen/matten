@@ -6,7 +6,7 @@ from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import ACTIVATION, get_uvu_instructions
+from eigenn.nn.utils import UVUTensorProduct
 
 
 class TFNConv(ModuleIrreps, torch.nn.Module):
@@ -84,29 +84,14 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         )
 
         # tensor product for message function
-        instructions, irreps_mid = get_uvu_instructions(
-            node_feats_irreps_in, edge_attrs_irreps, node_feats_irreps_out
-        )
-        self.tp = TensorProduct(
+        self.tp = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            irreps_mid,
-            instructions,
-            internal_weights=False,
-            shared_weights=False,
+            node_feats_irreps_out,
+            mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
+            mlp_hidden_size=fc_hidden_size,
+            mlp_num_hidden_layers=fc_num_hidden_layers,
         )
-
-        # radial network on scalar edge embedding (e.g. edge distance)
-        layer_sizes = (
-            [self.irreps_in[DataKey.EDGE_EMBEDDING].num_irreps]
-            + fc_num_hidden_layers * [fc_hidden_size]
-            + [self.tp.weight_numel]
-        )
-        if activation_scalars is None:
-            act = ACTIVATION["e"]["ssp"]
-        else:
-            act = ACTIVATION["e"][activation_scalars["e"]]
-        self.radial_nn = FullyConnectedNet(layer_sizes, act=act)
 
         # second linear on node feats
         #
@@ -120,7 +105,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         # Note, the data corresponds to irreps_mid before and after simplification will
         # be the same, i.e. their order does not change, since irreps_mid is sorted.
         self.linear_2 = Linear(
-            irreps_in=irreps_mid.simplify(),
+            irreps_in=self.tp.irreps_out.simplify(),
             irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
@@ -137,6 +122,13 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         #
         # self connection
         #
+        # We can use node_attrs_irreps here (which is not related spherical harmonics
+        # embedding of anything because in Nequip, node_attrs are simply embedding of
+        # species info, they are scalers. So it is possible. For higher order
+        # tensors, they cannot be used in the tensor product to product equivariant
+        # layer. For example, you cannot tensor product two node feats and expect
+        # them to be equivariant.
+
         if use_self_connection:
             self.self_connection = FullyConnectedTensorProduct(
                 node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
@@ -159,8 +151,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         #
         # message passing step
         #
-        weight = self.radial_nn(edge_embedding)
-        msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, weight)
+        msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, edge_embedding)
 
         # aggregate message
         msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))

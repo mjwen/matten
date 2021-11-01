@@ -8,13 +8,12 @@ https://arxiv.org/abs/2110.02905
 from typing import Dict
 
 import torch
-from e3nn.nn import FullyConnectedNet
-from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
+from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch import Tensor
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import ACTIVATION, get_uvu_instructions
+from eigenn.nn.utils import UVUTensorProduct
 
 
 class SEGNNConv(ModuleIrreps, torch.nn.Module):
@@ -117,29 +116,14 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         )
 
         # tensor product for message function
-        instructions, irreps_mid_msg = get_uvu_instructions(
-            node_feats_irreps_in, edge_attrs_irreps, node_feats_irreps_out
-        )
-        self.tp = TensorProduct(
+        self.tp = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            irreps_mid_msg,
-            instructions,
-            internal_weights=False,
-            shared_weights=False,
+            node_feats_irreps_out,
+            mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
+            mlp_hidden_size=fc_hidden_size,
+            mlp_num_hidden_layers=fc_num_hidden_layers,
         )
-
-        # radial network on scalar edge embedding (e.g. edge distance)
-        layer_sizes = (
-            [self.irreps_in[DataKey.EDGE_EMBEDDING].num_irreps]
-            + fc_num_hidden_layers * [fc_hidden_size]
-            + [self.tp.weight_numel]
-        )
-        if activation_scalars is None:
-            act = ACTIVATION["e"]["ssp"]
-        else:
-            act = ACTIVATION["e"][activation_scalars["e"]]
-        self.radial_nn = FullyConnectedNet(layer_sizes, act=act)
 
         # second linear on node feats
         #
@@ -153,7 +137,7 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         # Note, the data corresponds to irreps_mid before and after simplification will
         # be the same, i.e. their order does not change, since irreps_mid is sorted.
         self.linear_2 = Linear(
-            irreps_in=irreps_mid_msg.simplify(),
+            irreps_in=self.tp.irreps_out.simplify(),
             irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
@@ -164,26 +148,21 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         #
         # tensor product for update function
         #
-        instructions, irreps_mid_update = get_uvu_instructions(
-            node_feats_irreps_out, node_attrs_irreps, node_feats_irreps_out
-        )
         # TODO, here the weights does not depend node feats and such, so we share them
         # of course, wen can make them dependent of scalar node attrs and then use a
         # radial network to get the weights as done above
         # Also, this can be thought as the self-connection step
-        self.tp_update = TensorProduct(
+        self.tp_update = UVUTensorProduct(
             node_feats_irreps_out,
             node_attrs_irreps,
-            irreps_mid_update,
-            instructions,
-            internal_weights=True,
-            shared_weights=True,
+            node_feats_irreps_out,
+            internal_and_share_weights=True,
         )
-        # TODO, maybe remove linear2, then we replace `node_feats_irrep_out` in
-        #  get_uvu_instructions tp_update by irreps_mid_msg.
+        # TODO, maybe remove linear2, then we replace the input `node_feats_irrep_out`
+        #  in tp_update by self.tp.irreps_out.simplify().
         #  by doing so, we can reduce the number of needed params,
         self.linear_3 = Linear(
-            irreps_in=irreps_mid_update.simplify(),
+            irreps_in=self.tp_update.irreps_out.simplify(),
             irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
