@@ -1,18 +1,16 @@
 from typing import Dict, Optional
 
 import torch
-from e3nn.nn import Gate, NormActivation
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
-from nequip.utils.tp_utils import tp_path_exists
 
+from eigenn.nn.activation_layer import ActivationLayer
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.tfn_conv import TFNConv
-from eigenn.nn.utils import ACTIVATION
 
 
 @compile_mode("script")
-class EquivariantLayer(ModuleIrreps, torch.nn.Module):
+class NequipLayer(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
@@ -62,29 +60,6 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         #
         conv_kwargs = {} if conv_kwargs is None else conv_kwargs
 
-        # activation function for even (i.e. 1) and odd (i.e. -1) irreps
-        if activation_scalars is None:
-            activation_scalars = {
-                1: ACTIVATION["e"]["ssp"],
-                # odd scalars requires either an even or ordd activation,
-                # not an arbitrary one like relu
-                -1: ACTIVATION["o"]["tanh"],
-            }
-        else:
-            # change key from e or v to 1 or -1
-            key_mapping = {"e": 1, "o": -1}
-            activation_scalars = {
-                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_scalars.items()
-            }
-        if activation_gates is None:
-            activation_gates = {1: ACTIVATION["e"]["ssp"], -1: ACTIVATION["o"]["abs"]}
-        else:
-            # change key from e or v to 1 or -1
-            key_mapping = {"e": 1, "o": -1}
-            activation_gates = {
-                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_gates.items()
-            }
-
         #
         # irreps_out will be set later when we know them
         #
@@ -99,74 +74,22 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         # Chose activation function and determine their irreps
         # The flow of the irreps are as follows:
         # (node_feats_irreps_in) --> conv_layer
-        # -->(conv_irreps_out)--> activation
+        # -->(irreps_before_act)--> activation
         # -->(irreps_after_act)
         #
+        # We initialize ActivationLayer before the conv layer because the activation
+        # requires special treatment of its input irreps. This special treatment also
+        # determines the output irreps of the conv layer (i.e. irreps_before_act)
 
-        ir, _, _ = Irreps(conv_layer_irreps).sort()
-        conv_layer_irreps = ir.simplify()
-
-        irreps_scalars = Irreps(
-            [
-                (mul, ir)
-                for mul, ir in conv_layer_irreps
-                if ir.l == 0
-                and tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, ir)
-            ]
+        self.equivariant_nonlinear = ActivationLayer(
+            tp_irreps_in1=node_feats_irreps_in,
+            tp_irreps_in2=edge_attrs_irreps,
+            tp_irreps_out=conv_layer_irreps,
+            activation_type=activation_type,
+            activation_scalars=activation_scalars,
+            activation_gates=activation_gates,
         )
-        irreps_gated = Irreps(
-            [
-                (mul, ir)
-                for mul, ir in conv_layer_irreps
-                if ir.l > 0
-                and tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, ir)
-            ]
-        )
-
-        if activation_type == "gate":
-            # Setting all ir to 0e if there is path exist, since 0e gates will not
-            # change the parity of the output, and we want to keep its parity.
-            # Note, there we only keep the parity of high-order irreps of note feats,
-            # but we keep them for later tensor product between note feats and attrs.
-            # If there is no 0e, we use 0o to change the party of the high-order irreps.
-            ir = (
-                "0e"
-                if tp_path_exists(node_feats_irreps_in, edge_attrs_irreps, "0e")
-                else "0o"
-            )
-            irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
-
-            equivariant_nonlinear = Gate(
-                irreps_scalars=irreps_scalars,
-                act_scalars=[activation_scalars[ir.p] for _, ir in irreps_scalars],
-                irreps_gates=irreps_gates,
-                act_gates=[activation_gates[ir.p] for _, ir in irreps_gates],
-                irreps_gated=irreps_gated,
-            )
-
-            # conv layer is applied before activation, so conv_irreps_out is the same
-            # as equivariant_nonlinear.irreps_in
-            conv_irreps_out = equivariant_nonlinear.irreps_in.simplify()
-
-        elif activation_type == "norm":
-            conv_irreps_out = (irreps_scalars + irreps_gated).simplify()
-
-            equivariant_nonlinear = NormActivation(
-                irreps_in=conv_irreps_out,
-                # norm is an even scalar, so activation_scalars[1]
-                scalar_nonlinearity=activation_scalars[1],
-                normalize=True,
-                epsilon=1e-8,
-                bias=False,
-            )
-
-        else:
-            supported = ("gate", "norm")
-            raise ValueError(
-                f"Support `activation_type` includes {supported}, got {activation_type}"
-            )
-
-        self.equivariant_nonlinear = equivariant_nonlinear
+        irreps_before_act = self.equivariant_nonlinear.irreps_in
         irreps_after_act = self.equivariant_nonlinear.irreps_out
 
         #
@@ -180,7 +103,7 @@ class EquivariantLayer(ModuleIrreps, torch.nn.Module):
         conv_kwargs.pop("irreps_out", None)
         self.conv = conv(
             irreps_in=self.irreps_in,
-            irreps_out={DataKey.NODE_FEATURES: conv_irreps_out},
+            irreps_out={DataKey.NODE_FEATURES: irreps_before_act},
             **conv_kwargs,
         )
 

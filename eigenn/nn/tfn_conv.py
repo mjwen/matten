@@ -1,8 +1,7 @@
 from typing import Dict
 
 import torch
-from e3nn.nn import FullyConnectedNet
-from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
+from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
@@ -31,7 +30,6 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         *,
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
-        activation_scalars: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
     ):
@@ -49,11 +47,6 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
             fc_hidden_size: hidden layer size for the radial MLP
             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
                 SE3-Transformer paper.
-            activation_scalars: activation function for scalar irreps (i.e. l=0).
-                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
-                name of the activation function ('ssp' or 'silu') for even irreps;
-                `act_o` is the name of the activation function ('abs' or 'tanh') for
-                odd irreps.
         """
 
         super().__init__()
