@@ -15,6 +15,7 @@ from eigenn.cli import EigennCLI, SaveConfigCallback
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.model_factory.atomic_tensor_model import AtomicTensorModel
 from eigenn.model_factory.nequip_energy_model import EnergyModel
+from eigenn.model_factory.segnn_model import SEGNNModel
 from eigenn.utils import to_path
 
 CWD = to_path(__file__).parent
@@ -29,8 +30,9 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
-        model_class=EnergyModel,
+        # model_class=EnergyModel,
         # model_class=AtomicTensorModel,
+        model_class=SEGNNModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
