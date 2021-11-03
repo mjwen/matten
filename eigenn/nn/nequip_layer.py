@@ -4,7 +4,7 @@ import torch
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
 
-from eigenn.nn.activation_layer import ActivationLayer
+from eigenn.nn.utils import ActivationLayer
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.tfn_conv import TFNConv
 

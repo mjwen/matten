@@ -38,7 +38,6 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         *,
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
-        activation_scalars: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
     ):
@@ -81,11 +80,6 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
             fc_hidden_size: hidden layer size for the radial MLP
             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
                 SE3-Transformer paper.
-            activation_scalars: activation function for scalar irreps (i.e. l=0).
-                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
-                name of the activation function ('ssp' or 'silu') for even irreps;
-                `act_o` is the name of the activation function ('abs' or 'tanh') for
-                odd irreps.
         """
 
         super().__init__()
@@ -159,7 +153,7 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
             internal_and_share_weights=True,
         )
         # TODO, maybe remove linear2, then we replace the input `node_feats_irrep_out`
-        #  in tp_update by self.tp.irreps_out.simplify().
+        #  in update_tp by self.tp.irreps_out.simplify().
         #  by doing so, we can reduce the number of needed params,
         self.linear_3 = Linear(
             irreps_in=self.tp_update.irreps_out.simplify(),
@@ -211,6 +205,7 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         #
         node_attrs = self._get_node_attrs(data)
         node_feats = self.tp_update(msg, node_attrs)
+        node_feats = self.linear_3(node_feats)
 
         if self.self_connection is not None:
             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)

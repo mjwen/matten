@@ -1,10 +1,11 @@
-from typing import Callable, Optional
+from typing import Callable, List, Optional, Dict
 
 import torch
 import torch.nn.functional as fn
-from e3nn.nn import FullyConnectedNet
+from e3nn.nn import FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import Irreps, TensorProduct
 from nequip.nn.nonlinearities import ShiftedSoftPlus
+from nequip.utils.tp_utils import tp_path_exists
 from torch import Tensor
 
 ACTIVATION = {
@@ -19,6 +20,137 @@ ACTIVATION = {
         "tanh": torch.tanh,
     },
 }
+
+
+class ActivationLayer(torch.nn.Module):
+    def __init__(
+        self,
+        tp_irreps_in1: Irreps,
+        tp_irreps_in2: Irreps,
+        tp_irreps_out: Irreps,
+        *,
+        activation_type: str = "gate",
+        activation_scalars: Dict[str, str] = None,
+        activation_gates: Dict[str, str] = None,
+    ):
+        """
+        Nonlinear equivariant activation function layer.
+
+        This is intended to be applied after a tensor product convolution layer.
+
+        Args:
+            tp_irreps_in1: first irreps for the tensor product layer
+            tp_irreps_in2: second irreps for the tensor product layer
+            tp_irreps_out: intended output irreps for the tensor product layer.
+                Note, typically this is not the actual irreps out we will use for the
+                tensor product. The actual one is typically determined here, i.e.
+                the `irreps_in` attribute of this class.
+            activation_type: `gate` or `norm`
+            activation_scalars: activation function for scalar irreps (i.e. l=0).
+                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
+                name of the activation function ('ssp' or 'silu') for even irreps;
+                `act_o` is the name of the activation function ('abs' or 'tanh') for
+                odd irreps.
+            activation_gates: activation function for tensor irreps (i.e. l>0) when
+                using the `Gate` activation. Ignored for `NormActivation`.
+                Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
+                name of the activation function ('ssp' or 'silu') for even irreps;
+                `act_o` is the name of the activation function ('abs' or 'tanh') for
+                odd irreps.
+        """
+        super().__init__()
+
+        # set defaults
+
+        # activation function for even (i.e. 1) and odd (i.e. -1) scalars
+        if activation_scalars is None:
+            activation_scalars = {
+                1: ACTIVATION["e"]["ssp"],
+                # odd scalars requires either an even or ordd activation,
+                # not an arbitrary one like relu
+                -1: ACTIVATION["o"]["tanh"],
+            }
+        else:
+            # change key from e or v to 1 or -1
+            key_mapping = {"e": 1, "o": -1}
+            activation_scalars = {
+                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_scalars.items()
+            }
+
+        # activation function for even (i.e. 1) and odd (i.e. -1) high-order tensors
+        if activation_gates is None:
+            activation_gates = {1: ACTIVATION["e"]["ssp"], -1: ACTIVATION["o"]["abs"]}
+        else:
+            # change key from e or v to 1 or -1
+            key_mapping = {"e": 1, "o": -1}
+            activation_gates = {
+                key_mapping[k]: ACTIVATION[k][v] for k, v in activation_gates.items()
+            }
+
+        # in and out irreps of activation
+
+        ir, _, _ = Irreps(tp_irreps_out).sort()
+        tp_irreps_out = ir.simplify()
+
+        irreps_scalars = Irreps(
+            [
+                (mul, ir)
+                for mul, ir in tp_irreps_out
+                if ir.l == 0 and tp_path_exists(tp_irreps_in1, tp_irreps_in2, ir)
+            ]
+        )
+        irreps_gated = Irreps(
+            [
+                (mul, ir)
+                for mul, ir in tp_irreps_out
+                if ir.l > 0 and tp_path_exists(tp_irreps_in1, tp_irreps_in2, ir)
+            ]
+        )
+
+        if activation_type == "gate":
+            # Setting all ir to 0e if there is path exist, since 0e gates will not
+            # change the parity of the output, and we want to keep its parity.
+            # If there is no 0e, we use 0o to change the party of the high-order irreps.
+            ir = "0e" if tp_path_exists(tp_irreps_in1, tp_irreps_in2, "0e") else "0o"
+            irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
+
+            self.activation = Gate(
+                irreps_scalars=irreps_scalars,
+                act_scalars=[activation_scalars[ir.p] for _, ir in irreps_scalars],
+                irreps_gates=irreps_gates,
+                act_gates=[activation_gates[ir.p] for _, ir in irreps_gates],
+                irreps_gated=irreps_gated,
+            )
+
+        elif activation_type == "norm":
+
+            self.activation = NormActivation(
+                irreps_in=(irreps_scalars + irreps_gated).simplify(),
+                # norm is an even scalar, so activation_scalars[1]
+                scalar_nonlinearity=activation_scalars[1],
+                normalize=True,
+                epsilon=1e-8,
+                bias=False,
+            )
+
+        else:
+            supported = ("gate", "norm")
+            raise ValueError(
+                f"Support `activation_type` includes {supported}, got {activation_type}"
+            )
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.activation(x)
+
+    @property
+    def irreps_in(self):
+        # irreps_in for Gates and NormActivation and simplified, here we redo it just
+        # for reminder purpose
+        return self.activation.irreps_in.simplify()
+
+    @property
+    def irreps_out(self):
+        return self.activation.irreps_out
 
 
 class UVUTensorProduct(torch.nn.Module):
@@ -122,4 +254,75 @@ class UVUTensorProduct(torch.nn.Module):
         This is different from the input `irreps_out`, since we we use the UVU tensor
         product with given instructions.
         """
-        return self.irreps_mid
+
+        # the simplify is possible because irreps_mid is sorted
+        return self.irreps_mid.simplify()
+
+
+class ScalarMLP(torch.nn.Module):
+    """
+    Multilayer perceptron for scalars.
+
+    By default, activation is applied to each hidden layer. For hidden layers:
+    Linear -> BN (default to False) -> Activation
+
+    Optionally, one can add an output layer by setting `out_size`. For output layer:
+    Linear with the option to use bias of not, activation is not applied
+
+    Args:
+        in_size: input feature size
+        hidden_sizes: sizes for hidden layers
+        batch_norm: whether to add 1D batch norm
+        activation: activation function for hidden layers
+        out_size: size of output layer
+        out_bias: bias for output layer, this use set to False internally if
+            out_batch_norm is used.
+    """
+
+    def __init__(
+        self,
+        in_size: int,
+        hidden_sizes: List[int],
+        *,
+        batch_norm: bool = False,
+        activation: Callable = ACTIVATION["e"]["ssp"],
+        out_size: Optional[int] = None,
+        out_bias: bool = True,
+    ):
+        super().__init__()
+        self.num_hidden_layers = len(hidden_sizes)
+        self.has_out_layer = out_size is not None
+
+        layers = []
+
+        # hidden layers
+        if batch_norm:
+            bias = False
+        else:
+            bias = True
+
+        for size in hidden_sizes:
+            layers.append(torch.nn.Linear(in_size, size, bias=bias))
+
+            if batch_norm:
+                layers.append(torch.nn.BatchNorm1d(size))
+
+            if activation is not None:
+                layers.append(activation)
+
+            in_size = size
+
+        # output layer
+        if out_size is not None:
+            layers.append(torch.nn.Linear(in_size, out_size, bias=out_bias))
+
+        self.mlp = torch.nn.Sequential(*layers)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.mlp(x)
+
+    def __repr__(self):
+        s = f"Scalar MLP, num hidden layers: {self.num_hidden_layers}"
+        if self.has_out_layer:
+            s += "; with output layer"
+        return s

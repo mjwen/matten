@@ -2,8 +2,7 @@ from typing import Callable, Dict
 
 import torch
 from e3nn.math import soft_unit_step
-from e3nn.nn import FullyConnectedNet
-from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear, TensorProduct
+from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
