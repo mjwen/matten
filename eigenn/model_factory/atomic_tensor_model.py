@@ -11,6 +11,7 @@ import torch.nn as nn
 from e3nn.io import CartesianTensor
 from nequip.nn import AtomwiseLinear, ConvNetLayer
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
+from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
@@ -33,19 +34,23 @@ class AtomicTensorModel(ModelForPyGData):
     """
 
     def init_backbone(
-        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+        self,
+        backbone_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> nn.Module:
-        backbone = create_model(hparams, dataset_hparams)
+        backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
     def init_tasks(
-        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+        self,
+        task_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> Union[Task, Sequence[Task]]:
-        task = CanonicalRegressionTask(name=hparams["task_name"])
+        task = CanonicalRegressionTask(name=task_hparams["task_name"])
 
         return task
 
-    def decode(self, model_input):
+    def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
 
         # TODO, reshape the output?

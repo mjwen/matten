@@ -11,13 +11,15 @@ number of params.
 """
 import sys
 from collections import OrderedDict
+from typing import Any, Dict, Optional, Sequence, Union
 
+import torch
 from nequip.data import AtomicDataDict
 from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask
+from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.nequip_layer import NequipLayer
 from eigenn.nn.node_embedding import SpeciesEmbedding
@@ -31,12 +33,20 @@ class EnergyModel(ModelForPyGData):
     A model to predict the energy of an atomic configuration.
     """
 
-    def init_backbone(self, hparams, dataset_hparams):
-        backbone = create_energy_model(hparams, dataset_hparams)
+    def init_backbone(
+        self,
+        backbone_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
+    ) -> torch.nn.Module:
+        backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(self, hparams, dataset_hparams):
-        task = CanonicalRegressionTask(name=hparams["task_name"])
+    def init_tasks(
+        self,
+        task_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
+    ) -> Union[Task, Sequence[Task]]:
+        task = CanonicalRegressionTask(name=task_hparams["task_name"])
 
         return task
 
@@ -50,7 +60,7 @@ class EnergyModel(ModelForPyGData):
         return preds
 
 
-def create_energy_model(hparams, dataset_hparams):
+def create_model(hparams, dataset_hparams):
 
     # ===== embedding layers =====
     layers = {
@@ -207,4 +217,4 @@ if __name__ == "__main__":
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
-    create_energy_model(hparams, dataset_hyarmas)
+    create_model(hparams, dataset_hyarmas)

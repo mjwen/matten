@@ -27,10 +27,10 @@ def create_sequential_module(
             Note, the output irreps of the previous module will be added to kwargs with
             key ``irreps_in``.
         irreps_in: input irreps for the first module.
-        use_kwargs_irreps_in: whether use the irreps_in if it is provided as kwargs for a
-            module. If `True`, will combine the irreps_out of module i-1 and the
-            irreps_in in kwargs of module i (this with higher priority) as the irreps_in
-            for module i.
+        use_kwargs_irreps_in: whether to use the irreps_in if it is provided as
+            kwargs for a module. If `True`, the irreps_out of module i-1 and the
+            irreps_in in kwargs of module i (higher priority) are combined as the
+            irreps_in for module i.
 
     Returns:
         a sequential module

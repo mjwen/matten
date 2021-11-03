@@ -49,7 +49,7 @@ class DataKey:
     # TOTAL_ENERGY: Final[str] = "total_energy"
     # FORCE: Final[str] = "forces"
 
-    # BATCH: Final[str] = "batch"
+    BATCH: Final[str] = "batch"
 
 
 class ModuleIrreps:

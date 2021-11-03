@@ -29,7 +29,7 @@ class BaseModel(pl.LightningModule):
         lr_scheduler_hparams: hparams for the learning rate scheduler (e.g.
             ReduceLROnPlateau)
         trainer_hparams: trainer config params. These should not be used by the model,
-            but to let the wandb logger log. Then we can filter info on the wandb
+            but to let the wandb logger log them. Then we can filter info on the wandb
             web interface.
         data_hparams: data config params. Similar to trainer_hparams, for the purpose
             of wandb filtering.
@@ -95,7 +95,9 @@ class BaseModel(pl.LightningModule):
         self.monitor_key = "val/score"
 
     def init_backbone(
-        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+        self,
+        backbone_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> nn.Module:
         """
         Create a backbone torch model.
@@ -114,7 +116,9 @@ class BaseModel(pl.LightningModule):
         raise NotImplementedError
 
     def init_tasks(
-        self, hparams: Dict[str, Any], dataset_hparams: Optional[Dict[str, Any]] = None
+        self,
+        task_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> Union[Task, Sequence[Task]]:
         """
         Define the tasks used to compute loss and metrics.
