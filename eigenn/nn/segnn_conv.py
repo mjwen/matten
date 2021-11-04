@@ -1,26 +1,14 @@
-"""
-Equivariant message passing layer based on SEGNN, which uses tensor product for both
-message passing and update function.
-
-https://arxiv.org/abs/2110.02905
-"""
-
-from typing import Dict
+from typing import Callable, Dict, Optional
 
 import torch
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
-from torch import Tensor
 from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import UVUTensorProduct
+from eigenn.nn.utils import ACTIVATION, ActivationLayer, ScalarMLP, UVUTensorProduct
 
 
 class SEGNNConv(ModuleIrreps, torch.nn.Module):
-    """
-    SEGNN convolution.
-    """
-
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
         DataKey.NODE_ATTRS,
@@ -34,16 +22,19 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
     def __init__(
         self,
         irreps_in: Dict[str, Irreps],
-        irreps_out: Dict[str, Irreps],
+        conv_layer_irreps: Irreps,
         *,
         fc_num_hidden_layers: int = 1,
         fc_hidden_size: int = 8,
+        activation_type: str = "gate",
+        activation_scalars: Dict[str, str] = None,
+        activation_gates: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
     ):
         """
 
-        SEGNN conv layer.
+        SEGNN message passing.
 
         Message function: tensor product between node feats of neighbors and edge
         embedding, with params derived from fully connected layer on edge distance.
@@ -74,7 +65,7 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
 
         Args:
             irreps_in: input irreps, with available keys in `DataKey`
-            irreps_out: output irreps, with available keys in `DataKey`
+            conv_layer_irreps: irreps for the node features in the conv layer
             fc_num_hidden_layers: number of hidden layers for the radial MLP, excluding
                 input and output layers
             fc_hidden_size: hidden layer size for the radial MLP
@@ -87,20 +78,34 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         self.avg_num_neighbors = avg_num_neighbors
 
         # init irreps
-        self.init_irreps(irreps_in, irreps_out)
+        # irreps_out will be set later when we know them
+        self.init_irreps(irreps_in)
 
         node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
-        node_feats_irreps_out = self.irreps_out[DataKey.NODE_FEATURES]
         node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
+        conv_layer_irreps = Irreps(conv_layer_irreps)
 
         #
-        # Convolution:
+        # message step
         #
-        # linear_1 on node feats  -->
-        # tensor product on node feats and edge attrs -->
-        # linear_2 on node feats --> output
 
+        # nonlinear activation function for message
+        # (this is applied after the tensor product, but we need to init it first to
+        # determine its irreps in, which is the irreps_out for tensor product)
+        self.message_activation = ActivationLayer(
+            node_feats_irreps_in,
+            edge_attrs_irreps,
+            conv_layer_irreps,
+            activation_type=activation_type,
+            activation_scalars=activation_scalars,
+            activation_gates=activation_gates,
+        )
+        irreps_before_message_act = self.message_activation.irreps_in
+        irreps_after_message_act = self.message_activation.irreps_out
+
+        # TODO, linear_1 is not necessary to make the model work, used to increase
+        #  model capacity
         # first linear on node feats
         self.linear_1 = Linear(
             irreps_in=node_feats_irreps_in,
@@ -110,54 +115,54 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         )
 
         # tensor product for message function
-        self.tp = UVUTensorProduct(
+        self.message_tp = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            node_feats_irreps_out,
+            irreps_before_message_act,
             mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
             mlp_hidden_size=fc_hidden_size,
             mlp_num_hidden_layers=fc_num_hidden_layers,
         )
 
         # second linear on node feats
-        #
-        # In the tensor product using `uvu` instruction above, its output (i.e.
-        # irreps_mid) can be uncoallesed (for example, irreps_mid =1x0e+2x0e+2x1e).
-        # Here, we simplify it to combine irreps of the same the together (for example,
-        # irreps_mid.simplify()='3x0e+2x1e').
-        # The normalization in Linear is different for unsimplified and simplified
-        # irreps.
-        #
-        # Note, the data corresponds to irreps_mid before and after simplification will
-        # be the same, i.e. their order does not change, since irreps_mid is sorted.
+        # This layer is necessary to convert the irreps_out of the tensor product to
+        # the irreps_in of message_activation.
+        # Although self.message_activation.irreps_in is used as the input irreps_out
+        # for message_tp, the actual irreps_out of message_tp may not be equal to it
         self.linear_2 = Linear(
-            irreps_in=self.tp.irreps_out.simplify(),
-            irreps_out=node_feats_irreps_out,
+            irreps_in=self.message_tp.irreps_out,
+            irreps_out=irreps_before_message_act,
             internal_weights=True,
             shared_weights=True,
         )
 
-        # TODO, nonlinearity should be added to per edge message, before aggregating
-
         #
-        # tensor product for update function
+        # update step
         #
-        # TODO, here the weights does not depend node feats and such, so we share them
-        # of course, wen can make them dependent of scalar node attrs and then use a
-        # radial network to get the weights as done above
-        # Also, this can be thought as the self-connection step
-        self.tp_update = UVUTensorProduct(
-            node_feats_irreps_out,
+        self.update_activation = ActivationLayer(
+            irreps_after_message_act,
             node_attrs_irreps,
-            node_feats_irreps_out,
+            conv_layer_irreps,
+            activation_type=activation_type,
+            activation_scalars=activation_scalars,
+            activation_gates=activation_gates,
+        )
+        irreps_before_update_act = self.update_activation.irreps_in
+        irreps_after_update_act = self.update_activation.irreps_out
+
+        # Note, here the weights does not depend on node attrs and such, so we share
+        # them. Of course, wen can make them dependent of scalar node attrs as done
+        # above.
+        self.update_tp = UVUTensorProduct(
+            irreps_after_message_act,
+            node_attrs_irreps,
+            irreps_before_update_act,
             internal_and_share_weights=True,
         )
-        # TODO, maybe remove linear2, then we replace the input `node_feats_irrep_out`
-        #  in update_tp by self.tp.irreps_out.simplify().
-        #  by doing so, we can reduce the number of needed params,
+
         self.linear_3 = Linear(
-            irreps_in=self.tp_update.irreps_out.simplify(),
-            irreps_out=node_feats_irreps_out,
+            irreps_in=self.update_tp.irreps_out,
+            irreps_out=irreps_before_update_act,
             internal_weights=True,
             shared_weights=True,
         )
@@ -167,10 +172,15 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         #
         if use_self_connection:
             self.self_connection = FullyConnectedTensorProduct(
-                node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
+                node_feats_irreps_in, node_attrs_irreps, irreps_before_update_act
             )
         else:
             self.self_connection = None
+
+        #
+        # Set irreps_out
+        #
+        self.irreps_out[DataKey.NODE_FEATURES] = irreps_after_update_act
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         # shallow copy to avoid modifying the input
@@ -182,15 +192,13 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         edge_attrs = data[DataKey.EDGE_ATTRS]
         edge_src, edge_dst = data[DataKey.EDGE_INDEX]
 
+        #
+        # message step
+        #
         node_feats = self.linear_1(node_feats_in)
-
-        #
-        # message passing step
-        #
-        weight = self.radial_nn(edge_embedding)
-        msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, weight)
-
-        # TODO, nonlinearity should be added to per edge message, before aggregating
+        msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
+        msg_per_edge = self.linear_2(msg_per_edge)
+        msg_per_edge = self.message_activation(msg_per_edge)
 
         # aggregate message
         msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))
@@ -198,37 +206,141 @@ class SEGNNConv(ModuleIrreps, torch.nn.Module):
         if self.avg_num_neighbors is not None:
             msg = msg / self.avg_num_neighbors ** 0.5
 
-        msg = self.linear_2(msg)
-
         #
         # update step
         #
-        node_attrs = self._get_node_attrs(data)
-        node_feats = self.tp_update(msg, node_attrs)
+        node_feats = self.update_tp(msg, node_attrs)
         node_feats = self.linear_3(node_feats)
 
         if self.self_connection is not None:
             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
 
+        node_feats = self.update_activation(node_feats)
+
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
 
-    # TODO Since attrs are fixed, this should be done only once for each structure and
-    # should be moved to other places, maybe a module to do it.
-    @staticmethod
-    def _get_node_attrs(data: DataKey.Type, reduce="mean") -> Tensor:
+
+class MeanPredictionHead(ModuleIrreps, torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        field: str = DataKey.NODE_FEATURES,
+        out_field: Optional[str] = None,
+        activation: Callable = ACTIVATION["e"]["ssp"],
+        hidden_size: int = None,
+    ):
         """
-        Get the attrs of each atom, which is mean of attrs of the neighboring atoms.
+        Prediction head for scalar property.
+
+        -> linear1 to select 0e
+        -> activation
+        -> linear2
+        -> reduce (mean)
+        after
+        -> linear
+        -> activation
+        -> linear
+
+        The hidden
+
+        Args:
+            irreps_in:
+            field:
+            out_field:
+            activation:
+            hidden_size: hidden layer size, if `None`, use the multiplicity of the
+                0e irreps
         """
-        # node_attrs = data[DataKey.NODE_ATTRS]
-        # edge_index = data[DataKey.EDGE_INDEX]
+        super().__init__()
+        self.init_irreps(irreps_in, required_keys_irreps_in=[field])
 
-        # # get the neighboring atoms' attrs
-        # edge_attrs = scatter(
-        #     node_attrs[edge_index[1]], edge_index[0], dim=0, reduce=reduce
-        # )
+        self.field = field
+        self.out_field = field if out_field is None else out_field
 
-        # return edge_attrs
+        field_irreps = self.irreps_in[self.field]
 
-        return data[DataKey.NODE_ATTRS]
+        if hidden_size is None:
+            # get multiplicity of 0e irreps
+            for mul, ir in field_irreps:
+                if ir == (0, 1):
+                    hidden_size = mul
+                    break
+            assert (
+                hidden_size is not None
+            ), f"`irreps_in[{field}] = {field_irreps}`, not contain `0e`"
+
+        linear1 = Linear(field_irreps, Irreps(f"{hidden_size}x0e"))
+        activation = activation
+        linear2 = torch.nn.Linear(hidden_size, hidden_size)
+
+        self.mlp1 = torch.nn.Sequential(linear1, activation, linear2)
+        self.mlp2 = ScalarMLP(
+            in_size=hidden_size,
+            hidden_sizes=[hidden_size],
+            activation=activation,
+            out_size=1,
+        )
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        x = data[self.field]
+
+        x = self.mlp1(x)
+        x = scatter(x, data[DataKey.BATCH], dim=0, reduce="mean")
+        data[self.out_field] = self.mlp2(x)
+
+        return data
+
+
+class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
+    REQUIRED_KEYS_IRREPS_IN = [
+        DataKey.NODE_FEATURES,
+        DataKey.NODE_ATTRS,
+    ]
+
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        irreps_out: Dict[str, Irreps],
+    ):
+        """
+        Node embedding layers.
+
+        Tensor product between node feats and node attrs.
+
+        Args:
+            irreps_in:
+            irreps_out: expected irreps out, actual irreps out determined within layer
+        """
+
+        super().__init__()
+
+        self.init_irreps(irreps_in, irreps_out)
+
+        node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
+        node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
+        node_feats_irreps_out = self.irreps_out[DataKey.NODE_FEATURES]
+
+        self.activation = ActivationLayer(
+            node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
+        )
+
+        # tensor product between node feats and node attrs
+        self.tp = FullyConnectedTensorProduct(
+            node_feats_irreps_in, node_attrs_irreps, self.activation.irreps_in
+        )
+
+        # store actual irreps out
+        self.irreps_out[DataKey.NODE_FEATURES] = self.activation.irreps_out
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        node_feats = data[DataKey.NODE_FEATURES]
+        node_attrs = data[DataKey.NODE_ATTRS]
+
+        node_feats = self.tp(node_feats, node_attrs)
+        node_feats = self.activation(node_feats)
+
+        data[DataKey.NODE_FEATURES] = node_feats
+
+        return data

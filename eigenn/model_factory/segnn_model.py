@@ -10,7 +10,7 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.segnn import EmbeddingLayer, MeanPredictionHead, MessagePassing
+from eigenn.nn.segnn_conv import EmbeddingLayer, MeanPredictionHead, SEGNNConv
 
 
 class SEGNNModel(ModelForPyGData):
@@ -85,7 +85,7 @@ def create_model(hparams, dataset_hparams):
     # message passing layers
     for i in range(hparams["num_layers"]):
         layers[f"message_passing_layer{i}"] = (
-            MessagePassing,
+            SEGNNConv,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "fc_num_hidden_layers": hparams["invariant_layers"],
