@@ -23,8 +23,8 @@ from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.message_passing import MessagePassing
 from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.point_conv import PointConv
+from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.transformer_conv import TransformerConv
 
 

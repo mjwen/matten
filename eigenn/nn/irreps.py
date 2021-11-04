@@ -40,6 +40,9 @@ class DataKey:
     # radial part of the edge vector (i.e. distance between atoms), fixed
     EDGE_EMBEDDING: Final[str] = "edge_embedding"
 
+    # message from neighboring nodes to a central node
+    EDGE_MESSAGE: Final[str] = "edge_message"
+
     # CELL: Final[str] = "cell"
     # PBC: Final[str] = "pbc"
 
