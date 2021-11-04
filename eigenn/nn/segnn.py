@@ -234,7 +234,7 @@ class MessagePassing(ModuleIrreps, torch.nn.Module):
         edge_src, edge_dst = data[DataKey.EDGE_INDEX]
 
         #
-        # message passing step
+        # message step
         #
         node_feats = self.linear_1(node_feats_in)
         msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
@@ -253,8 +253,6 @@ class MessagePassing(ModuleIrreps, torch.nn.Module):
         node_feats = self.update_tp(msg, node_attrs)
         node_feats = self.linear_3(node_feats)
 
-        # TODO need to think about the order of self_connection and update_activation
-        #  read TFN paper and SE3 transformer paper to see where self connection comes
         if self.self_connection is not None:
             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
 

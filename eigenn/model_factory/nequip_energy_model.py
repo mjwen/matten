@@ -21,10 +21,10 @@ from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAt
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.nequip_layer import NequipLayer
+from eigenn.nn.message_passing import MessagePassing
 from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.segnn_conv import SEGNNConv
-from eigenn.nn.tfn_conv import TFNConv
+from eigenn.nn.point_conv import PointConv
 from eigenn.nn.transformer_conv import TransformerConv
 
 
@@ -131,12 +131,12 @@ def create_model(hparams, dataset_hparams):
             #         "use_sc": hparams["use_sc"],
             #     },
             # },
-            NequipLayer,
+            MessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "conv": TFNConv,
+                "conv": PointConv,
                 # "conv": SEGNNConv,
                 "conv_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],

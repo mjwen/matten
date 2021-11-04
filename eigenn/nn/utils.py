@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Dict
+from typing import Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as fn
@@ -326,3 +326,12 @@ class ScalarMLP(torch.nn.Module):
         if self.has_out_layer:
             s += "; with output layer"
         return s
+
+
+def scatter_add(src: Tensor, index: Tensor, dim_size: int) -> Tensor:
+    """
+    Special case of torch_scatter.scatter with dim=0
+    """
+    out = src.new_zeros(dim_size, src.shape[1])
+    index = index.reshape(-1, 1).expand_as(src)
+    return out.scatter_add_(0, index, src)

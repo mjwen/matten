@@ -4,13 +4,13 @@ import torch
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
 
-from eigenn.nn.utils import ActivationLayer
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.tfn_conv import TFNConv
+from eigenn.nn.point_conv import PointConv
+from eigenn.nn.utils import ActivationLayer
 
 
 @compile_mode("script")
-class NequipLayer(ModuleIrreps, torch.nn.Module):
+class MessagePassing(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
@@ -23,7 +23,7 @@ class NequipLayer(ModuleIrreps, torch.nn.Module):
         self,
         irreps_in: Dict[str, Irreps],
         conv_layer_irreps: Irreps,
-        conv=TFNConv,
+        conv=PointConv,
         conv_kwargs: Optional[Dict] = None,
         activation_type: str = "gate",
         activation_scalars: Dict[str, str] = None,
@@ -38,7 +38,7 @@ class NequipLayer(ModuleIrreps, torch.nn.Module):
         Args:
             irreps_in:
             conv_layer_irreps: irreps for the node features in the conv layer
-            conv: the convolution layer, e.g. TFNConv
+            conv: the convolution layer, e.g. PointConv
             conv_kwargs: dict of kwargs passed to `conv`
             activation_type: `gate` or `norm`
             activation_scalars: activation function for scalar irreps (i.e. l=0).

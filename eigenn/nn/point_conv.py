@@ -2,16 +2,12 @@ from typing import Dict
 
 import torch
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
-from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import UVUTensorProduct
+from eigenn.nn.utils import UVUTensorProduct, scatter_add
 
 
-class TFNConv(ModuleIrreps, torch.nn.Module):
-    """
-    TFN convolution.
-    """
+class PointConv(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
@@ -34,10 +30,10 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         avg_num_neighbors: int = None,
     ):
         """
-        The Tensor Field Network equivariant convolution layer.
+        Equivariant point convolution.
 
-        This is based on `Convolution` in `e3nn.nn.models.v2106.point_convolution.py`
-        and `InteractionBlock` in `nequip.nn._interaction_block.py`
+        Basically tensor product between node features and edge attributes, based on
+        https://github.com/e3nn/e3nn/blob/main/e3nn/nn/models/v2106/points_convolution.py
 
         Args:
             irreps_in: input irreps, with available keys in `DataKey`
@@ -47,6 +43,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
             fc_hidden_size: hidden layer size for the radial MLP
             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
                 SE3-Transformer paper.
+            avg_num_neighbors: average number of neighbors of each node
         """
 
         super().__init__()
@@ -60,13 +57,6 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         node_feats_irreps_out = self.irreps_out[DataKey.NODE_FEATURES]
         node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
-
-        #
-        # Convolution:
-        #
-        # linear_1 on node feats  -->
-        # tensor product on node feats and edge attrs -->
-        # linear_2 on node feats --> output
 
         # first linear on node feats
         self.linear_1 = Linear(
@@ -86,38 +76,31 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
             mlp_num_hidden_layers=fc_num_hidden_layers,
         )
 
-        # second linear on node feats
-        #
-        # In the tensor product using `uvu` instruction above, its output (i.e.
-        # irreps_mid) can be uncoallesed (for example, irreps_mid =1x0e+2x0e+2x1e).
-        # Here, we simplify it to combine irreps of the same the together (for example,
-        # irreps_mid.simplify()='3x0e+2x1e').
-        # The normalization in Linear is different for unsimplified and simplified
-        # irreps.
-        #
-        # Note, the data corresponds to irreps_mid before and after simplification will
-        # be the same, i.e. their order does not change, since irreps_mid is sorted.
+        # second linear
         self.linear_2 = Linear(
-            irreps_in=self.tp.irreps_out.simplify(),
+            irreps_in=self.tp.irreps_out,
             irreps_out=node_feats_irreps_out,
             internal_weights=True,
             shared_weights=True,
         )
 
         # # inspired by https://arxiv.org/pdf/2002.10444.pdf
-        # self.alpha = FullyConnectedTensorProduct(irreps_mid, node_attrs_irreps_in, "0e")
+        # self.alpha = FullyConnectedTensorProduct(
+        #     self.tp.irreps_out, node_attrs_irreps, "0e"
+        # )
         # with torch.no_grad():
         #     self.alpha.weight.zero_()
-        # assert (
-        #     self.alpha.output_mask[0] == 1.0
-        # ), f"irreps_mid={irreps_mid} and irreps_node_attr={self.irreps_node_attr} are not able to generate scalars"
+        # assert self.alpha.output_mask[0] == 1.0, (
+        #     f"Unable to generate scalar (0e) from "
+        #     f"self.tp.irreps_out={self.tp.irreps_out} and "
+        #     f"node_attrs_irreps ={node_attrs_irreps} "
+        # )
 
         #
         # self connection
         #
-        # We can use node_attrs_irreps here (which is not related spherical harmonics
-        # embedding of anything because in Nequip, node_attrs are simply embedding of
-        # species info, they are scalers. So it is possible. For higher order
+        # We can use node_attrs_irreps here (which is not related to spherical harmonics
+        # embedding of anything because it is just the embedding of species info, they are scalers. So it is possible. For higher order
         # tensors, they cannot be used in the tensor product to product equivariant
         # layer. For example, you cannot tensor product two node feats and expect
         # them to be equivariant.
@@ -147,7 +130,7 @@ class TFNConv(ModuleIrreps, torch.nn.Module):
         msg_per_edge = self.tp(node_feats[edge_src], edge_attrs, edge_embedding)
 
         # aggregate message
-        msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))
+        msg = scatter_add(msg_per_edge, edge_dst, dim_size=len(node_feats))
 
         if self.avg_num_neighbors is not None:
             msg = msg / self.avg_num_neighbors ** 0.5
