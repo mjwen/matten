@@ -16,6 +16,9 @@ from eigenn.typing import PBC, IntVector, Vector
 
 DTYPE = torch.get_default_dtype()
 DTYPE_INT = torch.int64
+DTYPE_BOOL = torch.bool
+TORCH_FLOATS = (torch.float16, torch.float32, torch.float64)
+TORCH_INTS = (torch.int16, torch.int32, torch.int64)
 
 
 class DataPoint(Data):
@@ -95,26 +98,38 @@ class DataPoint(Data):
 
         # convert input and output to tensors
         if x is not None:
-            x = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in x.items()}
-            self._check_tensor_dict(x, dict_name="x")
+            tensor_x = {}
+            for k, v in x.items():
+                v = self._convert_to_tensor(v)
+                if v is None:
+                    raise ValueError(
+                        f"Only accepts np.ndarray or torch.Tensor. `{k}` of x is of "
+                        f"type `{type(v)}`."
+                    )
+            tensor_x[k] = v
+            self._check_tensor_dict(tensor_x, dict_name="x")
+        else:
+            tensor_x = None
+
         if y is not None:
-            y = {k: torch.as_tensor(v, dtype=DTYPE) for k, v in y.items()}
-            self._check_tensor_dict(y, dict_name="y")
+            tensor_y = {}
+            for k, v in y.items():
+                v = self._convert_to_tensor(v)
+                if v is None:
+                    raise ValueError(
+                        f"Only accepts np.ndarray or torch.Tensor. `{k}` of y is of "
+                        f"type `{type(v)}`."
+                    )
+            tensor_y[k] = v
+            self._check_tensor_dict(tensor_y, dict_name="y")
+        else:
+            tensor_y = None
 
         # convert kwargs to tensor
         tensor_kwargs = {}
         for k, v in kwargs.items():
-            if isinstance(v, np.ndarray):
-                if np.issubdtype(v.dtype, np.floating):
-                    v = torch.as_tensor(v, dtype=DTYPE)
-                else:
-                    v = torch.as_tensor(v, dtype=DTYPE_INT)
-            elif isinstance(v, Tensor):
-                if v.dtype in (torch.float16, torch.float32, torch.float64):
-                    v = torch.as_tensor(v, dtype=DTYPE)
-                else:
-                    v = torch.as_tensor(v, dtype=DTYPE_INT)
-            else:
+            v = self._convert_to_tensor(v)
+            if v is None:
                 raise ValueError(
                     f"Only accepts np.ndarray or torch.Tensor. kwarg `{k}` is of type "
                     f" `{type(v)}`."
@@ -128,8 +143,8 @@ class DataPoint(Data):
             edge_cell_shift=edge_cell_shift,
             cell=cell,
             num_nodes=num_nodes,
-            x=x,
-            y=y,
+            x=tensor_x,
+            y=tensor_y,
             **tensor_kwargs,
         )
 
@@ -159,6 +174,36 @@ class DataPoint(Data):
                 f"Expect `{k}` in dict `{dict_name}` to be a tensor at least 1D, "
                 f"but its shape is `{v.shape}`."
             )
+
+    @staticmethod
+    def _convert_to_tensor(x):
+        """
+        Convert a np.ndarray or a torch.tensor to tensor.
+
+        Return None, if cannot deal with it.
+        """
+        if isinstance(x, np.ndarray):
+            if np.issubdtype(x.dtype, np.floating):
+                return torch.as_tensor(x, dtype=DTYPE)
+            elif np.issubdtype(x.dtype, np.integer):
+                return torch.as_tensor(x, dtype=DTYPE_INT)
+            elif x.dtype == bool:
+                return torch.as_tensor(x, dtype=DTYPE_BOOL)
+            else:
+                return None
+
+        elif isinstance(x, Tensor):
+            if x.dtype in TORCH_FLOATS:
+                return torch.as_tensor(x, dtype=DTYPE)
+            elif x.dtype in TORCH_INTS:
+                return torch.as_tensor(x, dtype=DTYPE_INT)
+            elif x.dtype == torch.bool:
+                return torch.as_tensor(x, dtype=DTYPE_BOOL)
+            else:
+                return None
+
+        else:
+            return None
 
 
 class Molecule(DataPoint):

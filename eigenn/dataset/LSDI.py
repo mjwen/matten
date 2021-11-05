@@ -30,7 +30,7 @@ class SiNMRDataset(InMemoryDataset):
 
     """
 
-    def __init__(self, filename, r_cut: float, root=".", unpack=True):
+    def __init__(self, filename: str, r_cut: float, root=".", unpack: bool = True):
         self.r_cut = r_cut
         self.filename = filename
         self.unpack = unpack

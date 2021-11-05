@@ -18,13 +18,12 @@ class MatbenchDataset(InMemoryDataset):
     This will have whatever in the `column` as `y` for the dataset.
 
     Args:
-        filename: matbench task filename, e.g. ``matbench_log_gvrh.json``. For a fully
+        filename: matbench task filename, e.g. ``matbench_log_gvrh.json``. For a full
             list, see https://hackingmaterials.lbl.gov/automatminer/datasets.html
-            Note, this should only to be filename, not the path name.
+            Note, this should only to be the filename, not the path name.
             If using local files, it should be placed on a path with `raw` before the
             filename. For example, <root>/raw/matbench_log_gvrh.json
             where <root> is the path provided by `root`.
-
         r_cut: neighbor cutoff distance, in unit Angstrom.
         root: root directory of the data, will contain `raw` and `processed` files.
     """
@@ -44,7 +43,7 @@ class MatbenchDataset(InMemoryDataset):
         "matbench_phonons": "last phdos peak",
     }
 
-    def __init__(self, filename, r_cut: float, root="."):
+    def __init__(self, filename: str, r_cut: float, root="."):
         self.r_cut = r_cut
         self.filename = filename
 
@@ -53,13 +52,6 @@ class MatbenchDataset(InMemoryDataset):
 
     @classmethod
     def from_task_name(cls, task_name: str, r_cut: float, root="."):
-        """
-        Args:
-            task_name: matbench task names, e.g. ``matbench_log_gvrh``. For a fully list,
-                see https://hackingmaterials.lbl.gov/automatminer/datasets.html
-            r_cut: neighbor cutoff distance, in unit Angstrom.
-            root:
-        """
         filename = f"{task_name}.json"
         return cls(filename=filename, r_cut=r_cut, root=root)
 
@@ -72,9 +64,9 @@ class MatbenchDataset(InMemoryDataset):
             struct_idx = columns.index("structure")
         except ValueError:
             raise ValueError(
-                f"Unsupported task `{self.filename}`. Eigenn only works with data having "
-                f"geometric information (i.e. with `structure` in the matbench data). "
-                f"The provided dataset does not have this. Matbench tasks with "
+                f"Unsupported task `{self.filename}`. Eigenn only works with data "
+                "having geometric information (i.e. with `structure` in the matbench "
+                "data). The provided dataset does not have this. Matbench tasks with "
                 f"`structure` information include: "
                 f"{', '.join(self.WITH_STRUCTURE.keys())}. "
                 f"See {self.MATBENCH_WEBSITE} for more."
