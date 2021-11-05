@@ -30,9 +30,9 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
-        # model_class=EnergyModel,
+        model_class=EnergyModel,
         # model_class=AtomicTensorModel,
-        model_class=SEGNNModel,
+        # model_class=SEGNNModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
@@ -65,22 +65,12 @@ def main():
     # test the model
     if not cli.config["skip_test"]:
         logger.info("Start testing!")
-        test_metric_score = cli.trainer.test()
-    else:
-        test_metric_score = [{}]
+        cli.trainer.test(ckpt_path="best", datamodule=cli.datamodule)
 
-    # Print path to best checkpoint
+    # print path to best checkpoint
     logger.info(
         f"Best checkpoint path: {cli.trainer.checkpoint_callback.best_model_path}"
     )
-
-    # final validation metric score
-    monitor = cli.model.monitor_key  # e.g. val/score
-    val_metric_score = cli.trainer.callback_metrics[monitor]
-    logger.info(f"Validation metric score ({monitor}): {val_metric_score}")
-
-    # final test metric score
-    logger.info(f"Test loss and metric score: {test_metric_score}")
 
 
 if __name__ == "__main__":

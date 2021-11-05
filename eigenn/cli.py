@@ -121,7 +121,7 @@ class EigennCLI(LightningCLI):
         # add data config back to let lightning cli log it
         self.config["data"] = data_config
 
-        # remove linked config to model, where were added in `add_arguments_to_parser`
+        # remove linked config to model, added in `add_arguments_to_parser`
         self.config["model"].pop("lr_scheduler_hparams")
         self.config["model"].pop("optimizer_hparams")
         self.config["model"].pop("trainer_hparams")
@@ -194,7 +194,7 @@ class EigennCLI(LightningCLI):
             checkpoint = None
             wandb_id = None
 
-        # TODO, this is incomplete, we need to consider dataset state dict
+        # TODO, we need to consider dataset state dict
         dataset_state_dict = None
         # if dataset_state_dict is None:
         #     logger.warning(

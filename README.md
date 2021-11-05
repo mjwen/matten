@@ -21,7 +21,7 @@ supports installing via conda, much easier than before. And the installing guide
 
 - [Lightning](https://www.pytorchlightning.ai/)
   ```bash
-  pip install pytorch-lightning
+  conda install pytorch-lightning==1.5.0 torchmetrics==0.6.0 -c conda-forge
   ```
 
 - [e3nn](https://docs.e3nn.org/en/stable/guide/installation.html)
