@@ -20,7 +20,7 @@ class MatbenchDataset(InMemoryDataset):
     Args:
         filename: matbench task filename, e.g. ``matbench_log_gvrh.json``. For a full
             list, see https://hackingmaterials.lbl.gov/automatminer/datasets.html
-            Note, this should only to be the filename, not the path name.
+            Note, this should only be the filename, not the path name.
             If using local files, it should be placed on a path with `raw` before the
             filename. For example, <root>/raw/matbench_log_gvrh.json
             where <root> is the path provided by `root`.
