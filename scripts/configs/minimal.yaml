@@ -4,10 +4,10 @@ log_level: debug
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
-    root: /Users/mjwen/Documents/Dataset/matbench/matbench_dielectric
-    trainset_filename: matbench_dielectric_val.json
-    valset_filename: matbench_dielectric_val.json
-    testset_filename: matbench_dielectric_val.json
+    root: ../eigenn/dataset/matbench
+    trainset_filename: matbench_dielectric_n20.json
+    valset_filename: matbench_dielectric_n20.json
+    testset_filename: matbench_dielectric_n20.json
     r_cut: 5.0
     loader_kwargs:
       batch_size: 10

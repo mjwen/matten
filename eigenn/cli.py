@@ -67,7 +67,8 @@ class EigennCLI(LightningCLI):
         # TODO, this does not work now due to a lightning bug
         # parser.link_arguments("trainer.max_epochs", "lr_scheduler.init_args.max_epochs")
 
-        # link trainer and data configs to model to let wandb log them
+        # link trainer and data configs to model to let wandb log them, the model
+        # does not need them to perform any task
         parser.link_arguments("trainer", "model.trainer_hparams")
         parser.link_arguments("data", "model.data_hparams")
 

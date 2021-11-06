@@ -17,6 +17,7 @@ import torch
 from nequip.data import AtomicDataDict
 from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
+from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
@@ -50,7 +51,7 @@ class EnergyModel(ModelForPyGData):
 
         return task
 
-    def decode(self, model_input):
+    def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
         out = out["total_energy"].reshape(-1)
 
@@ -60,7 +61,10 @@ class EnergyModel(ModelForPyGData):
         return preds
 
 
-def create_model(hparams, dataset_hparams):
+def create_model(hparams: Dict[str, Any], dataset_hparams):
+    """
+    The actual function to create the model.
+    """
 
     # ===== embedding layers =====
     layers = {

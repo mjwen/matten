@@ -2,12 +2,11 @@ from e3nn.o3 import Irreps
 
 from eigenn.nn.irreps import DataKey
 from eigenn.nn.point_conv import PointConv
-from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.transformer_conv import TransformerConv
 
 
 def test_Conv():
-    for ConvClass in [PointConv, SEGNNConv]:
+    for ConvClass in [PointConv]:
 
         conv = ConvClass(
             irreps_in={
