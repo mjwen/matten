@@ -106,7 +106,7 @@ class DataPoint(Data):
                         f"Only accepts np.ndarray or torch.Tensor. `{k}` of x is of "
                         f"type `{type(v)}`."
                     )
-            tensor_x[k] = v
+                tensor_x[k] = v
             self._check_tensor_dict(tensor_x, dict_name="x")
         else:
             tensor_x = None
@@ -120,7 +120,7 @@ class DataPoint(Data):
                         f"Only accepts np.ndarray or torch.Tensor. `{k}` of y is of "
                         f"type `{type(v)}`."
                     )
-            tensor_y[k] = v
+                tensor_y[k] = v
             self._check_tensor_dict(tensor_y, dict_name="y")
         else:
             tensor_y = None
