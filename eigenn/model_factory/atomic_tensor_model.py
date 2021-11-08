@@ -1,30 +1,27 @@
 """
-A model outputs atomic tensors (i.e. output a tensor on each atomic site), e.g. symmetric
-2nd order NMR tensor.
+A model outputs atomic tensors (i.e. output a tensor on each atomic site), e.g.
+symmetric 2nd order NMR tensor.
 """
 
 import sys
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Sequence, Union
 
-import torch.nn as nn
+import torch
 from e3nn.io import CartesianTensor
-from nequip.nn import AtomwiseLinear, ConvNetLayer
+from nequip.nn import AtomwiseLinear
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn.message_passing import MessagePassing
 from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseSelect
+from eigenn.nn.point_conv import PointConv
 from eigenn.nn.readout import IrrepsToCartesianTensor
 
-# data key for hte
-OUT_FIELD_ATOM = "tensor_output_atom"
-OUT_FIELD = "tensor_output_atom_selected"
-# NODE_MASKS = "node_masks"
-NODE_MASKS = None
 
 # TODO, we can weigh different irreps (e.g., 0e, 1o, and 2e) differently, and that can
 #  be set in the Task (parameters from config passed from hparams)
@@ -37,7 +34,7 @@ class AtomicTensorModel(ModelForPyGData):
         self,
         backbone_hparams: Dict[str, Any],
         dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> nn.Module:
+    ) -> torch.nn.Module:
         backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
@@ -53,11 +50,8 @@ class AtomicTensorModel(ModelForPyGData):
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
 
-        # TODO, reshape the output?
-        out = out[OUT_FIELD]
-
         task_name = self.hparams.task_hparams["task_name"]
-        preds = {task_name: out}
+        preds = {task_name: out[task_name]}
 
         return preds
 
@@ -75,21 +69,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             {
                 "embedding_dim": hparams["species_embedding_dim"],
                 "allowed_species": dataset_hparams["allowed_species"],
-                # `node_features` determines output irreps. It must be used together with
-                # set_features=False, which disables overriding of the given
-                # node_features. Otherwise, node_features irreps will be set to
-                # node_attrs irreps, which is determined by the `allowed_species`.
-                #
-                # Well, the OneHOtAtomEncoding has to use set_features = True, because
-                # otherwise, node_features will not be include in the output data for
-                # latter use.
-                # "set_features": False,
-                # "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
-                # TODO fix this in SpeciesEmbedding, then we may not need to use
-                #  torch.nn.Embedding. (MW answer: well then we need to use a linear
-                #  layer to map it to species_embedding_irreps_out. We can just use
-                #  torch.nn.Embedding )
-                "set_features": True,
             },
         ),
         "spharm_edges": (
@@ -139,21 +118,21 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
-            ConvNetLayer,
+            MessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
-                "nonlinearity_type": hparams["nonlinearity_type"],
-                "resnet": hparams["resnet"],
-                "convolution_kwargs": {
-                    "invariant_layers": hparams["invariant_layers"],
-                    "invariant_neurons": hparams["invariant_neurons"],
+                "activation_type": hparams["nonlinearity_type"],
+                "use_resnet": hparams["resnet"],
+                "conv": PointConv,
+                # "conv": SEGNNConv,
+                "conv_kwargs": {
+                    "fc_num_hidden_layers": hparams["invariant_layers"],
+                    "fc_hidden_size": hparams["invariant_neurons"],
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
-                    "use_sc": hparams["use_sc"],
+                    "use_self_connection": hparams["use_sc"],
                 },
             },
         )
-
-    # update also maintains insertion order
 
     #
     # determining output formula and irreps
@@ -177,6 +156,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             # default to scalar
             output_irreps = "1x0e"
 
+    # data keys
+    OUT_FIELD_ATOM = "atomic_output"
+    NODE_MASKS = "node_masks"
+    OUT_FIELD_SELECTED = "tensor_output"  # TODO, this should be obtained from hparams
+
     layers.update(
         {
             # TODO: the next linear throws out all L > 0, don't create them in the
@@ -196,14 +180,14 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # select atomic tensor for prediction
     layers["output_irreps_tensor"] = (
         NodewiseSelect,
-        dict(field=OUT_FIELD_ATOM, out_field=OUT_FIELD, mask_field=NODE_MASKS),
+        dict(field=OUT_FIELD_ATOM, out_field=OUT_FIELD_SELECTED, mask_field=NODE_MASKS),
     )
 
     if formula is not None:
         # convert irreps tensor to cartesian tensor
         layers["output_cartesian_tensor"] = (
             IrrepsToCartesianTensor,
-            dict(formula=formula, field=OUT_FIELD),
+            dict(formula=formula, field=OUT_FIELD_SELECTED),
         )
 
     model = create_sequential_module(
@@ -229,7 +213,6 @@ if __name__ == "__main__":
         "num_radial_basis": 8,
         "radial_basis_r_cut": 4,
         "num_layers": 3,
-        "reduce": "sum",
         "invariant_layers": 2,
         "invariant_neurons": 64,
         "avg_num_neighbors": None,
