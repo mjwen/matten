@@ -153,7 +153,15 @@ class DataPoint(Data):
         Convert all tensor properties to a dict.
         """
         d = self.to_dict()
-        return {k: v for k, v in d.items() if isinstance(v, Tensor)}
+
+        out = {}
+        for k, v in d.items():
+            if isinstance(v, Tensor):
+                out[k] = v
+            elif isinstance(v, dict):
+                out.update(v)
+
+        return out
 
     @staticmethod
     def _check_tensor_dict(d: Dict[str, Tensor], dict_name: str = "name_unknown"):
