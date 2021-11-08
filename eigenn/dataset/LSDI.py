@@ -47,7 +47,7 @@ class SiNMRDataset(InMemoryDataset):
                     node_mask[node_index] = 1
                     d = {
                         "structure": entry["structure"],
-                        "tensor": entry["tensor"][idx],
+                        "tensor": [entry["tensor"][idx]],  # shape 1x3x3
                         "index": node_mask,
                     }
                     unpacked_data.append(d)

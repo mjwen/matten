@@ -29,8 +29,8 @@ class NodewiseSelect(ModuleIrreps, torch.nn.Module):
         Args:
             irreps_in:
             field: the field from which to select the features/attrs
-            out_field: the output field for the selected features/attrs. If `None`,
-                it defaults to `field + '_selected'`.
+            out_field: the output field for the selected features/attrs. Defaults to
+                field.
             mask_field: field of the masks. If `None`, all atomic sites will be
                 selected, corresponding to set `data[mask_field]` to `[True, True,
                 True, True]` in the above example.
@@ -47,14 +47,15 @@ class NodewiseSelect(ModuleIrreps, torch.nn.Module):
         """
         super().__init__()
 
-        required = [field]
-        # if mask_field is not None:
-        #     required.append(mask_field)
-        self.init_irreps(irreps_in=irreps_in, required_keys_irreps_in=required)
-
         self.field = field
-        self.out_field = out_field if out_field is not None else field + "_selected"
+        self.out_field = out_field if out_field is not None else field
         self.mask_field = mask_field
+
+        self.init_irreps(
+            irreps_in=irreps_in,
+            irreps_out={self.out_field: irreps_in[self.field]},
+            required_keys_irreps_in=[self.field],
+        )
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         # shallow copy so input `data` is not modified

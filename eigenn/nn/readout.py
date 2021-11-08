@@ -28,10 +28,12 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
         """
         super().__init__()
 
-        self.init_irreps(irreps_in, required_keys_irreps_in=[field])
-
         self.field = field
         self.out_field = field if out_field is None else out_field
+
+        # NOTE, should not add output to irreps_out, since it is a cartesian tensor,
+        # no longer an irreps
+        self.init_irreps(irreps_in, required_keys_irreps_in=[field])
 
         self.ct = CartesianTensor(formula=formula)
 
