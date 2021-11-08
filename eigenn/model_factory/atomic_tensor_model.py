@@ -172,7 +172,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             ),
             "output_hidden_to_tensor": (
                 AtomwiseLinear,
-                dict(irreps_out=output_irreps, out_field=OUT_FIELD_ATOM),
+                {"irreps_out": output_irreps, "out_field": OUT_FIELD_ATOM},
             ),
         }
     )
@@ -180,14 +180,18 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # select atomic tensor for prediction
     layers["output_irreps_tensor"] = (
         NodewiseSelect,
-        dict(field=OUT_FIELD_ATOM, out_field=OUT_FIELD_SELECTED, mask_field=NODE_MASKS),
+        {
+            "field": OUT_FIELD_ATOM,
+            "out_field": OUT_FIELD_SELECTED,
+            "mask_field": NODE_MASKS,
+        },
     )
 
     if formula is not None:
         # convert irreps tensor to cartesian tensor
         layers["output_cartesian_tensor"] = (
             IrrepsToCartesianTensor,
-            dict(formula=formula, field=OUT_FIELD_SELECTED),
+            {"formula": formula, "field": OUT_FIELD_SELECTED},
         )
 
     model = create_sequential_module(

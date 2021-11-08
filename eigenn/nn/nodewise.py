@@ -72,3 +72,11 @@ class NodewiseSelect(ModuleIrreps, torch.nn.Module):
         data[self.out_field] = selected
 
         return data
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(\n"
+            f"  field: {self.field}, out_field: {self.out_field}, out field irreps: "
+            f"{self.irreps_out[self.out_field]}\n"
+            ")"
+        )

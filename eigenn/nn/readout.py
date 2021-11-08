@@ -28,6 +28,7 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
         """
         super().__init__()
 
+        self.formula = formula
         self.field = field
         self.out_field = field if out_field is None else out_field
 
@@ -46,3 +47,10 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
         data[self.out_field] = cartesian_tensor
 
         return data
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(\n"
+            f"  field: {self.field}, out_field: {self.out_field}, formula: {self.formula}\n"
+            ")"
+        )
