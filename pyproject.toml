@@ -6,3 +6,7 @@ build-backend = "setuptools.build_meta"
 [tool.black]
 line-length = 88
 target-version = ['py37', 'py38']
+
+[tool.isort]
+# make it compatible with black
+profile = "black"

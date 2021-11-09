@@ -11,15 +11,22 @@ number of params.
 """
 import sys
 from collections import OrderedDict
+from typing import Any, Dict, Optional, Sequence, Union
 
+import torch
 from nequip.data import AtomicDataDict
 from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
 from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
+from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask
+from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.message_passing import MessagePassing
+from eigenn.nn.node_embedding import SpeciesEmbedding
+from eigenn.nn.point_conv import PointConv
+from eigenn.nn.segnn_conv import SEGNNConv
+from eigenn.nn.transformer_conv import TransformerConv
 
 
 class EnergyModel(ModelForPyGData):
@@ -27,16 +34,24 @@ class EnergyModel(ModelForPyGData):
     A model to predict the energy of an atomic configuration.
     """
 
-    def init_backbone(self, hparams, dataset_hparams):
-        backbone = create_energy_model(hparams, dataset_hparams)
+    def init_backbone(
+        self,
+        backbone_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
+    ) -> torch.nn.Module:
+        backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(self, hparams, dataset_hparams):
-        task = CanonicalRegressionTask(name=hparams["task_name"])
+    def init_tasks(
+        self,
+        task_hparams: Dict[str, Any],
+        dataset_hparams: Optional[Dict[str, Any]] = None,
+    ) -> Union[Task, Sequence[Task]]:
+        task = CanonicalRegressionTask(name=task_hparams["task_name"])
 
         return task
 
-    def decode(self, model_input):
+    def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
         out = out["total_energy"].reshape(-1)
 
@@ -46,7 +61,10 @@ class EnergyModel(ModelForPyGData):
         return preds
 
 
-def create_energy_model(hparams, dataset_hparams):
+def create_model(hparams: Dict[str, Any], dataset_hparams):
+    """
+    The actual function to create the model.
+    """
 
     # ===== embedding layers =====
     layers = {
@@ -56,21 +74,6 @@ def create_energy_model(hparams, dataset_hparams):
             {
                 "embedding_dim": hparams["species_embedding_dim"],
                 "allowed_species": dataset_hparams["allowed_species"],
-                # `node_features` determines output irreps. It must be used together with
-                # set_features=False, which disables overriding of the given
-                # node_features. Otherwise, node_features irreps will be set to
-                # node_attrs irreps, which is determined by the `allowed_species`.
-                #
-                # Well, the OneHOtAtomEncoding has to use set_features = True, because
-                # otherwise, node_features will not be include in the output data for
-                # latter use.
-                # "set_features": False,
-                # "irreps_in": {"node_features": hparams["species_embedding_irreps_out"]},
-                # TODO fix this in SpeciesEmbedding, then we may not need to use
-                #  torch.nn.Embedding. (MW answer: well then we need to use a linear
-                #  layer to map it to species_embedding_irreps_out. We can just use
-                #  torch.nn.Embedding )
-                "set_features": True,
             },
         ),
         "spharm_edges": (
@@ -120,17 +123,41 @@ def create_energy_model(hparams, dataset_hparams):
 
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
-            ConvNetLayer,
+            # ConvNetLayer,
+            # {
+            #     "feature_irreps_hidden": hparams["conv_layer_irreps"],
+            #     "nonlinearity_type": hparams["nonlinearity_type"],
+            #     "resnet": hparams["resnet"],
+            #     "convolution_kwargs": {
+            #         "invariant_layers": hparams["invariant_layers"],
+            #         "invariant_neurons": hparams["invariant_neurons"],
+            #         "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #         "use_sc": hparams["use_sc"],
+            #     },
+            # },
+            MessagePassing,
             {
-                "feature_irreps_hidden": hparams["feature_irreps_hidden"],
-                "nonlinearity_type": hparams["nonlinearity_type"],
-                "resnet": hparams["resnet"],
-                "convolution_kwargs": {
-                    "invariant_layers": hparams["invariant_layers"],
-                    "invariant_neurons": hparams["invariant_neurons"],
+                "conv_layer_irreps": hparams["conv_layer_irreps"],
+                "activation_type": hparams["nonlinearity_type"],
+                "use_resnet": hparams["resnet"],
+                "conv": PointConv,
+                # "conv": SEGNNConv,
+                "conv_kwargs": {
+                    "fc_num_hidden_layers": hparams["invariant_layers"],
+                    "fc_hidden_size": hparams["invariant_neurons"],
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
-                    "use_sc": hparams["use_sc"],
+                    "use_self_connection": hparams["use_sc"],
                 },
+                # # transformer conv
+                # "conv": TransformerConv,
+                # "conv_kwargs": {
+                #     "irreps_query_and_key": hparams["conv_layer_irreps"],
+                #     "r_max": hparams["radial_basis_r_cut"],
+                #     "fc_num_hidden_layers": hparams["invariant_layers"],
+                #     "fc_hidden_size": hparams["invariant_neurons"],
+                #     "avg_num_neighbors": hparams["avg_num_neighbors"],
+                #     "use_self_connection": hparams["use_sc"],
+                # },
             },
         )
 
@@ -178,7 +205,7 @@ if __name__ == "__main__":
     hparams = {
         "species_embedding_dim": 16,
         # "species_embedding_irreps_out": "16x0e",
-        "feature_irreps_hidden": "32x0o + 32x0e + 16x1o + 16x1e",
+        "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
         "radial_basis_r_cut": 4,
@@ -194,4 +221,4 @@ if __name__ == "__main__":
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
-    create_energy_model(hparams, dataset_hyarmas)
+    create_model(hparams, dataset_hyarmas)

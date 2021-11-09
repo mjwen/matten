@@ -1,25 +1,18 @@
-from typing import List
+from typing import Dict, List, Tuple
 
 import torch
-import torch.nn as nn
 from e3nn.o3 import Irreps
-from e3nn.util.jit import compile_mode
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 
 
-@compile_mode("script")
-class SpeciesEmbedding(nn.Module, ModuleIrreps):
+class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
     """
-    Embed atomic species (number) to node attrs and node features with fixed-size lookup
-    table using torch.nn.Embedding.
-
-    # TODO set these as output field to make them explict
-    This adds:
-        - DataKey.NODE_ATTR
-        - DataKey.NODE_FEATURES (if set_features is True)
+    Embed atomic species (number) to  with fixed-size lookup table using
+    torch.nn.Embedding.
 
     Args:
+        irreps_in:
         embedding_dim: output dim of the species embedding
         num_species: number of uniques species for embedding. If this is provided,
             the `data` for forward should contain DataKey.SPECIES_INDEX, which are
@@ -29,22 +22,22 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
             allowed_species allows non-consecutive integers as input and it will be
             mapped to consecutive species_index internally. If this is used,
             the `data` for forward should contain DAtaKey.ATOMIC_NUMBERS.
-        set_features: whether to set the embedding to DataKey.NODE_FEATURES
-        irreps_in:
+        out_fields: the generated embedding will be assigned to the output data dict
+            with keys in out_fields
     """
 
     def __init__(
         self,
+        irreps_in: Dict[str, Irreps] = None,
         embedding_dim: int = 16,
         num_species: int = None,
         allowed_species: List[int] = None,
-        set_features: bool = True,
-        irreps_in=None,
+        out_fields: Tuple[str] = (DataKey.NODE_ATTRS, DataKey.NODE_FEATURES),
     ):
         super().__init__()
 
         self.embedding_dim = embedding_dim
-        self.set_features = set_features
+        self.out_fields = out_fields
 
         if allowed_species is not None and num_species is not None:
             raise ValueError("allowed_species and num_species cannot both be provided.")
@@ -53,17 +46,14 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
             self.atomic_number_to_index = _AtomicNumberToIndex(allowed_species)
             num_species = self.atomic_number_to_index.num_species
 
-        # Output irreps are num_species even (invariant) scalars
-        irreps_out = {DataKey.NODE_ATTRS: Irreps([(embedding_dim, (0, 1))])}
-        if self.set_features:
-            irreps_out[DataKey.NODE_FEATURES] = irreps_out[DataKey.NODE_ATTRS]
-        self.init_irreps(irreps_in=irreps_in, irreps_out=irreps_out)
+        # species as a scalar with even parity (0, 1), with multiplicity embedding_dim
+        irreps_out = {k: Irreps([(embedding_dim, (0, 1))]) for k in self.out_fields}
+        self.init_irreps(irreps_in, irreps_out)
 
         # learnable embedding layer
-        self.embedding = nn.Embedding(num_species, embedding_dim)
+        self.embedding = torch.nn.Embedding(num_species, embedding_dim)
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
-
         if DataKey.SPECIES_INDEX in data:
             type_numbers = data[DataKey.SPECIES_INDEX]
         elif DataKey.ATOMIC_NUMBERS in data:
@@ -76,16 +66,13 @@ class SpeciesEmbedding(nn.Module, ModuleIrreps):
             )
 
         embed = self.embedding(type_numbers)
-
-        data[DataKey.NODE_ATTRS] = embed
-        if self.set_features:
-            data[DataKey.NODE_FEATURES] = embed
+        for k in self.out_fields:
+            data[k] = embed
 
         return data
 
 
-@compile_mode("script")
-class _AtomicNumberToIndex(nn.Module):
+class _AtomicNumberToIndex(torch.nn.Module):
     """
     Map non-consecutive atomic numbers to consecutive atomic index.
 

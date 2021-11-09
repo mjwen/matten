@@ -43,7 +43,7 @@ def to_list(value: Any) -> Sequence:
         return [value]
 
 
-def yaml_dump(obj, filename: [str, Path]):
+def yaml_dump(obj, filename: Union[str, Path]):
     """
     Dump an object as yaml.
     """
@@ -52,7 +52,7 @@ def yaml_dump(obj, filename: [str, Path]):
         yaml.dump(obj, f, default_flow_style=False)
 
 
-def yaml_load(filename: [str, Path]):
+def yaml_load(filename: Union[str, Path]):
     """
     Load an object from yaml.
     """

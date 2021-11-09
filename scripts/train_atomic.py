@@ -1,10 +1,15 @@
 """
-Training script. Please do:
+Training script for atomic property.
 
-python train.py --help
-python train.py # use the default config file specified below
-python train.py --config configs/minimal.yaml
+This is 99% percent the same as train.py, except that the AtomicTensorModel and
+minimal_atomic.yaml are used. So, always make them in sync.
 
+
+Please do:
+
+python train_atomic.py --help
+python train_atomic.py # use the default config file specified below
+python train_atomic.py --config configs/minimal_atomic.yaml
 """
 import sys
 
@@ -14,8 +19,6 @@ from loguru import logger
 from eigenn.cli import EigennCLI, SaveConfigCallback
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.model_factory.atomic_tensor_model import AtomicTensorModel
-from eigenn.model_factory.nequip_energy_model import EnergyModel
-from eigenn.model_factory.segnn_model import SEGNNModel
 from eigenn.utils import to_path
 
 CWD = to_path(__file__).parent
@@ -30,9 +33,7 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
-        model_class=EnergyModel,
-        # model_class=AtomicTensorModel,
-        # model_class=SEGNNModel,
+        model_class=AtomicTensorModel,
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
@@ -40,7 +41,9 @@ def main():
         save_config_overwrite=True,
         description="Eigenn training command line tool",
         parser_kwargs={
-            "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
+            "default_config_files": [
+                CWD.joinpath("configs", "minimal_atomic.yaml").as_posix()
+            ]
         },
         run=False,
     )

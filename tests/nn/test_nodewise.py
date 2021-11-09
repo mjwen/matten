@@ -1,7 +1,7 @@
 import torch
 
-from eigenn.nn.atomwise import AtomwiseSelect
 from eigenn.nn.irreps import DataKey
+from eigenn.nn.nodewise import NodewiseSelect
 
 
 def test_atomwise_select():
@@ -9,7 +9,7 @@ def test_atomwise_select():
     node_feats = DataKey.NODE_FEATURES
     mask_field = "node_masks"
     out_field = "selected_node_features"
-    aws = AtomwiseSelect(
+    aws = NodewiseSelect(
         irreps_in={node_feats: None, mask_field: None},
         field=node_feats,
         out_field=out_field,

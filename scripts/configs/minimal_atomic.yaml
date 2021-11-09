@@ -2,12 +2,12 @@ seed_everything: 35
 log_level: debug
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  class_path: eigenn.dataset.LSDI.SiNMRDataMoldule
   init_args:
-    root: ../eigenn/dataset/matbench
-    trainset_filename: matbench_dielectric_n20.json
-    valset_filename: matbench_dielectric_n20.json
-    testset_filename: matbench_dielectric_n20.json
+    root: ../eigenn/dataset/LSDI_NMR
+    trainset_filename: LSDI_NMR_tensor.json
+    valset_filename: LSDI_NMR_tensor.json
+    testset_filename: LSDI_NMR_tensor.json
     r_cut: 5.0
     loader_kwargs:
       batch_size: 10
@@ -30,7 +30,7 @@ model:
     radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
 
     #
-    # conv layers
+    # message passing conv layers
     #
     num_layers: 3
 
@@ -38,7 +38,7 @@ model:
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
     invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
     avg_num_neighbors: null # number of neighbors to divide by, None => no normalization.
-    use_sc: true
+    use_sc: true # use self connection? `true` seems always improve performance
 
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
@@ -47,14 +47,14 @@ model:
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e
-    reduce: sum
+    conv_to_output_hidden_irreps_out: 16x0e + 8x1e + 4x2e # should contain 0e and 2e for symmetric 2nd-order tensor
+    output_formula: ij=ji # symmetric 2nd-order tensor (see e3nn.io.CartesianTensor)
 
   task_hparams:
-    task_name: n
+    task_name: tensor_output # name of y in dataset to predict
 
 trainer:
-  max_epochs: 2
+  max_epochs: 2 # number of maximum training epochs
   num_nodes: 1
   gpus: null
   terminate_on_nan: true
