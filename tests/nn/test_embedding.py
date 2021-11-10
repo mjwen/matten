@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.nn.node_embedding import _AtomicNumberToIndex
+from eigenn.nn.embedding import _AtomicNumberToIndex
 
 
 def test_atomic_number_to_index():

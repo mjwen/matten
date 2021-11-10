@@ -22,8 +22,8 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn.embedding import SpeciesEmbedding
 from eigenn.nn.message_passing import MessagePassing
-from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.point_conv import PointConv, PointConvMessagePassing
 from eigenn.nn.segnn_conv import SEGNNMessagePassing
 from eigenn.nn.transformer_conv import TransformerConv

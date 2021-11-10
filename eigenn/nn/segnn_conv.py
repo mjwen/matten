@@ -31,7 +31,7 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
     ):
         """
 
-        SEGNN message passing.
+        SEGNN message function.
 
         Message function: tensor product between node feats of neighbors and edge
         embedding, with params derived from fully connected layer on edge distance.
@@ -171,7 +171,7 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
     ):
         """
 
-        SEGNN message passing.
+        SEGNN update function.
 
         Message function: tensor product between node feats of neighbors and edge
         embedding, with params derived from fully connected layer on edge distance.
@@ -311,6 +311,21 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
         activation_gates: Dict[str, str] = None,
         use_resnet: bool = True,
     ):
+        """
+        SEGNN message passing.
+
+        Args:
+            irreps_in:
+            conv_layer_irreps:
+            message:
+            update:
+            message_kwargs:
+            update_kwargs:
+            activation_type:
+            activation_scalars:
+            activation_gates:
+            use_resnet:
+        """
         super().__init__()
 
         #

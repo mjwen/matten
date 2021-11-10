@@ -16,7 +16,7 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.node_embedding import SpeciesEmbedding
+from eigenn.nn.embedding import SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseSelect
 from eigenn.nn.point_conv import PointConvMessagePassing
 from eigenn.nn.readout import IrrepsToCartesianTensor

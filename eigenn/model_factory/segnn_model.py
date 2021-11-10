@@ -9,7 +9,7 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.node_embedding import SpeciesEmbedding
+from eigenn.nn.embedding import SpeciesEmbedding
 from eigenn.nn.segnn_conv import (
     EmbeddingLayer,
     MeanPredictionHead,
