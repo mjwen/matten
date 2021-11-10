@@ -8,7 +8,6 @@ from eigenn.nn.irreps import DataKey, ModuleIrreps
 from eigenn.nn.utils import ActivationLayer, UVUTensorProduct, scatter_add
 
 
-# TODO change irreps_out to conv_layer_irreps
 class PointConvMessage(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [
