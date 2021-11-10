@@ -10,7 +10,14 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.segnn_conv import EmbeddingLayer, MeanPredictionHead, SEGNNConv
+from eigenn.nn.segnn_conv import (
+    EmbeddingLayer,
+    MeanPredictionHead,
+    SEGNNConv,
+    SEGNNMessagePassing,
+)
+
+OUT_FIELD_NAME = "my_model_output"
 
 
 class SEGNNModel(ModelForPyGData):
@@ -36,9 +43,8 @@ class SEGNNModel(ModelForPyGData):
         return task
 
     def decode(self, model_input) -> Dict[str, Tensor]:
-
         out = self.backbone(model_input)
-        out = out["mean_node_feats"].reshape(-1)
+        out = out[OUT_FIELD_NAME].reshape(-1)
 
         task_name = self.hparams.task_hparams["task_name"]
         preds = {task_name: out}
@@ -46,11 +52,13 @@ class SEGNNModel(ModelForPyGData):
         return preds
 
 
-def create_model(hparams, dataset_hparams):
+def create_model(hparams: Dict[str, Any], dataset_hparams):
+    """
+    The actual function to create the model.
+    """
 
-    # input embedding layers
+    # ===== input embedding layers =====
     layers = {
-        # -- Encode --
         "one_hot": (
             SpeciesEmbedding,
             {
@@ -74,7 +82,7 @@ def create_model(hparams, dataset_hparams):
         ),
     }
 
-    # node feats embedding layers
+    # ===== node feats embedding layers =====
     n_embed_layers = 2
     for i in range(n_embed_layers):
         layers[f"node_feats_embedding_layer{i}"] = (
@@ -82,23 +90,38 @@ def create_model(hparams, dataset_hparams):
             {"irreps_out": {"node_features": hparams["conv_layer_irreps"]}},
         )
 
-    # message passing layers
+    # ===== message passing layers =====
     for i in range(hparams["num_layers"]):
         layers[f"message_passing_layer{i}"] = (
-            SEGNNConv,
+            # SEGNNConv,
+            # {
+            #     "conv_layer_irreps": hparams["conv_layer_irreps"],
+            #     "activation_type": hparams["nonlinearity_type"],
+            #     "fc_num_hidden_layers": hparams["invariant_layers"],
+            #     "fc_hidden_size": hparams["invariant_neurons"],
+            #     "use_self_connection": hparams["use_sc"],
+            #     "avg_num_neighbors": hparams["avg_num_neighbors"],
+            # },
+            SEGNNMessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
-                "fc_num_hidden_layers": hparams["invariant_layers"],
-                "fc_hidden_size": hparams["invariant_neurons"],
-                "use_self_connection": hparams["use_sc"],
-                "avg_num_neighbors": hparams["avg_num_neighbors"],
+                "activation_type": hparams["nonlinearity_type"],
+                "use_resnet": hparams["resnet"],
+                "message_kwargs": {
+                    "fc_num_hidden_layers": hparams["invariant_layers"],
+                    "fc_hidden_size": hparams["invariant_neurons"],
+                },
+                "update_kwargs": {
+                    "use_self_connection": hparams["use_sc"],
+                    "avg_num_neighbors": hparams["avg_num_neighbors"],
+                },
             },
         )
 
-    # prediction layers
+    # ===== prediction layers =====
     layers["mean_scalar_prediction"] = (
         MeanPredictionHead,
-        {"out_field": "mean_node_feats"},
+        {"out_field": OUT_FIELD_NAME},
     )
 
     model = create_sequential_module(modules=OrderedDict(layers))
@@ -130,7 +153,7 @@ if __name__ == "__main__":
         "nonlinearity_type": "gate",
         "resnet": True,
         "conv_to_output_hidden_irreps_out": "16x0e",
-        "task_name": "some_str_name",
+        "task_name": "my_task",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
