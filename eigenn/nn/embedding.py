@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 
 import torch
 from e3nn.o3 import Irreps
+from torch_scatter import scatter
 
 from eigenn.nn.irreps import DataKey, ModuleIrreps
 
@@ -68,6 +69,52 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
         embed = self.embedding(type_numbers)
         for k in self.out_fields:
             data[k] = embed
+
+        return data
+
+
+class NodeAttrsFromEdgeAttrs(ModuleIrreps, torch.nn.Module):
+    REQUIRED_KEYS_IRREPS_IN = [DataKey.EDGE_ATTRS, DataKey.EDGE_INDEX]
+
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        field: str = DataKey.EDGE_ATTRS,
+        out_field: str = DataKey.NODE_ATTRS,
+        reduce: str = "mean",
+    ):
+        """
+        Compute node attributes from edge attributes, e.g. mean of the edge attributes.
+
+        This modifies data[out_filed] from data[field].
+
+        Args:
+            irreps_in: input irreps
+            field: field from which to obtain the data
+            out_field: field to which to write the data
+            reduce: reduction method, `mean` or `sum`
+        """
+        super().__init__()
+
+        self.init_irreps(irreps_in, irreps_out={out_field: irreps_in[field]})
+
+        self.field = field
+        self.out_field = out_field
+        self.reduce = reduce
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+
+        edge_src, edge_dst = data[DataKey.EDGE_INDEX]
+
+        x = scatter(
+            data[self.field],
+            edge_dst,
+            dim=0,
+            dim_size=len(data[DataKey.NODE_ATTRS]),
+            reduce=self.reduce,
+        )
+
+        data[self.out_field] = x
 
         return data
 
