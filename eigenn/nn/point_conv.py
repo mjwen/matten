@@ -91,8 +91,8 @@ class PointConvUpdate(ModuleIrreps, torch.nn.Module):
     REQUIRED_KEYS_IRREPS_IN = [
         DataKey.NODE_FEATURES,
         DataKey.NODE_ATTRS,
-        DataKey.EDGE_INDEX,
         DataKey.EDGE_MESSAGE,
+        DataKey.EDGE_INDEX,
     ]
 
     def __init__(
@@ -347,6 +347,7 @@ class PointConvMessagePassing(ModuleIrreps, torch.nn.Module):
         return data
 
 
+# TODO, this outdated, replaced by the above
 class PointConv(ModuleIrreps, torch.nn.Module):
 
     REQUIRED_KEYS_IRREPS_IN = [

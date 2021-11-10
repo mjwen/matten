@@ -18,12 +18,10 @@ from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.node_embedding import SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseSelect
-from eigenn.nn.point_conv import (
-    PointConvMessage,
-    PointConvMessagePassing,
-    PointConvUpdate,
-)
+from eigenn.nn.point_conv import PointConvMessagePassing
 from eigenn.nn.readout import IrrepsToCartesianTensor
+
+OUT_FIELD_SELECTED = "tensor_output"
 
 
 # TODO, we can weigh different irreps (e.g., 0e, 1o, and 2e) differently, and that can
@@ -54,7 +52,7 @@ class AtomicTensorModel(ModelForPyGData):
         out = self.backbone(model_input)
 
         task_name = self.hparams.task_hparams["task_name"]
-        preds = {task_name: out[task_name]}
+        preds = {task_name: out[OUT_FIELD_SELECTED]}
 
         return preds
 
@@ -88,8 +86,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
-        # This embed features is not necessary any more when we change OneHotEmbedding to
-        # SpeciesEmbedding.
+        # This embed features is not necessary any more when we change OneHotEmbedding
+        # to SpeciesEmbedding.
         # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
         # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
         # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
@@ -141,8 +139,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "message": PointConvMessage,
-                "update": PointConvUpdate,
                 "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
@@ -179,7 +175,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # data keys
     OUT_FIELD_ATOM = "atomic_output"
     NODE_MASKS = "node_masks"
-    OUT_FIELD_SELECTED = "tensor_output"  # TODO, this should be obtained from hparams
 
     layers.update(
         {

@@ -22,13 +22,10 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn.message_passing import MessagePassing
 from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.point_conv import (
-    PointConvMessage,
-    PointConvMessagePassing,
-    PointConvUpdate,
-)
-from eigenn.nn.segnn_conv import SEGNNConv
+from eigenn.nn.point_conv import PointConv, PointConvMessagePassing
+from eigenn.nn.segnn_conv import SEGNNMessagePassing
 from eigenn.nn.transformer_conv import TransformerConv
 
 
@@ -93,8 +90,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
-        # This embed features is not necessary any more when we change OneHotEmbedding to
-        # SpeciesEmbedding.
+        # This embed features is not necessary any more when we change OneHotEmbedding
+        # to SpeciesEmbedding.
         # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
         # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
         # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
@@ -146,7 +143,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #     "activation_type": hparams["nonlinearity_type"],
             #     "use_resnet": hparams["resnet"],
             #     "conv": PointConv,
-            #     # "conv": SEGNNConv,
             #     "conv_kwargs": {
             #         "fc_num_hidden_layers": hparams["invariant_layers"],
             #         "fc_hidden_size": hparams["invariant_neurons"],
@@ -166,19 +162,18 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             # },
             #
             PointConvMessagePassing,
+            # SEGNNMessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "message": PointConvMessage,
-                "update": PointConvUpdate,
                 "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
                 },
                 "update_kwargs": {
-                    "avg_num_neighbors": hparams["avg_num_neighbors"],
                     "use_self_connection": hparams["use_sc"],
+                    "avg_num_neighbors": hparams["avg_num_neighbors"],
                 },
             },
         )
