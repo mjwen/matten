@@ -22,9 +22,12 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.message_passing import MessagePassing
 from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.point_conv import PointConv
+from eigenn.nn.point_conv import (
+    PointConvMessage,
+    PointConvMessagePassing,
+    PointConvUpdate,
+)
 from eigenn.nn.segnn_conv import SEGNNConv
 from eigenn.nn.transformer_conv import TransformerConv
 
@@ -123,6 +126,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
+            #
             # ConvNetLayer,
             # {
             #     "feature_irreps_hidden": hparams["conv_layer_irreps"],
@@ -135,29 +139,47 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #         "use_sc": hparams["use_sc"],
             #     },
             # },
-            MessagePassing,
+            #
+            # MessagePassing,
+            # {
+            #     "conv_layer_irreps": hparams["conv_layer_irreps"],
+            #     "activation_type": hparams["nonlinearity_type"],
+            #     "use_resnet": hparams["resnet"],
+            #     "conv": PointConv,
+            #     # "conv": SEGNNConv,
+            #     "conv_kwargs": {
+            #         "fc_num_hidden_layers": hparams["invariant_layers"],
+            #         "fc_hidden_size": hparams["invariant_neurons"],
+            #         "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #         "use_self_connection": hparams["use_sc"],
+            #     },
+            #     # # transformer conv
+            #     # "conv": TransformerConv,
+            #     # "conv_kwargs": {
+            #     #     "irreps_query_and_key": hparams["conv_layer_irreps"],
+            #     #     "r_max": hparams["radial_basis_r_cut"],
+            #     #     "fc_num_hidden_layers": hparams["invariant_layers"],
+            #     #     "fc_hidden_size": hparams["invariant_neurons"],
+            #     #     "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #     #     "use_self_connection": hparams["use_sc"],
+            #     # },
+            # },
+            #
+            PointConvMessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "conv": PointConv,
-                # "conv": SEGNNConv,
-                "conv_kwargs": {
+                "message": PointConvMessage,
+                "update": PointConvUpdate,
+                "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
+                },
+                "update_kwargs": {
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
                     "use_self_connection": hparams["use_sc"],
                 },
-                # # transformer conv
-                # "conv": TransformerConv,
-                # "conv_kwargs": {
-                #     "irreps_query_and_key": hparams["conv_layer_irreps"],
-                #     "r_max": hparams["radial_basis_r_cut"],
-                #     "fc_num_hidden_layers": hparams["invariant_layers"],
-                #     "fc_hidden_size": hparams["invariant_neurons"],
-                #     "avg_num_neighbors": hparams["avg_num_neighbors"],
-                #     "use_self_connection": hparams["use_sc"],
-                # },
             },
         )
 
