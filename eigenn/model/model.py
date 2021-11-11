@@ -313,19 +313,11 @@ class BaseModel(pl.LightningModule):
             # classification metrics
             elif isinstance(task, ClassificationTask):
                 p = preds[task_name]
-
-                # binary
-                if p.shape[1] == 1:
-                    prob = torch.sigmoid(p.reshape(-1))
-
-                # multiclass
+                if task.is_binary():
+                    p = torch.sigmoid(p.reshape(-1))
                 else:
-                    # prop = torch.softmax(p, dim=1)
-                    # torch.softmax maybe unstable (e.g. sum of the values is away from 1
-                    # due to numerical errors), which torchmetrics will complain
-                    prob = torch.argmax(p, dim=1)
-
-                metric(prob, labels[task_name])
+                    p = torch.argmax(p, dim=1)
+                metric(p, labels[task_name])
 
             else:
                 raise RuntimeError(f"Unsupported task type {task.__class__}")

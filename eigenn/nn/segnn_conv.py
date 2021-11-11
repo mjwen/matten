@@ -466,7 +466,6 @@ class PredictionHead(ModuleIrreps, torch.nn.Module):
             ), f"`irreps_in[{field}] = {field_irreps}`, not contain `0e`"
 
         linear1 = Linear(field_irreps, Irreps(f"{hidden_size}x0e"))
-        activation = activation
         linear2 = torch.nn.Linear(hidden_size, hidden_size)
 
         self.mlp1 = torch.nn.Sequential(linear1, activation, linear2)
