@@ -14,6 +14,7 @@ from loguru import logger
 from eigenn.cli import EigennCLI, SaveConfigCallback
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.model_factory.nequip_energy_model import EnergyModel
+from eigenn.model_factory.segnn_classification import SEGNNClassification
 from eigenn.model_factory.segnn_model import SEGNNModel
 from eigenn.utils import to_path
 
@@ -31,15 +32,19 @@ def main():
         # subclass_mode_model=True,
         model_class=EnergyModel,
         # model_class=SEGNNModel,
+        # model_class=SEGNNClassification,
+        parser_kwargs={
+            "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
+            # "default_config_files": [
+            #     CWD.joinpath("configs", "minimal_classification.yaml").as_posix()
+            # ]
+        },
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
         save_config_filename="cli_config.yaml",
         save_config_overwrite=True,
         description="Eigenn training command line tool",
-        parser_kwargs={
-            "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
-        },
         run=False,
     )
 
