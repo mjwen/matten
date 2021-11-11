@@ -413,7 +413,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
         return data
 
 
-class MeanPredictionHead(ModuleIrreps, torch.nn.Module):
+class PredictionHead(ModuleIrreps, torch.nn.Module):
     def __init__(
         self,
         irreps_in: Dict[str, Irreps],
@@ -421,6 +421,7 @@ class MeanPredictionHead(ModuleIrreps, torch.nn.Module):
         out_field: Optional[str] = None,
         activation: Callable = ACTIVATION["e"]["ssp"],
         hidden_size: int = None,
+        reduce: str = "mean",
     ):
         """
         Prediction head for scalar property.
@@ -443,12 +444,14 @@ class MeanPredictionHead(ModuleIrreps, torch.nn.Module):
             activation:
             hidden_size: hidden layer size, if `None`, use the multiplicity of the
                 0e irreps
+            reduce: how to aggregate atomic value to final value, `mean` or `sum`
         """
         super().__init__()
         self.init_irreps(irreps_in, required_keys_irreps_in=[field])
 
         self.field = field
         self.out_field = field if out_field is None else out_field
+        self.reduce = reduce
 
         field_irreps = self.irreps_in[self.field]
 
@@ -478,7 +481,7 @@ class MeanPredictionHead(ModuleIrreps, torch.nn.Module):
         x = data[self.field]
 
         x = self.mlp1(x)
-        x = scatter(x, data[DataKey.BATCH], dim=0, reduce="mean")
+        x = scatter(x, data[DataKey.BATCH], dim=0, reduce=self.reduce)
         data[self.out_field] = self.mlp2(x)
 
         return data

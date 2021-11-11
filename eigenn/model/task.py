@@ -29,7 +29,7 @@ class Task:
         - init_metric()
 
     Subclass can implement:
-        - metric_aggƒegration()
+        - metric_aggregation()
         - transform()
 
     Args:

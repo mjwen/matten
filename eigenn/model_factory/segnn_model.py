@@ -12,7 +12,7 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
 from eigenn.nn.segnn_conv import (
     EmbeddingLayer,
-    MeanPredictionHead,
+    PredictionHead,
     SEGNNConv,
     SEGNNMessagePassing,
 )
@@ -121,8 +121,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     # ===== prediction layers =====
     layers["mean_scalar_prediction"] = (
-        MeanPredictionHead,
-        {"out_field": OUT_FIELD_NAME},
+        PredictionHead,
+        {"out_field": OUT_FIELD_NAME, "reduce": hparams["reduce"]},
     )
 
     model = create_sequential_module(modules=OrderedDict(layers))
