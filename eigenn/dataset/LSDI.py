@@ -25,12 +25,23 @@ class SiNMRDataset(InMemoryDataset):
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
+        symmetric: If True, symmetrizes the shielding tensor such that we have a
+            rank-2 symmetric tensor. If False, uses the raw DFT-calculated shielding
+            tensor which may not be symmetric.
     """
 
-    def __init__(self, filename: str, r_cut: float, root=".", unpack: bool = True):
+    def __init__(
+        self,
+        filename: str,
+        r_cut: float,
+        root=".",
+        unpack: bool = True,
+        symmetric: bool = True,
+    ):
         self.r_cut = r_cut
         self.filename = filename
         self.unpack = unpack
+        self.symmetric = symmetric
         super().__init__(filenames=[filename], root=root)
 
     def get_data(self):
@@ -52,6 +63,11 @@ class SiNMRDataset(InMemoryDataset):
                     }
                     unpacked_data.append(d)
             data = unpacked_data
+        if self.symmetric:
+            for entry in data:
+                for idx in range(len(entry["tensor"])):
+                    tensor = entry["tensor"][idx]
+                    entry["tensor"][idx] = (tensor + tensor.T) / 2
 
         crystals = []
         # convert to crystal data point
