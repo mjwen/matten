@@ -10,6 +10,7 @@ import torch.nn as nn
 import torchmetrics
 from torch import Tensor
 from torchmetrics import (
+    AUROC,
     F1,
     Accuracy,
     MeanAbsoluteError,
@@ -279,6 +280,7 @@ class CanonicalClassificationTask(ClassificationTask):
                 Precision(num_classes=n, average=average, compute_on_step=False),
                 Recall(num_classes=n, average=average, compute_on_step=False),
                 F1(num_classes=n, average=average, compute_on_step=False),
+                AUROC(num_classes=n, average=average, compute_on_step=False),
             ]
         )
 
