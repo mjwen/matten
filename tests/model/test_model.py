@@ -26,6 +26,7 @@ class BasicModel(BaseModel):
         return backbone
 
     def init_tasks(self, hparams, dataset_hparams):
+        # binary classification
         task = CanonicalClassificationTask(name=TASK_NAME, num_classes=2)
 
         return task
@@ -55,7 +56,13 @@ def test_basic_model():
     model.update_metrics(preds, labels, mode="train")
     individual_score, total_score = model.compute_metrics(mode="train", log=False)
 
-    ref_score = {"Accuracy": 0.5, "Precision": 0.0, "Recall": 0.0, "F1": 0}
+    ref_score = {
+        "Accuracy": 0.5,
+        "Precision": 0.0,
+        "Recall": 0.0,
+        "F1": 0.0,
+        "AUROC": 0.0,
+    }
     for k, v in individual_score[TASK_NAME].items():
         assert v == ref_score[k]
     assert total_score == 0
