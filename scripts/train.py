@@ -53,7 +53,14 @@ def main():
         run=False,
     )
 
-    # print config to stderr
+    # print the model
+    print(file=sys.stderr, flush=True)  # flush buffer to avoid them entering config
+    print("=" * 80, file=sys.stderr)
+    print("Model:", end="\n\n", file=sys.stderr)
+    print(cli.model)
+    print("=" * 80, end="\n\n\n", file=sys.stderr, flush=True)
+
+    # print config
     print(file=sys.stderr, flush=True)  # flush buffer to avoid them entering config
     print("=" * 80, file=sys.stderr)
     print(

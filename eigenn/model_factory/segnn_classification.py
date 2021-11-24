@@ -133,9 +133,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     model = create_sequential_module(modules=OrderedDict(layers))
 
-    # print the model
-    print(model, file=sys.stderr)
-
     return model
 
 

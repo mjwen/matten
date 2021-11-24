@@ -213,9 +213,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         modules=OrderedDict(layers), use_kwargs_irreps_in=True
     )
 
-    # print the model
-    print(model, file=sys.stderr)
-
     return model
 
 
