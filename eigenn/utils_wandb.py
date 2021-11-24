@@ -80,6 +80,11 @@ def save_files_to_wandb(wandb, paths: List[Union[str, Path]]):
             # make a copy to avoid creating a symlink to the original file
             target = to_path(directory).joinpath(p.name)
             shutil.copy(p, target)
+
+            # If we do not call the below line, wandb will save the files
+            # automatically since we moved them to its `files` directory.
+            # Here, we explicitly call it in case something wrong happens and wandb
+            # did not finish successfully.
             wandb.save(target.as_posix(), policy="now")
         else:
             logger.warning(f"File `{str(p)}` does not exist. Won't save it to wandb.")

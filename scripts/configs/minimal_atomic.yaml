@@ -57,7 +57,8 @@ trainer:
   max_epochs: 2 # number of maximum training epochs
   num_nodes: 1
   gpus: null
-  terminate_on_nan: true
+  detect_anomaly: false # should be true only at debugging
+  track_grad_norm: -1 # should be value other than -1 only at debugging
   callbacks:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
@@ -73,6 +74,9 @@ trainer:
         patience: 100
         min_delta: 0
         verbose: true
+    - class_path: pytorch_lightning.callbacks.ModelSummary
+      init_args:
+        max_depth: -1
   logger:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
