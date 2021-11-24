@@ -63,9 +63,7 @@ def main():
     # print config
     print(file=sys.stderr, flush=True)  # flush buffer to avoid them entering config
     print("=" * 80, file=sys.stderr)
-    print(
-        "Configurations (also saved as cli_config.yaml):", end="\n\n", file=sys.stderr
-    )
+    print("Configuration (also saved as cli_config.yaml):", end="\n\n", file=sys.stderr)
     # print(cli.parser.dump(cli.config, skip_none=False), file=sys.stderr)
     # the below line also prints out __default_config__
     yaml.dump(cli.config, stream=sys.stderr, sort_keys=True)
@@ -73,16 +71,16 @@ def main():
 
     # TODO, we may want to jit the cli.model here
 
-    # fit the model
+    # fit
     logger.info("Start training!")
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
 
-    # test the model
+    # test
     if not cli.config["skip_test"]:
         logger.info("Start testing!")
         cli.trainer.test(ckpt_path="best", datamodule=cli.datamodule)
 
-    # print path to best checkpoint
+    # print path of best checkpoint
     logger.info(
         f"Best checkpoint path: {cli.trainer.checkpoint_callback.best_model_path}"
     )

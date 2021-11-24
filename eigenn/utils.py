@@ -1,8 +1,10 @@
+import inspect
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Union
 
+import torch
 import yaml
 
 
@@ -60,3 +62,27 @@ def yaml_load(filename: Union[str, Path]):
         obj = yaml.safe_load(f)
 
     return obj
+
+
+def detect_nan_and_inf(x: torch.Tensor, file: Union[str, Path] = None):
+    """
+    Detect whether a tensor is nan or inf.
+
+    Args:
+        x: the tensor
+        file: file where this function is called, can be `__file__`.
+    """
+
+    def get_line():
+        # 0 represents this line
+        # 1 represents line at caller
+        # 2 represents line at caller of caller
+        frame_record = inspect.stack()[2]
+        frame = frame_record[0]
+        info = inspect.getframeinfo(frame)
+        return info.lineno
+
+    if torch.isnan(x):
+        raise ValueError(f"Tensor is nan at line {get_line()} of {file}")
+    elif torch.isinf(x):
+        raise ValueError(f"Tensor is inf at line {get_line()} of {file}")
