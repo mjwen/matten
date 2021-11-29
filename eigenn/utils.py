@@ -64,25 +64,28 @@ def yaml_load(filename: Union[str, Path]):
     return obj
 
 
-def detect_nan_and_inf(x: torch.Tensor, file: Union[str, Path] = None):
+def detect_nan_and_inf(x: torch.Tensor, file: Union[str, Path] = None, level: int = 1):
     """
     Detect whether a tensor is nan or inf.
 
     Args:
         x: the tensor
         file: file where this function is called, can be `__file__`.
+        level: to show stack info of which level. 1 means where this function is
+        called; 2 means the functional that calls this function...
     """
 
     def get_line():
-        # 0 represents this line
-        # 1 represents line at caller
-        # 2 represents line at caller of caller
-        frame_record = inspect.stack()[2]
+        # credit: https://stackoverflow.com/questions/6810999/how-to-determine-file-function-and-line-number
+        #
+        # 0 represents this line, 1 represents line at caller, 2 represents line at
+        # caller of caller...
+        frame_record = inspect.stack()[level + 1]  # +1 because we put this in get_line
         frame = frame_record[0]
         info = inspect.getframeinfo(frame)
         return info.lineno
 
-    if torch.isnan(x):
+    if torch.isnan(x).any():
         raise ValueError(f"Tensor is nan at line {get_line()} of {file}")
-    elif torch.isinf(x):
+    elif torch.isinf(x).any():
         raise ValueError(f"Tensor is inf at line {get_line()} of {file}")

@@ -8,6 +8,9 @@ from nequip.nn.nonlinearities import ShiftedSoftPlus
 from nequip.utils.tp_utils import tp_path_exists
 from torch import Tensor
 
+from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.utils import detect_nan_and_inf
+
 ACTIVATION = {
     # for even irreps
     "e": {
@@ -335,3 +338,23 @@ def scatter_add(src: Tensor, index: Tensor, dim_size: int) -> Tensor:
     out = src.new_zeros(dim_size, src.shape[1])
     index = index.reshape(-1, 1).expand_as(src)
     return out.scatter_add_(0, index, src)
+
+
+class DetectAnomaly(ModuleIrreps, torch.nn.Module):
+    def __init__(self, irreps_in: Dict[str, Irreps], name: str):
+        super().__init__()
+        self.init_irreps(irreps_in=irreps_in)
+
+        self.name = name
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        for k, v in data.items():
+            if v is None:
+                continue
+
+            try:
+                detect_nan_and_inf(v)
+            except ValueError:
+                raise ValueError(f"Anomaly detected for {k} of {self.name}")
+
+        return data
