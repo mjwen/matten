@@ -57,8 +57,10 @@ trainer:
   max_epochs: 2
   num_nodes: 1
   gpus: null
-  detect_anomaly: false # should be true only at debugging
-  track_grad_norm: -1 # should be value other than -1 only at debugging
+  # detect_anomaly: true # DEBUG
+  # track_grad_norm: 2 # DEBUG
+  # gradient_clip_val: 0.5
+  # gradient_clip_algorithm: norm
   callbacks:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
@@ -77,6 +79,10 @@ trainer:
     - class_path: pytorch_lightning.callbacks.ModelSummary
       init_args:
         max_depth: -1
+    - class_path: pytorch_lightning.callbacks.StochasticWeightAveraging
+      init_args:
+        swa_epoch_start: 0.8
+        swa_lrs: null # use default learning rate for swa
   logger:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
@@ -87,6 +93,7 @@ optimizer:
   class_path: torch.optim.Adam
   init_args:
     lr: 0.001
+    # weight_decay: 0.1
 
 lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR

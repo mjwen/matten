@@ -69,7 +69,7 @@ class ActivationLayer(torch.nn.Module):
         if activation_scalars is None:
             activation_scalars = {
                 1: ACTIVATION["e"]["ssp"],
-                # odd scalars requires either an even or ordd activation,
+                # odd scalars requires either an even or odd activation,
                 # not an arbitrary one like relu
                 -1: ACTIVATION["o"]["tanh"],
             }

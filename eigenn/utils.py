@@ -45,13 +45,13 @@ def to_list(value: Any) -> Sequence:
         return [value]
 
 
-def yaml_dump(obj, filename: Union[str, Path]):
+def yaml_dump(obj, filename: Union[str, Path], sort_keys: bool = False):
     """
     Dump an object as yaml.
     """
     create_directory(filename)
     with open(to_path(filename), "w") as f:
-        yaml.dump(obj, f, default_flow_style=False)
+        yaml.dump(obj, f, default_flow_style=False, sort_keys=sort_keys)
 
 
 def yaml_load(filename: Union[str, Path]):
