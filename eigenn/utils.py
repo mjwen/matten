@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Union
 
+
 import torch
 import yaml
 
@@ -64,15 +65,23 @@ def yaml_load(filename: Union[str, Path]):
     return obj
 
 
-def detect_nan_and_inf(x: torch.Tensor, file: Union[str, Path] = None, level: int = 1):
+def detect_nan_and_inf(
+    x: torch.Tensor,
+    file: Union[str, Path] = None,
+    name: str = None,
+    level: int = 1,
+    filename: str = None,
+):
     """
     Detect whether a tensor is nan or inf.
 
     Args:
         x: the tensor
         file: file where this function is called, can be `__file__`.
+        name: name of the tensor.
         level: to show stack info of which level. 1 means where this function is
-        called; 2 means the functional that calls this function...
+            called; 2 means the functional that calls this function...
+        filename: yaml filename to write the tensor
     """
 
     def get_line():
@@ -86,6 +95,13 @@ def detect_nan_and_inf(x: torch.Tensor, file: Union[str, Path] = None, level: in
         return info.lineno
 
     if torch.isnan(x).any():
-        raise ValueError(f"Tensor is nan at line {get_line()} of {file}")
+        if filename:
+            x = x.detach().cpu().numpy().tolist()
+            yaml_dump(x, filename)
+        raise ValueError(f"Tensor is nan at line {get_line()} of {file}, name={name}")
+
     elif torch.isinf(x).any():
-        raise ValueError(f"Tensor is inf at line {get_line()} of {file}")
+        if filename:
+            x = x.detach().cpu().numpy().tolist()
+            yaml_dump(x, filename)
+        raise ValueError(f"Tensor is inf at line {get_line()} of {file}, name={name}")
