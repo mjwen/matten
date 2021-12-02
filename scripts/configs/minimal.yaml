@@ -1,5 +1,5 @@
 seed_everything: 35
-log_level: debug
+log_level: info
 
 data:
   class_path: eigenn.dataset.matbench.MatbenchDataMoldule
@@ -30,7 +30,7 @@ model:
     radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
 
     #
-    # conv layers
+    # message passing conv layers
     #
     num_layers: 3
 
@@ -38,10 +38,11 @@ model:
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
     invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
     avg_num_neighbors: null # number of neighbors to divide by, None => no normalization.
-    use_sc: true
 
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
+    use_sc: true # use self connection? `true` seems always improve performance
+    batch_norm: true
     resnet: true
 
     #
@@ -54,7 +55,7 @@ model:
     task_name: n
 
 trainer:
-  max_epochs: 2
+  max_epochs: 2 # number of maximum training epochs
   num_nodes: 1
   gpus: null
   # detect_anomaly: true # DEBUG
@@ -93,7 +94,7 @@ optimizer:
   class_path: torch.optim.Adam
   init_args:
     lr: 0.001
-    # weight_decay: 0.1
+    # weight_decay: 0.00001
 
 lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR

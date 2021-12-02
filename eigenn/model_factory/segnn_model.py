@@ -88,7 +88,10 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     for i in range(n_embed_layers):
         layers[f"node_feats_embedding_layer{i}"] = (
             EmbeddingLayer,
-            {"irreps_out": {"node_features": hparams["conv_layer_irreps"]}},
+            {
+                "irreps_out": {"node_features": hparams["conv_layer_irreps"]},
+                "batch_norm": hparams["batch_norm"],
+            },
         )
 
     # ===== message passing layers =====
@@ -111,10 +114,12 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
+                    "batch_norm": hparams["batch_norm"],
                 },
                 "update_kwargs": {
                     "use_self_connection": hparams["use_sc"],
                     "avg_num_neighbors": hparams["avg_num_neighbors"],
+                    "batch_norm": hparams["batch_norm"],
                 },
             },
         )
@@ -152,6 +157,7 @@ if __name__ == "__main__":
         "resnet": True,
         "conv_to_output_hidden_irreps_out": "16x0e",
         "task_name": "my_task",
+        "batch_norm": True,
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}

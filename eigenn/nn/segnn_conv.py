@@ -1,6 +1,7 @@
 from typing import Callable, Dict, Optional
 
 import torch
+from e3nn.nn import BatchNorm
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch_scatter import scatter
 
@@ -28,6 +29,7 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         activation_type: str = "gate",
         activation_scalars: Dict[str, str] = None,
         activation_gates: Dict[str, str] = None,
+        batch_norm: bool = False,
     ):
         """
 
@@ -66,6 +68,7 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
             fc_num_hidden_layers: number of hidden layers for the radial MLP, excluding
                 input and output layers
             fc_hidden_size: hidden layer size for the radial MLP
+            batch_norm: whether to apply batch norm before activation
         """
 
         super().__init__()
@@ -129,6 +132,11 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
             shared_weights=True,
         )
 
+        if batch_norm:
+            self.bn = BatchNorm(irreps_before_message_act)
+        else:
+            self.bn = None
+
         #
         # Set irreps_out
         #
@@ -143,6 +151,8 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         node_feats = self.linear_1(node_feats_in)
         msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
         msg_per_edge = self.linear_2(msg_per_edge)
+        if self.bn:
+            msg_per_edge = self.bn(msg_per_edge)
         msg_per_edge = self.message_activation(msg_per_edge)
 
         data[DataKey.EDGE_MESSAGE] = msg_per_edge
@@ -168,6 +178,7 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
         activation_gates: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
+        batch_norm: bool = False,
     ):
         """
 
@@ -252,6 +263,11 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
             shared_weights=True,
         )
 
+        if batch_norm:
+            self.bn = BatchNorm(irreps_before_update_act)
+        else:
+            self.bn = None
+
         #
         # self connection
         #
@@ -289,6 +305,9 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
 
         if self.self_connection is not None:
             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
+
+        if self.bn:
+            node_feats = self.bn(node_feats)
 
         node_feats = self.update_activation(node_feats)
 
@@ -496,15 +515,17 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
         self,
         irreps_in: Dict[str, Irreps],
         irreps_out: Dict[str, Irreps],
+        batch_norm: bool = False,
     ):
         """
-        Node embedding layers.
+        Node embedding layers before conv layer.
 
         Tensor product between node feats and node attrs.
 
         Args:
             irreps_in:
             irreps_out: expected irreps out, actual irreps out determined within layer
+            batch_norm:
         """
 
         super().__init__()
@@ -519,6 +540,11 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
             node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
         )
 
+        if batch_norm:
+            self.bn = BatchNorm(self.activation.irreps_in)
+        else:
+            self.bn = None
+
         # tensor product between node feats and node attrs
         self.tp = FullyConnectedTensorProduct(
             node_feats_irreps_in, node_attrs_irreps, self.activation.irreps_in
@@ -532,6 +558,9 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
         node_attrs = data[DataKey.NODE_ATTRS]
 
         node_feats = self.tp(node_feats, node_attrs)
+
+        if self.bn:
+            node_feats = self.bn(node_feats)
         node_feats = self.activation(node_feats)
 
         data[DataKey.NODE_FEATURES] = node_feats
