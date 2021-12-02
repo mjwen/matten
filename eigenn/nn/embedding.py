@@ -161,13 +161,15 @@ class _AtomicNumberToIndex(torch.nn.Module):
         index = self._Z_to_index[atomic_numbers - self._min_Z]
 
         if index.min() < 0:
+            supported = [
+                Z + self._min_Z for Z, idx in enumerate(self._Z_to_index) if idx != -1
+            ]
             for i, val in enumerate(index):
                 if val == -1:
-                    num = atomic_numbers[i]
+                    n = atomic_numbers[i]
                     raise RuntimeError(
-                        f"Expect atomic numbers to be in the range "
-                        f"[{self._min_Z}, {self._max_Z}]; "
-                        f"got invalid atomic numbers `{num}` for data point `{i}`."
+                        f"Expect atomic numbers to be in {supported}, "
+                        f"got invalid atomic numbers `{n}` for data point `{i}`."
                     )
 
         return index
