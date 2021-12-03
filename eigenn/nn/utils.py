@@ -3,18 +3,17 @@ from typing import Callable, Dict, List, Optional
 import torch
 import torch.nn.functional as fn
 from e3nn.nn import FullyConnectedNet, Gate, NormActivation
-from e3nn.o3 import Irreps, TensorProduct
-from nequip.nn.nonlinearities import ShiftedSoftPlus
-from nequip.utils.tp_utils import tp_path_exists
+from e3nn.o3 import Irrep, Irreps, TensorProduct
 from torch import Tensor
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.data.irreps import DataKey, ModuleIrreps
+from eigenn.nn._nequip import ShiftedSoftPlus
 from eigenn.utils import detect_nan_and_inf
 
 ACTIVATION = {
     # for even irreps
     "e": {
-        "ssp": ShiftedSoftPlus,
+        "ssp": ShiftedSoftPlus(),
         "silu": fn.silu,
     },
     # for odd irreps
@@ -338,6 +337,18 @@ def scatter_add(src: Tensor, index: Tensor, dim_size: int) -> Tensor:
     out = src.new_zeros(dim_size, src.shape[1])
     index = index.reshape(-1, 1).expand_as(src)
     return out.scatter_add_(0, index, src)
+
+
+def tp_path_exists(irreps_in1, irreps_in2, ir_out):
+    irreps_in1 = Irreps(irreps_in1).simplify()
+    irreps_in2 = Irreps(irreps_in2).simplify()
+    ir_out = Irrep(ir_out)
+
+    for _, ir1 in irreps_in1:
+        for _, ir2 in irreps_in2:
+            if ir_out in ir1 * ir2:
+                return True
+    return False
 
 
 class DetectAnomaly(ModuleIrreps, torch.nn.Module):

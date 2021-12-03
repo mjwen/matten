@@ -4,8 +4,8 @@ from typing import Dict, Optional, Tuple
 from e3nn.o3 import Irreps
 from loguru import logger
 
+from eigenn.data.irreps import ModuleIrreps
 from eigenn.log import get_log_level
-from eigenn.nn.irreps import ModuleIrreps
 from eigenn.nn.sequential import Sequential
 from eigenn.nn.utils import DetectAnomaly
 

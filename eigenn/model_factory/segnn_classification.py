@@ -2,17 +2,16 @@
 The same as segnn_model.py except that we do binary classification task.
 """
 
-import sys
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Sequence, Union
 
 import torch
-from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalClassificationTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
 from eigenn.nn.segnn_conv import (
     EmbeddingLayer,

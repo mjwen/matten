@@ -9,15 +9,14 @@ from typing import Any, Dict, Optional, Sequence, Union
 
 import torch
 from e3nn.io import CartesianTensor
-from nequip.nn import AtomwiseLinear
-from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import SpeciesEmbedding
-from eigenn.nn.nodewise import NodewiseSelect
+from eigenn.nn.nodewise import NodewiseLinear, NodewiseSelect
 from eigenn.nn.point_conv import PointConvMessagePassing
 from eigenn.nn.readout import IrrepsToCartesianTensor
 
@@ -182,11 +181,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #  last layer of convnet
             # -- output block --
             "conv_to_output_hidden": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
             "output_hidden_to_tensor": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": output_irreps, "out_field": OUT_FIELD_ATOM},
             ),
         }

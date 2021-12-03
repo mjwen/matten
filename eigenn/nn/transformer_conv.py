@@ -5,7 +5,7 @@ from e3nn.math import soft_unit_step
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch_scatter import scatter
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.data.irreps import DataKey, ModuleIrreps
 from eigenn.nn.utils import UVUTensorProduct
 
 

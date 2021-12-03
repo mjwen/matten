@@ -9,24 +9,22 @@ to map it to NODE_FEATURES.
 For large number of species, we'd better use the SpeciesEmbedding one to minimize the
 number of params.
 """
-import sys
+
+
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Sequence, Union
 
 import torch
-from nequip.data import AtomicDataDict
-from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
-from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
+from eigenn.data.irreps import DataKey
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
+from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import SpeciesEmbedding
-from eigenn.nn.message_passing import MessagePassing
-from eigenn.nn.point_conv import PointConv, PointConvMessagePassing
-from eigenn.nn.segnn_conv import SEGNNMessagePassing
-from eigenn.nn.transformer_conv import TransformerConv
+from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
+from eigenn.nn.point_conv import PointConvMessagePassing
 
 
 class EnergyModel(ModelForPyGData):
@@ -184,23 +182,23 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             # TODO: the next linear throws out all L > 0, don't create them in the last layer of convnet
             # -- output block --
             "conv_to_output_hidden": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
             "output_hidden_to_scalar": (
-                AtomwiseLinear,
-                dict(irreps_out="1x0e", out_field=AtomicDataDict.PER_ATOM_ENERGY_KEY),
+                NodewiseLinear,
+                dict(irreps_out="1x0e", out_field=DataKey.PER_ATOM_ENERGY),
             ),
         }
     )
 
     reduce = hparams["reduce"]
     layers[f"total_energy_{reduce}"] = (
-        AtomwiseReduce,
+        NodewiseReduce,
         dict(
             reduce=reduce,
-            field=AtomicDataDict.PER_ATOM_ENERGY_KEY,
-            out_field=AtomicDataDict.TOTAL_ENERGY_KEY,
+            field=DataKey.PER_ATOM_ENERGY,
+            out_field=DataKey.TOTAL_ENERGY,
         ),
     )
 
