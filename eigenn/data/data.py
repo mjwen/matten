@@ -12,13 +12,8 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from eigenn.core.configuration import Configuration
+from eigenn.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH_INTS
 from eigenn.typing import PBC, IntVector, Vector
-
-DTYPE = torch.get_default_dtype()
-DTYPE_INT = torch.int64
-DTYPE_BOOL = torch.bool
-TORCH_FLOATS = (torch.float16, torch.float32, torch.float64)
-TORCH_INTS = (torch.int16, torch.int32, torch.int64)
 
 
 class DataPoint(Data):

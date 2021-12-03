@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.nn.irreps import DataKey
+from eigenn.data.irreps import DataKey
 from eigenn.nn.nodewise import NodewiseSelect
 
 

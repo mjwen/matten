@@ -1,6 +1,6 @@
 from e3nn.o3 import Irreps
 
-from eigenn.nn.irreps import DataKey
+from eigenn.data.irreps import DataKey
 from eigenn.nn.point_conv import PointConv
 from eigenn.nn.transformer_conv import TransformerConv
 
