@@ -21,19 +21,12 @@ supports installing via conda, much easier than before. And the installing guide
 
 - [Lightning](https://www.pytorchlightning.ai/)
   ```bash
-  conda install pytorch-lightning==1.5.2 torchmetrics==0.6.0 -c conda-forge
+  conda install pytorch-lightning==1.5.2 torchmetrics==0.6.0 lightning-bolts -c conda-forge
   ```
 
 - [e3nn](https://docs.e3nn.org/en/stable/guide/installation.html)
   ```bash
   pip install e3nn
-  ```
-
-- [nequip](https://github.com/mir-group/nequip)
-  ```bash
-  git clone https://github.com/mir-group/nequip.git
-  cd nequip
-  pip install -e .
   ```
 
 - This repo

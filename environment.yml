@@ -9,9 +9,8 @@ dependencies:
   - pytest=6.2.5
   - pytorch-lightning==1.5.2
   - torchmetrics==0.6.0
-  - mamba
+  - jsonargparse==3.19.2
   - flake8
   - black
   - pip:
       - lightning-bolts==0.4.0
-      - git+https://github.com/mir-group/nequip.git
