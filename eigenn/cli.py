@@ -113,7 +113,7 @@ class EigennCLI(LightningCLI):
         # add to_model_info to config of model `dataset_hparams` (required by the model)
         self.config["model"]["dataset_hparams"] = to_model_info
 
-        # instantiate others
+        # instantiate others, including model and trainer
         self.config_init = self.parser.instantiate_classes(self.config)
 
         # add data datamodule back

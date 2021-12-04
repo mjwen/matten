@@ -42,7 +42,7 @@ model:
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
     use_sc: true # use self connection? `true` seems always improve performance
-    batch_norm: true
+    batch_norm: false
     resnet: true
 
     #
@@ -51,8 +51,11 @@ model:
     conv_to_output_hidden_irreps_out: 16x0e
     reduce: sum
 
-  task_hparams:
-    task_name: n
+  # tasks define the loss, metric...
+  tasks:
+    class_path: eigenn.model.task.CanonicalRegressionTask
+    init_args:
+      name: n
 
 trainer:
   max_epochs: 2 # number of maximum training epochs
