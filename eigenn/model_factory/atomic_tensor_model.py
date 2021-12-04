@@ -3,16 +3,14 @@ A model outputs atomic tensors (i.e. output a tensor on each atomic site), e.g.
 symmetric 2nd order NMR tensor.
 """
 
-import sys
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional
 
 import torch
 from e3nn.io import CartesianTensor
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import SpeciesEmbedding
@@ -38,19 +36,12 @@ class AtomicTensorModel(ModelForPyGData):
         backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(
-        self,
-        task_hparams: Dict[str, Any],
-        dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> Union[Task, Sequence[Task]]:
-        task = CanonicalRegressionTask(name=task_hparams["task_name"])
-
-        return task
-
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
 
-        task_name = self.hparams.task_hparams["task_name"]
+        # current we only support one task, so 0 is the name
+        task_name = list(self.tasks.keys())[0]
+
         preds = {task_name: out[OUT_FIELD_SELECTED]}
 
         return preds

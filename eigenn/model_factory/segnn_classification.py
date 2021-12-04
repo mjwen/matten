@@ -3,13 +3,12 @@ The same as segnn_model.py except that we do binary classification task.
 """
 
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional
 
 import torch
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalClassificationTask, Task
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
@@ -36,22 +35,13 @@ class SEGNNClassification(ModelForPyGData):
         backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(
-        self,
-        task_hparams: Dict[str, Any],
-        dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> Union[Task, Sequence[Task]]:
-        task = CanonicalClassificationTask(
-            name=task_hparams["task_name"], num_classes=2
-        )
-
-        return task
-
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME].reshape(-1)
 
-        task_name = self.hparams.task_hparams["task_name"]
+        # current we only support one task, so 0 is the name
+        task_name = list(self.tasks.keys())[0]
+
         preds = {task_name: out}
 
         return preds

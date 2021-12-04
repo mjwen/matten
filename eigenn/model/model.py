@@ -1,7 +1,7 @@
 """
 Base Lightning model for regression and classification.
 """
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
@@ -22,8 +22,8 @@ class BaseModel(pl.LightningModule):
     should be dealt with.
 
     Args:
+        tasks: tasks that define the loss and metric. See eigenn.model.task
         backbone_hparams: hparams for the backbone model
-        task_hparams: hparams for the regression (or classification) tasks
         dataset_hparams: info from the dataset to initialize the model or tasks
         optimizer_hparams: hparams for the optimizer (e.g. Adam)
         lr_scheduler_hparams: hparams for the learning rate scheduler (e.g.
@@ -47,8 +47,8 @@ class BaseModel(pl.LightningModule):
 
     def __init__(
         self,
+        tasks: Union[Task, List[Task]] = None,
         backbone_hparams: Dict[str, Any] = None,
-        task_hparams: Dict[str, Any] = None,
         dataset_hparams: Dict[str, Any] = None,
         optimizer_hparams: Dict[str, Any] = None,
         lr_scheduler_hparams: Dict[str, Any] = None,
@@ -66,12 +66,7 @@ class BaseModel(pl.LightningModule):
         self.backbone = self.init_backbone(backbone_hparams, dataset_hparams)
 
         # tasks
-        tasks = self.init_tasks(task_hparams, dataset_hparams)
-        if isinstance(tasks, Task):
-            tasks = [tasks]
-        assert isinstance(tasks, Sequence)
-        # set tasks as a dict, with task name as key and task object as value
-        self.tasks = {t.name: t for t in tasks}
+        self.tasks = self.init_tasks(tasks)
 
         # losses
         self.loss_fns = {name: task.init_loss() for name, task in self.tasks.items()}
@@ -115,23 +110,33 @@ class BaseModel(pl.LightningModule):
         """
         raise NotImplementedError
 
-    def init_tasks(
-        self,
-        task_hparams: Dict[str, Any],
-        dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> Union[Task, Sequence[Task]]:
+    # def init_tasks(
+    #     self,
+    #     task_hparams: Dict[str, Any],
+    #     dataset_hparams: Optional[Dict[str, Any]] = None,
+    # ) -> Union[Task, Sequence[Task]]:
+    #     """
+    #     Define the tasks used to compute loss and metrics.
+    #
+    #     This should return a `Task` instance of a list of `Task` instances.
+    #
+    #     Example:
+    #         from eigenn.model.task import CanonicalClassificationTask
+    #         t = CanonicalClassificationTask(name='my_task', num_classes=10)
+    #         return t
+    #     """
+    #
+    #     raise NotImplementedError
+
+    def init_tasks(self, tasks: Union[Task, List[Task]]) -> Dict[str, Task]:
         """
-        Define the tasks used to compute loss and metrics.
-
-        This should return a `Task` instance of a list of `Task` instances.
-
-        Example:
-            from eigenn.model.task import CanonicalClassificationTask
-            t = CanonicalClassificationTask(name='my_task', num_classes=10)
-            return t
+        Convert tasks to a dict, keyed by task name and valued by task object.
         """
+        if isinstance(tasks, Task):
+            tasks = [tasks]
+        assert isinstance(tasks, Sequence)
 
-        raise NotImplementedError
+        return {t.name: t for t in tasks}
 
     def forward(
         self, model_input: Dict[str, Any], mode: Optional[str] = None, **kwargs
