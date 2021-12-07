@@ -25,11 +25,11 @@ class BasicModel(BaseModel):
         backbone = Backbone()
         return backbone
 
-    def init_tasks(self, hparams, dataset_hparams):
+    def init_tasks(self, tasks):
         # binary classification
         task = CanonicalClassificationTask(name=TASK_NAME, num_classes=2)
 
-        return task
+        return {TASK_NAME: task}
 
     def decode(self, model_input):
         return self.backbone(model_input)
