@@ -21,11 +21,9 @@ class MatbenchDataset(InMemoryDataset):
         filename: matbench task filename, e.g. ``matbench_log_gvrh.json``. For a full
             list, see https://hackingmaterials.lbl.gov/automatminer/datasets.html
             Note, this should only be the filename, not the path name.
-            If using local files, it should be placed on a path with `raw` before the
-            filename. For example, <root>/raw/matbench_log_gvrh.json
-            where <root> is the path provided by `root`.
+            If using local files, it should be in the `root` directory.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        root: root directory of the data, will contain `raw` and `processed` files.
+        root: root directory that stores the input and processed data.
     """
 
     MATBENCH_WEBSITE = "https://hackingmaterials.lbl.gov/automatminer/datasets.html"
@@ -43,12 +41,17 @@ class MatbenchDataset(InMemoryDataset):
         "matbench_phonons": "last phdos peak",
     }
 
-    def __init__(self, filename: str, r_cut: float, root="."):
-        self.r_cut = r_cut
+    def __init__(self, filename: str, r_cut: float, root: Union[str, Path] = "."):
         self.filename = filename
+        self.r_cut = r_cut
 
         url = f"https://ml.materialsproject.org/projects/{filename}.gz"
-        super().__init__(filenames=[filename], root=root, url=url)
+        super().__init__(
+            filenames=[filename],
+            root=root,
+            processed_dirname=f"processed_rcut{self.r_cut}",
+            url=url,
+        )
 
     @classmethod
     def from_task_name(cls, task_name: str, r_cut: float, root="."):
@@ -110,7 +113,7 @@ class MatbenchDataset(InMemoryDataset):
 
 class MatbenchDataMoldule(BaseDataModule):
     """
-    Will search for files at, e.g. `root/raw/<trainset_filename>`.
+    Will search for files at, e.g. `root/<trainset_filename>`.
     """
 
     def __init__(

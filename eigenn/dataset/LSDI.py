@@ -15,23 +15,32 @@ class SiNMRDataset(InMemoryDataset):
     The LSDI dataset of 29Si NMR nuclear shielding tensors.
 
     Args:
-        filename: 29Si NMR tensor filename, e.g. ``LSDI_NMR_tensors.json``.
-            Note, this should only be the filename, not the path name.
-            If using local files, it should be placed on a path with `raw` before the
-            filename. For example, <root>/raw/Si_tasks.json
-            where <root> is the path provided by `root`.
+        filename: 29Si NMR tensor filename, e.g. ``LSDI_NMR_tensors.json``. Note, this
+            should only be the filename, not the full path. This file will be
+            searched in `root`.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        root: root directory of the data, will contain `raw` and `processed` files.
+        root: root directory that stores the input and processed data.
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
     """
 
-    def __init__(self, filename: str, r_cut: float, root=".", unpack: bool = True):
-        self.r_cut = r_cut
+    def __init__(
+        self,
+        filename: str,
+        r_cut: float,
+        root: Union[str, Path] = ".",
+        unpack: bool = True,
+    ):
         self.filename = filename
+        self.r_cut = r_cut
         self.unpack = unpack
-        super().__init__(filenames=[filename], root=root)
+
+        super().__init__(
+            filenames=[filename],
+            processed_dirname=f"processed_rcut{self.r_cut}",
+            root=root,
+        )
 
     def get_data(self):
         filepath = self.raw_paths[0]
@@ -90,7 +99,7 @@ class SiNMRDataset(InMemoryDataset):
 
 class SiNMRDataMoldule(BaseDataModule):
     """
-    Will search for files at, e.g. `root/raw/<trainset_filename>`.
+    Will search for files at, e.g. `root/<trainset_filename>`.
     """
 
     def __init__(
