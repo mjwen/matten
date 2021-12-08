@@ -48,6 +48,10 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     The actual function to create the model.
     """
 
+    num_neigh = hparams["average_num_neighbors"]
+    if isinstance(num_neigh, str) and num_neigh.lower() == "auto":
+        num_neigh = dataset_hparams["average_num_neighbors"]
+
     # ===== input embedding layers =====
     layers = {
         "one_hot": (
@@ -95,7 +99,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #     "fc_num_hidden_layers": hparams["invariant_layers"],
             #     "fc_hidden_size": hparams["invariant_neurons"],
             #     "use_self_connection": hparams["use_sc"],
-            #     "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #     "avg_num_neighbors": num_neigh,
             # },
             SEGNNMessagePassing,
             {
@@ -109,7 +113,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 },
                 "update_kwargs": {
                     "use_self_connection": hparams["use_sc"],
-                    "avg_num_neighbors": hparams["avg_num_neighbors"],
+                    "avg_num_neighbors": num_neigh,
                     "batch_norm": hparams["batch_norm"],
                 },
             },
@@ -142,7 +146,7 @@ if __name__ == "__main__":
         "reduce": "sum",
         "invariant_layers": 2,
         "invariant_neurons": 64,
-        "avg_num_neighbors": None,
+        "average_num_neighbors": None,
         "use_sc": True,
         "nonlinearity_type": "gate",
         "resnet": True,

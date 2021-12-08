@@ -107,6 +107,10 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # ===== convnet layers =====
     # insertion preserves order
 
+    num_neigh = hparams["average_num_neighbors"]
+    if isinstance(num_neigh, str) and num_neigh.lower() == "auto":
+        num_neigh = dataset_hparams["average_num_neighbors"]
+
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
             # MessagePassing,
@@ -119,7 +123,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #     "conv_kwargs": {
             #         "fc_num_hidden_layers": hparams["invariant_layers"],
             #         "fc_hidden_size": hparams["invariant_neurons"],
-            #         "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #         "avg_num_neighbors": num_neigh,
             #         "use_self_connection": hparams["use_sc"],
             #     },
             # },
@@ -134,7 +138,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                     "fc_hidden_size": hparams["invariant_neurons"],
                 },
                 "update_kwargs": {
-                    "avg_num_neighbors": hparams["avg_num_neighbors"],
+                    "avg_num_neighbors": num_neigh,
                     "use_self_connection": hparams["use_sc"],
                 },
             },
@@ -221,7 +225,7 @@ if __name__ == "__main__":
         "num_layers": 3,
         "invariant_layers": 2,
         "invariant_neurons": 64,
-        "avg_num_neighbors": None,
+        "average_num_neighbors": None,
         "use_sc": True,
         "nonlinearity_type": "gate",
         "resnet": True,

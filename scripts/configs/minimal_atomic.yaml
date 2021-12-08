@@ -37,7 +37,7 @@ model:
     # radial network
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
     invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
-    avg_num_neighbors: null # number of neighbors to divide by, None => no normalization.
+    average_num_neighbors: auto # average number of neighbors, used for normalization. Options: 1. float or int provided here. 2. `auto` to determine it automatically, 3. `null` to not use it.
 
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
