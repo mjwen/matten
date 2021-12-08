@@ -108,7 +108,6 @@ class MatbenchDataset(InMemoryDataset):
 
             except Exception as e:
                 warnings.warn(f"Failed converting structure {irow}: {str(e)}. Skip it.")
-                raise Exception
 
         return crystals
 
