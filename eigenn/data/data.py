@@ -31,6 +31,7 @@ class DataPoint(Data):
         cell: 3D array (1, 3, 3). The periodic cell for ``edge_cell_shift`` as the three
             triclinic cell vectors. Necessary only when ``edge_cell_shift`` is not
             None. Optional.
+        num_neigh: 1D array (num_atoms). number of neighbors for each atom.
         kwargs: extra property of a data point, e.g. prediction output such as energy
             and forces.
 
@@ -53,6 +54,7 @@ class DataPoint(Data):
         *,
         edge_cell_shift: Optional[List[IntVector]] = None,
         cell: Optional[npt.ArrayLike] = None,
+        num_neigh: Optional[npt.ArrayLike] = None,
         **kwargs,
     ):
 
@@ -86,6 +88,10 @@ class DataPoint(Data):
             assert edge_cell_shift is not None, (
                 "both `edge_cell_shift` and `cell` should " "be provided"
             )
+
+        if num_neigh is not None:
+            num_neigh = torch.as_tensor(num_neigh, dtype=DTYPE)
+            assert len(num_neigh) == len(pos)
 
         # TODO, think about how to represent node/edge/global features features
         #  Maybe define separate class for it, but convert to dict here?
@@ -140,6 +146,7 @@ class DataPoint(Data):
             num_nodes=num_nodes,
             x=tensor_x,
             y=tensor_y,
+            num_neigh=num_neigh,
             **tensor_kwargs,
         )
 
@@ -295,7 +302,7 @@ class Crystal(DataPoint):
         """
 
         # deal with periodic boundary conditions
-        edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(
+        edge_index, edge_cell_shift, cell, num_neigh = neighbor_list_and_relative_vec(
             pos=pos,
             r_max=r_cut,
             self_interaction=False,
@@ -311,6 +318,7 @@ class Crystal(DataPoint):
             y=y,
             edge_cell_shift=edge_cell_shift,
             cell=cell,
+            num_neigh=num_neigh,
             **kwargs,
         )
 
@@ -356,6 +364,10 @@ class Crystal(DataPoint):
         )
 
 
+# TODO, we can directly return the shift vector using `ijD`, instead of edge_cell_shift
+#  to speed up the code a bit. At training, this is not a problem since the dataset
+#  is in memory and the dataloader prefetches it.
+
 # This function is copied from nequip.data.AtomicData
 def neighbor_list_and_relative_vec(
     pos,
@@ -399,6 +411,7 @@ def neighbor_list_and_relative_vec(
             vectors. Returned only if cell is not None.
         cell (torch.Tensor [3, 3]): the cell as a tensor on the correct device.
             Returned only if cell is not None.
+        num_neigh (torch.Tensor [N]) number of neighbors for each atom.
     """
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
@@ -468,7 +481,20 @@ def neighbor_list_and_relative_vec(
         dtype=out_dtype,
         device=out_device,
     )
-    return edge_index, shifts, cell_tensor
+
+    # Number of neighbors for each atoms
+    num_neigh = torch.as_tensor(np.bincount(first_idex), device=out_device)
+
+    # Some atoms with large atom index do not have neighbors
+    # As a concrete example, suppose we have 5 atoms and first_idex is [0,1,1,3,3,3,3],
+    # then bincount will be [1, 2, 0, 4], which means atoms 0,1,2,3 have 1,2,0,4
+    # neighbors respectively. Although atom 2 is handled by bincount, atom 4 cannot.
+    # The below code is the make this work.
+    if len(num_neigh) != len(pos):
+        tmp_num_neigh = torch.zeros(len(pos), dtype=num_neigh.dtype, device=out_device)
+        tmp_num_neigh[list(range(len(num_neigh)))] = num_neigh
+
+    return edge_index, shifts, cell_tensor, num_neigh
 
 
 class DataError(Exception):

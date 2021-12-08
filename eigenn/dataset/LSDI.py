@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import torch
 from monty.serialization import loadfn
 
 from eigenn.data.data import Crystal
@@ -132,17 +133,20 @@ class SiNMRDataMoldule(BaseDataModule):
         self.test_data = SiNMRDataset(self.testset_filename, self.r_cut, self.root)
 
     def get_to_model_info(self) -> Dict[str, Any]:
-
-        # TODO This Should be moved to dataset
         atomic_numbers = set()
+        num_neigh = []
         for data in self.train_dataloader():
             a = data.atomic_numbers.tolist()
             atomic_numbers.update(a)
-        num_species = len(atomic_numbers)
+            num_neigh.append(data.num_neigh)
 
-        # return {"num_species": num_species}
+        # .item to convert to float so that lightning cli can save it to yaml
+        average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
 
-        return {"allowed_species": tuple(atomic_numbers)}
+        return {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neighbors": average_num_neighbors,
+        }
 
 
 if __name__ == "__main__":
