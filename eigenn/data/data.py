@@ -1,6 +1,6 @@
 import itertools
 import warnings
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import ase.geometry
 import ase.neighborlist
@@ -367,15 +367,13 @@ class Crystal(DataPoint):
 # TODO, we can directly return the shift vector using `ijD`, instead of edge_cell_shift
 #  to speed up the code a bit. At training, this is not a problem since the dataset
 #  is in memory and the dataloader prefetches it.
-
-# This function is copied from nequip.data.AtomicData
 def neighbor_list_and_relative_vec(
-    pos,
-    r_max,
-    self_interaction=False,
-    strict_self_interaction=True,
-    cell=None,
-    pbc=False,
+    pos: np.ndarray,
+    r_max: float,
+    self_interaction: bool = False,
+    strict_self_interaction: bool = True,
+    cell: np.ndarray = None,
+    pbc: Union[bool, List[bool]] = False,
 ):
     """
     Create neighbor list (``edge_index``) and relative vectors (``edge_attr``) based on
@@ -396,15 +394,16 @@ def neighbor_list_and_relative_vec(
         pos (shape [N, 3]): Positional coordinate; Tensor or numpy array. If Tensor,
             must be on CPU.
         r_max (float): Radial cutoff distance for neighbor finding.
-        cell (numpy shape [3, 3]): Cell for periodic boundary conditions.
-            Ignored if ``pbc == False``.
+        self_interaction (bool): Whether to include same periodic image self-edges in
+            the neighbor list. Should be False for most applications.
+        strict_self_interaction (bool): Whether to include *any* self interaction edges
+            in the graph, even if the two instances of the atom are in different
+            periodic images. Should be True for most applications.
         pbc (bool or 3-tuple of bool): Whether the system is periodic in each of the
             three cell dimensions.
-        self_interaction (bool): Whether or not to include same periodic image
-            self-edges in the neighbor list.
-        strict_self_interaction (bool): Whether to include *any* self interaction edges
-            in the graph, even if the two instances of the atom are in different periodic
-            images. Defaults to True, should be True for most applications.
+        cell (shape [3, 3]): Cell for periodic boundary conditions.
+            Ignored if ``pbc == False``.
+
     Returns:
         edge_index (torch.tensor shape [2, num_edges]): List of edges.
         edge_cell_shift (torch.tensor shape [num_edges, 3]): Relative cell shift
@@ -454,7 +453,8 @@ def neighbor_list_and_relative_vec(
         temp_cell,
         temp_pos,
         cutoff=float(r_max),
-        self_interaction=strict_self_interaction,  # we want edges from atom to itself in different periodic images!
+        # we want edges from atom to itself in different periodic images!
+        self_interaction=strict_self_interaction,
         use_scaled_positions=False,
     )
 
@@ -485,14 +485,15 @@ def neighbor_list_and_relative_vec(
     # Number of neighbors for each atoms
     num_neigh = torch.as_tensor(np.bincount(first_idex), device=out_device)
 
-    # Some atoms with large atom index do not have neighbors
+    # Some atoms with large atom index may not have neighbors due to the use of bincount
     # As a concrete example, suppose we have 5 atoms and first_idex is [0,1,1,3,3,3,3],
     # then bincount will be [1, 2, 0, 4], which means atoms 0,1,2,3 have 1,2,0,4
     # neighbors respectively. Although atom 2 is handled by bincount, atom 4 cannot.
-    # The below code is the make this work.
+    # The below part is to make this work.
     if len(num_neigh) != len(pos):
         tmp_num_neigh = torch.zeros(len(pos), dtype=num_neigh.dtype, device=out_device)
         tmp_num_neigh[list(range(len(num_neigh)))] = num_neigh
+        num_neigh = tmp_num_neigh
 
     return edge_index, shifts, cell_tensor, num_neigh
 
