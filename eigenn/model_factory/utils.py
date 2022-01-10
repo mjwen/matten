@@ -4,8 +4,10 @@ from typing import Dict, Optional, Tuple
 from e3nn.o3 import Irreps
 from loguru import logger
 
-from eigenn.nn.irreps import ModuleIrreps
+from eigenn.data.irreps import ModuleIrreps
+from eigenn.log import get_log_level
 from eigenn.nn.sequential import Sequential
+from eigenn.nn.utils import DetectAnomaly
 
 
 def create_sequential_module(
@@ -36,6 +38,7 @@ def create_sequential_module(
         a sequential module
     """
 
+    module_names = []
     module_instances = []
     for name, (cls_type, kwargs) in modules.items():
 
@@ -81,8 +84,16 @@ def create_sequential_module(
             f"irreps_out = `{m.irreps_out}`"
         )
 
+        module_names.append(name)
         module_instances.append(m)
 
-    modules_dict = OrderedDict(zip(modules.keys(), module_instances))
+        #
+        # add anomaly detecting when in debug mode
+        #
+        if get_log_level() == "DEBUG":
+            module_names.append(DetectAnomaly.__name__ + "_" + name)
+            module_instances.append(DetectAnomaly(irreps_in=m.irreps_out, name=name))
+
+    modules_dict = OrderedDict(zip(module_names, module_instances))
 
     return Sequential(modules_dict)

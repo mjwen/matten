@@ -1,6 +1,6 @@
 import itertools
 import warnings
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import ase.geometry
 import ase.neighborlist
@@ -12,13 +12,8 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from eigenn.core.configuration import Configuration
+from eigenn.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH_INTS
 from eigenn.typing import PBC, IntVector, Vector
-
-DTYPE = torch.get_default_dtype()
-DTYPE_INT = torch.int64
-DTYPE_BOOL = torch.bool
-TORCH_FLOATS = (torch.float16, torch.float32, torch.float64)
-TORCH_INTS = (torch.int16, torch.int32, torch.int64)
 
 
 class DataPoint(Data):
@@ -36,6 +31,7 @@ class DataPoint(Data):
         cell: 3D array (1, 3, 3). The periodic cell for ``edge_cell_shift`` as the three
             triclinic cell vectors. Necessary only when ``edge_cell_shift`` is not
             None. Optional.
+        num_neigh: 1D array (num_atoms). number of neighbors for each atom.
         kwargs: extra property of a data point, e.g. prediction output such as energy
             and forces.
 
@@ -58,6 +54,7 @@ class DataPoint(Data):
         *,
         edge_cell_shift: Optional[List[IntVector]] = None,
         cell: Optional[npt.ArrayLike] = None,
+        num_neigh: Optional[npt.ArrayLike] = None,
         **kwargs,
     ):
 
@@ -91,6 +88,10 @@ class DataPoint(Data):
             assert edge_cell_shift is not None, (
                 "both `edge_cell_shift` and `cell` should " "be provided"
             )
+
+        if num_neigh is not None:
+            num_neigh = torch.as_tensor(num_neigh, dtype=DTYPE)
+            assert len(num_neigh) == len(pos)
 
         # TODO, think about how to represent node/edge/global features features
         #  Maybe define separate class for it, but convert to dict here?
@@ -145,6 +146,7 @@ class DataPoint(Data):
             num_nodes=num_nodes,
             x=tensor_x,
             y=tensor_y,
+            num_neigh=num_neigh,
             **tensor_kwargs,
         )
 
@@ -300,7 +302,7 @@ class Crystal(DataPoint):
         """
 
         # deal with periodic boundary conditions
-        edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(
+        edge_index, edge_cell_shift, cell, num_neigh = neighbor_list_and_relative_vec(
             pos=pos,
             r_max=r_cut,
             self_interaction=False,
@@ -316,6 +318,7 @@ class Crystal(DataPoint):
             y=y,
             edge_cell_shift=edge_cell_shift,
             cell=cell,
+            num_neigh=num_neigh,
             **kwargs,
         )
 
@@ -361,14 +364,16 @@ class Crystal(DataPoint):
         )
 
 
-# This function is copied from nequip.data.AtomicData
+# TODO, we can directly return the shift vector using `ijD`, instead of edge_cell_shift
+#  to speed up the code a bit. At training, this is not a problem since the dataset
+#  is in memory and the dataloader prefetches it.
 def neighbor_list_and_relative_vec(
-    pos,
-    r_max,
-    self_interaction=False,
-    strict_self_interaction=True,
-    cell=None,
-    pbc=False,
+    pos: np.ndarray,
+    r_max: float,
+    self_interaction: bool = False,
+    strict_self_interaction: bool = True,
+    cell: np.ndarray = None,
+    pbc: Union[bool, List[bool]] = False,
 ):
     """
     Create neighbor list (``edge_index``) and relative vectors (``edge_attr``) based on
@@ -389,21 +394,23 @@ def neighbor_list_and_relative_vec(
         pos (shape [N, 3]): Positional coordinate; Tensor or numpy array. If Tensor,
             must be on CPU.
         r_max (float): Radial cutoff distance for neighbor finding.
-        cell (numpy shape [3, 3]): Cell for periodic boundary conditions.
-            Ignored if ``pbc == False``.
+        self_interaction (bool): Whether to include same periodic image self-edges in
+            the neighbor list. Should be False for most applications.
+        strict_self_interaction (bool): Whether to include *any* self interaction edges
+            in the graph, even if the two instances of the atom are in different
+            periodic images. Should be True for most applications.
         pbc (bool or 3-tuple of bool): Whether the system is periodic in each of the
             three cell dimensions.
-        self_interaction (bool): Whether or not to include same periodic image
-            self-edges in the neighbor list.
-        strict_self_interaction (bool): Whether to include *any* self interaction edges
-            in the graph, even if the two instances of the atom are in different periodic
-            images. Defaults to True, should be True for most applications.
+        cell (shape [3, 3]): Cell for periodic boundary conditions.
+            Ignored if ``pbc == False``.
+
     Returns:
         edge_index (torch.tensor shape [2, num_edges]): List of edges.
         edge_cell_shift (torch.tensor shape [num_edges, 3]): Relative cell shift
             vectors. Returned only if cell is not None.
         cell (torch.Tensor [3, 3]): the cell as a tensor on the correct device.
             Returned only if cell is not None.
+        num_neigh (torch.Tensor [N]) number of neighbors for each atom.
     """
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
@@ -446,7 +453,8 @@ def neighbor_list_and_relative_vec(
         temp_cell,
         temp_pos,
         cutoff=float(r_max),
-        self_interaction=strict_self_interaction,  # we want edges from atom to itself in different periodic images!
+        # we want edges from atom to itself in different periodic images!
+        self_interaction=strict_self_interaction,
         use_scaled_positions=False,
     )
 
@@ -473,7 +481,21 @@ def neighbor_list_and_relative_vec(
         dtype=out_dtype,
         device=out_device,
     )
-    return edge_index, shifts, cell_tensor
+
+    # Number of neighbors for each atoms
+    num_neigh = torch.as_tensor(np.bincount(first_idex), device=out_device)
+
+    # Some atoms with large atom index may not have neighbors due to the use of bincount
+    # As a concrete example, suppose we have 5 atoms and first_idex is [0,1,1,3,3,3,3],
+    # then bincount will be [1, 2, 0, 4], which means atoms 0,1,2,3 have 1,2,0,4
+    # neighbors respectively. Although atom 2 is handled by bincount, atom 4 cannot.
+    # The below part is to make this work.
+    if len(num_neigh) != len(pos):
+        tmp_num_neigh = torch.zeros(len(pos), dtype=num_neigh.dtype, device=out_device)
+        tmp_num_neigh[list(range(len(num_neigh)))] = num_neigh
+        num_neigh = tmp_num_neigh
+
+    return edge_index, shifts, cell_tensor, num_neigh
 
 
 class DataError(Exception):

@@ -2,12 +2,12 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.LSDI.SiNMRDataMoldule
+  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
   init_args:
-    root: ../eigenn/dataset/LSDI_NMR
-    trainset_filename: LSDI_NMR_tensor.json
-    valset_filename: LSDI_NMR_tensor.json
-    testset_filename: LSDI_NMR_tensor.json
+    root: ../eigenn/dataset/matbench
+    trainset_filename: matbench_mp_is_metal_n20.json
+    valset_filename: matbench_mp_is_metal_n20.json
+    testset_filename: matbench_mp_is_metal_n20.json
     r_cut: 5.0
     loader_kwargs:
       batch_size: 10
@@ -48,14 +48,15 @@ model:
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e + 8x1e + 4x2e # should contain 0e and 2e for symmetric 2nd-order tensor
-    output_formula: ij=ji # symmetric 2nd-order tensor (see e3nn.io.CartesianTensor)
+    conv_to_output_hidden_irreps_out: 16x0e
+    reduce: sum
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.CanonicalRegressionTask
+    class_path: eigenn.model.task.CanonicalClassificationTask
     init_args:
-      name: tensor_output # name of y in dataset to predict
+      num_classes: 2
+      name: is_metal
 
 trainer:
   max_epochs: 2 # number of maximum training epochs

@@ -9,24 +9,23 @@ to map it to NODE_FEATURES.
 For large number of species, we'd better use the SpeciesEmbedding one to minimize the
 number of params.
 """
-import sys
+
+
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional
 
 import torch
-from nequip.data import AtomicDataDict
-from nequip.nn import AtomwiseLinear, AtomwiseReduce, ConvNetLayer
-from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
+from eigenn.data.irreps import DataKey
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.message_passing import MessagePassing
-from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.point_conv import PointConv
-from eigenn.nn.segnn_conv import SEGNNConv
-from eigenn.nn.transformer_conv import TransformerConv
+from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
+from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
+from eigenn.nn.point_conv import PointConvMessagePassing
+
+OUT_FIELD_NAME = "total_energy"
 
 
 class EnergyModel(ModelForPyGData):
@@ -42,20 +41,14 @@ class EnergyModel(ModelForPyGData):
         backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(
-        self,
-        task_hparams: Dict[str, Any],
-        dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> Union[Task, Sequence[Task]]:
-        task = CanonicalRegressionTask(name=task_hparams["task_name"])
-
-        return task
-
     def decode(self, model_input) -> Dict[str, Tensor]:
-        out = self.backbone(model_input)
-        out = out["total_energy"].reshape(-1)
 
-        task_name = self.hparams.task_hparams["task_name"]
+        out = self.backbone(model_input)
+        out = out[OUT_FIELD_NAME].reshape(-1)
+
+        # current we only support one task, so 0 is the name
+        task_name = list(self.tasks.keys())[0]
+
         preds = {task_name: out}
 
         return preds
@@ -90,8 +83,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
-        # This embed features is not necessary any more when we change OneHotEmbedding to
-        # SpeciesEmbedding.
+        # This embed features is not necessary any more when we change OneHotEmbedding
+        # to SpeciesEmbedding.
         # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
         # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
         # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
@@ -121,8 +114,13 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # ===== convnet layers =====
     # insertion preserves order
 
+    num_neigh = hparams["average_num_neighbors"]
+    if isinstance(num_neigh, str) and num_neigh.lower() == "auto":
+        num_neigh = dataset_hparams["average_num_neighbors"]
+
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
+            #
             # ConvNetLayer,
             # {
             #     "feature_irreps_hidden": hparams["conv_layer_irreps"],
@@ -131,33 +129,49 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #     "convolution_kwargs": {
             #         "invariant_layers": hparams["invariant_layers"],
             #         "invariant_neurons": hparams["invariant_neurons"],
-            #         "avg_num_neighbors": hparams["avg_num_neighbors"],
+            #         "avg_num_neighbors": num_neigh,
             #         "use_sc": hparams["use_sc"],
             #     },
             # },
-            MessagePassing,
+            #
+            # MessagePassing,
+            # {
+            #     "conv_layer_irreps": hparams["conv_layer_irreps"],
+            #     "activation_type": hparams["nonlinearity_type"],
+            #     "use_resnet": hparams["resnet"],
+            #     "conv": PointConv,
+            #     "conv_kwargs": {
+            #         "fc_num_hidden_layers": hparams["invariant_layers"],
+            #         "fc_hidden_size": hparams["invariant_neurons"],
+            #         "avg_num_neighbors": num_neigh,
+            #         "use_self_connection": hparams["use_sc"],
+            #     },
+            #     # # transformer conv
+            #     # "conv": TransformerConv,
+            #     # "conv_kwargs": {
+            #     #     "irreps_query_and_key": hparams["conv_layer_irreps"],
+            #     #     "r_max": hparams["radial_basis_r_cut"],
+            #     #     "fc_num_hidden_layers": hparams["invariant_layers"],
+            #     #     "fc_hidden_size": hparams["invariant_neurons"],
+            #     #     "avg_num_neighbors": num_neigh,
+            #     #     "use_self_connection": hparams["use_sc"],
+            #     # },
+            # },
+            #
+            PointConvMessagePassing,
+            # SEGNNMessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "conv": PointConv,
-                # "conv": SEGNNConv,
-                "conv_kwargs": {
+                "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
-                    "avg_num_neighbors": hparams["avg_num_neighbors"],
-                    "use_self_connection": hparams["use_sc"],
                 },
-                # # transformer conv
-                # "conv": TransformerConv,
-                # "conv_kwargs": {
-                #     "irreps_query_and_key": hparams["conv_layer_irreps"],
-                #     "r_max": hparams["radial_basis_r_cut"],
-                #     "fc_num_hidden_layers": hparams["invariant_layers"],
-                #     "fc_hidden_size": hparams["invariant_neurons"],
-                #     "avg_num_neighbors": hparams["avg_num_neighbors"],
-                #     "use_self_connection": hparams["use_sc"],
-                # },
+                "update_kwargs": {
+                    "use_self_connection": hparams["use_sc"],
+                    "avg_num_neighbors": num_neigh,
+                },
             },
         )
 
@@ -167,32 +181,29 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             # TODO: the next linear throws out all L > 0, don't create them in the last layer of convnet
             # -- output block --
             "conv_to_output_hidden": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
             "output_hidden_to_scalar": (
-                AtomwiseLinear,
-                dict(irreps_out="1x0e", out_field=AtomicDataDict.PER_ATOM_ENERGY_KEY),
+                NodewiseLinear,
+                dict(irreps_out="1x0e", out_field=DataKey.PER_ATOM_ENERGY),
             ),
         }
     )
 
     reduce = hparams["reduce"]
     layers[f"total_energy_{reduce}"] = (
-        AtomwiseReduce,
+        NodewiseReduce,
         dict(
             reduce=reduce,
-            field=AtomicDataDict.PER_ATOM_ENERGY_KEY,
-            out_field=AtomicDataDict.TOTAL_ENERGY_KEY,
+            field=DataKey.PER_ATOM_ENERGY,
+            out_field=OUT_FIELD_NAME,
         ),
     )
 
     model = create_sequential_module(
         modules=OrderedDict(layers), use_kwargs_irreps_in=True
     )
-
-    # print the model
-    print(model, file=sys.stderr)
 
     return model
 
@@ -213,7 +224,7 @@ if __name__ == "__main__":
         "reduce": "sum",
         "invariant_layers": 2,
         "invariant_neurons": 64,
-        "avg_num_neighbors": None,
+        "average_num_neighbors": None,
         "use_sc": True,
         "nonlinearity_type": "gate",
         "resnet": True,

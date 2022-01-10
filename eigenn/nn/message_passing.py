@@ -4,11 +4,13 @@ import torch
 from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.data.irreps import DataKey, ModuleIrreps
 from eigenn.nn.point_conv import PointConv
 from eigenn.nn.utils import ActivationLayer
 
 
+# TODO remove this, this is outdated, directly use the [NAME]MessagePassing in the
+#  [name]_conv.py files
 @compile_mode("script")
 class MessagePassing(ModuleIrreps, torch.nn.Module):
 

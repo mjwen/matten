@@ -113,7 +113,7 @@ class EigennCLI(LightningCLI):
         # add to_model_info to config of model `dataset_hparams` (required by the model)
         self.config["model"]["dataset_hparams"] = to_model_info
 
-        # instantiate others
+        # instantiate others, including model and trainer
         self.config_init = self.parser.instantiate_classes(self.config)
 
         # add data datamodule back
@@ -217,7 +217,7 @@ class SaveConfigCallback(LightningSaveConfigCallback):
     """
     Saves a LightningCLI config to the log_dir when training starts.
 
-    Here, we add the functionalty to save the config to wandb if a wandb logger exists.
+    Here, we add the functionality to save the config to wandb if a wandb logger exists.
     """
 
     def setup(

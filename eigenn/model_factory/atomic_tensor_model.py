@@ -3,24 +3,22 @@ A model outputs atomic tensors (i.e. output a tensor on each atomic site), e.g.
 symmetric 2nd order NMR tensor.
 """
 
-import sys
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional
 
 import torch
 from e3nn.io import CartesianTensor
-from nequip.nn import AtomwiseLinear
-from nequip.nn.embedding import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask, Task
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn.message_passing import MessagePassing
-from eigenn.nn.node_embedding import SpeciesEmbedding
-from eigenn.nn.nodewise import NodewiseSelect
-from eigenn.nn.point_conv import PointConv
+from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
+from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.nodewise import NodewiseLinear, NodewiseSelect
+from eigenn.nn.point_conv import PointConvMessagePassing
 from eigenn.nn.readout import IrrepsToCartesianTensor
+
+OUT_FIELD_SELECTED = "tensor_output"
 
 
 # TODO, we can weigh different irreps (e.g., 0e, 1o, and 2e) differently, and that can
@@ -38,20 +36,13 @@ class AtomicTensorModel(ModelForPyGData):
         backbone = create_model(backbone_hparams, dataset_hparams)
         return backbone
 
-    def init_tasks(
-        self,
-        task_hparams: Dict[str, Any],
-        dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> Union[Task, Sequence[Task]]:
-        task = CanonicalRegressionTask(name=task_hparams["task_name"])
-
-        return task
-
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
 
-        task_name = self.hparams.task_hparams["task_name"]
-        preds = {task_name: out[task_name]}
+        # current we only support one task, so 0 is the name
+        task_name = list(self.tasks.keys())[0]
+
+        preds = {task_name: out[OUT_FIELD_SELECTED]}
 
         return preds
 
@@ -85,8 +76,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
-        # This embed features is not necessary any more when we change OneHotEmbedding to
-        # SpeciesEmbedding.
+        # This embed features is not necessary any more when we change OneHotEmbedding
+        # to SpeciesEmbedding.
         # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
         # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
         # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
@@ -116,19 +107,38 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # ===== convnet layers =====
     # insertion preserves order
 
+    num_neigh = hparams["average_num_neighbors"]
+    if isinstance(num_neigh, str) and num_neigh.lower() == "auto":
+        num_neigh = dataset_hparams["average_num_neighbors"]
+
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
-            MessagePassing,
+            # MessagePassing,
+            # {
+            #     "conv_layer_irreps": hparams["conv_layer_irreps"],
+            #     "activation_type": hparams["nonlinearity_type"],
+            #     "use_resnet": hparams["resnet"],
+            #     "conv": PointConv,
+            #     # "conv": SEGNNConv,
+            #     "conv_kwargs": {
+            #         "fc_num_hidden_layers": hparams["invariant_layers"],
+            #         "fc_hidden_size": hparams["invariant_neurons"],
+            #         "avg_num_neighbors": num_neigh,
+            #         "use_self_connection": hparams["use_sc"],
+            #     },
+            # },
+            #
+            PointConvMessagePassing,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "conv": PointConv,
-                # "conv": SEGNNConv,
-                "conv_kwargs": {
+                "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
-                    "avg_num_neighbors": hparams["avg_num_neighbors"],
+                },
+                "update_kwargs": {
+                    "avg_num_neighbors": num_neigh,
                     "use_self_connection": hparams["use_sc"],
                 },
             },
@@ -159,7 +169,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     # data keys
     OUT_FIELD_ATOM = "atomic_output"
     NODE_MASKS = "node_masks"
-    OUT_FIELD_SELECTED = "tensor_output"  # TODO, this should be obtained from hparams
 
     layers.update(
         {
@@ -167,11 +176,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             #  last layer of convnet
             # -- output block --
             "conv_to_output_hidden": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
             "output_hidden_to_tensor": (
-                AtomwiseLinear,
+                NodewiseLinear,
                 {"irreps_out": output_irreps, "out_field": OUT_FIELD_ATOM},
             ),
         }
@@ -198,9 +207,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         modules=OrderedDict(layers), use_kwargs_irreps_in=True
     )
 
-    # print the model
-    print(model, file=sys.stderr)
-
     return model
 
 
@@ -219,7 +225,7 @@ if __name__ == "__main__":
         "num_layers": 3,
         "invariant_layers": 2,
         "invariant_neurons": 64,
-        "avg_num_neighbors": None,
+        "average_num_neighbors": None,
         "use_sc": True,
         "nonlinearity_type": "gate",
         "resnet": True,

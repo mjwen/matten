@@ -19,6 +19,8 @@ def set_logger(level: str = "INFO", filename: str = "eigenn.log", stderr: bool =
         stderr: whether to log to  stderr.
     """
     global LOG_LEVEL
+
+    level = level.upper()
     LOG_LEVEL = level
 
     file_handler = {"sink": filename, "level": level}

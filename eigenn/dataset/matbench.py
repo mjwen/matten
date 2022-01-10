@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import torch
 from monty.serialization import loadfn
 
 from eigenn.data.data import Crystal
@@ -21,11 +22,9 @@ class MatbenchDataset(InMemoryDataset):
         filename: matbench task filename, e.g. ``matbench_log_gvrh.json``. For a full
             list, see https://hackingmaterials.lbl.gov/automatminer/datasets.html
             Note, this should only be the filename, not the path name.
-            If using local files, it should be placed on a path with `raw` before the
-            filename. For example, <root>/raw/matbench_log_gvrh.json
-            where <root> is the path provided by `root`.
+            If using local files, it should be in the `root` directory.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        root: root directory of the data, will contain `raw` and `processed` files.
+        root: root directory that stores the input and processed data.
     """
 
     MATBENCH_WEBSITE = "https://hackingmaterials.lbl.gov/automatminer/datasets.html"
@@ -43,12 +42,17 @@ class MatbenchDataset(InMemoryDataset):
         "matbench_phonons": "last phdos peak",
     }
 
-    def __init__(self, filename: str, r_cut: float, root="."):
-        self.r_cut = r_cut
+    def __init__(self, filename: str, r_cut: float, root: Union[str, Path] = "."):
         self.filename = filename
+        self.r_cut = r_cut
 
         url = f"https://ml.materialsproject.org/projects/{filename}.gz"
-        super().__init__(filenames=[filename], root=root, url=url)
+        super().__init__(
+            filenames=[filename],
+            root=root,
+            processed_dirname=f"processed_rcut{self.r_cut}",
+            url=url,
+        )
 
     @classmethod
     def from_task_name(cls, task_name: str, r_cut: float, root="."):
@@ -110,7 +114,7 @@ class MatbenchDataset(InMemoryDataset):
 
 class MatbenchDataMoldule(BaseDataModule):
     """
-    Will search for files at, e.g. `root/raw/<trainset_filename>`.
+    Will search for files at, e.g. `root/<trainset_filename>`.
     """
 
     def __init__(
@@ -143,17 +147,20 @@ class MatbenchDataMoldule(BaseDataModule):
         self.test_data = MatbenchDataset(self.testset_filename, self.r_cut, self.root)
 
     def get_to_model_info(self) -> Dict[str, Any]:
-
-        # TODO This Should be moved to dataset
         atomic_numbers = set()
+        num_neigh = []
         for data in self.train_dataloader():
             a = data.atomic_numbers.tolist()
             atomic_numbers.update(a)
-        num_species = len(atomic_numbers)
+            num_neigh.append(data.num_neigh)
 
-        # return {"num_species": num_species}
+        # .item to convert to float so that lightning cli can save it to yaml
+        average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
 
-        return {"allowed_species": tuple(atomic_numbers)}
+        return {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neighbors": average_num_neighbors,
+        }
 
 
 if __name__ == "__main__":

@@ -1,3 +1,7 @@
+"""
+The same as segnn_model.py except that we do binary classification task.
+"""
+
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
@@ -18,7 +22,7 @@ from eigenn.nn.segnn_conv import (
 OUT_FIELD_NAME = "my_model_output"
 
 
-class SEGNNModel(ModelForPyGData):
+class SEGNNClassification(ModelForPyGData):
     """
     A model to predict the energy of an atomic configuration.
     """
@@ -83,10 +87,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     for i in range(n_embed_layers):
         layers[f"node_feats_embedding_layer{i}"] = (
             EmbeddingLayer,
-            {
-                "irreps_out": {"node_features": hparams["conv_layer_irreps"]},
-                "batch_norm": hparams["batch_norm"],
-            },
+            {"irreps_out": {"node_features": hparams["conv_layer_irreps"]}},
         )
 
     # ===== message passing layers =====
@@ -109,12 +110,10 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
-                    "batch_norm": hparams["batch_norm"],
                 },
                 "update_kwargs": {
                     "use_self_connection": hparams["use_sc"],
                     "avg_num_neighbors": num_neigh,
-                    "batch_norm": hparams["batch_norm"],
                 },
             },
         )
@@ -152,7 +151,6 @@ if __name__ == "__main__":
         "resnet": True,
         "conv_to_output_hidden_irreps_out": "16x0e",
         "task_name": "my_task",
-        "batch_norm": True,
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}

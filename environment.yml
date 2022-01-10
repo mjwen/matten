@@ -7,11 +7,11 @@ dependencies:
   - loguru=0.5.3
   - pandas=1.3.3
   - pytest=6.2.5
-  - pytorch-lightning==1.5.0
+  - pytorch-lightning==1.5.2
   - torchmetrics==0.6.0
+  - jsonargparse==3.19.2
   - mamba
   - flake8
   - black
   - pip:
       - lightning-bolts==0.4.0
-      - git+https://github.com/mir-group/nequip.git

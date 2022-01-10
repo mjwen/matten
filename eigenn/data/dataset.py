@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 import requests
 import torch
 import tqdm
+from loguru import logger
 from torch_geometric.data import InMemoryDataset as PyGInMemoryDataset
 from torch_geometric.data import extract_bz2, extract_gz, extract_tar, extract_zip
 
@@ -19,21 +20,29 @@ class InMemoryDataset(PyGInMemoryDataset):
       - get_data()
 
     Args:
-        filenames: filenames of the dataset. Will try to find the files with `filenames` in
-            `root/raw/`. If they exist, will use them. If not, will try to download
-            from `url`. This should not be a path, but just the names.
-        root: root to store the dataset.
+        filenames: filenames of the dataset. This is not the full path to the files,
+            but only the names of the files. The full path will be `<root>/<filenames>`.
+            Will try to find the files in root; if they exist, will use them. If not,
+            will try to download from `url`.
+        root: root to store the raw dataset.
         url: path to download the dataset.
+        processed_dirname: the files give by `filenames` will be processed and saved
+            to disk for faster loading later on. `processed_dirname` gives the
+            directory name to store the processed files. This should be a string not
+            a full path, and the processed files will be stored in
+            `<root>/<processed_dirname>
     """
 
     def __init__(
         self,
-        filenames: List[Union[str, Path]],
+        filenames: List[str],
         root: Union[str, Path] = ".",
+        processed_dirname: str = "processed",
         url: Optional[str] = None,
     ):
         self.filenames = to_list(filenames)
         self.url = url
+        self.processed_dirname = processed_dirname
 
         # !!! don't delete this block.
         # otherwise the inherent children class will ignore the download function here
@@ -52,31 +61,10 @@ class InMemoryDataset(PyGInMemoryDataset):
         """
         Process the (downloaded) files to get a list of data points.
 
-        In this function, the files in ``self.raw_file_names`` (this is basically
-        `<root>/raw/<filenames>` with `root` and `filenames` provided at the
-        instantiation of the class) should be processed to generate a list of
-        ``DataPoint`` object.
+        In this function, the files in ``self.raw_file_names`` (i.e. `<root>/<filenames>`
+        should be processed to generate a list of ``DataPoint`` object.
         """
         raise NotImplementedError
-
-    @property
-    def raw_file_names(self):
-        return self.filenames
-
-    @property
-    def processed_file_names(self):
-        """
-        Original filenames with _data.pt appended.
-        """
-        return [to_path(f).stem + "_data.pt" for f in self.filenames]
-
-    def download(self):
-        # from torch_geometric.data import download_url
-        # download_url(self.url, self.raw_dir)
-        ## download_url does not work for some url, e.g. matbench ones
-
-        filepath = _fetch_external_dataset(self.url, self.raw_dir)
-        _extract_file(filepath, self.raw_dir)
 
     def process(self):
         data_list = self.get_data()
@@ -90,6 +78,57 @@ class InMemoryDataset(PyGInMemoryDataset):
         data, slices = self.collate(data_list)
 
         torch.save((data, slices), self.processed_paths[0])
+
+        logger.info(
+            f"Processed files saved as {self.processed_paths}. Will reuse them "
+            "next time."
+        )
+
+    def download(self):
+        # from torch_geometric.data import download_url
+        # download_url(self.url, self.raw_dir)
+        ## download_url does not work for some url, e.g. matbench ones
+
+        logger.info(
+            f"Did not find files {self.raw_file_names} in {self.raw_dir}. Now try to "
+            f"download from {self.url}."
+        )
+        try:
+            filepath = _fetch_external_dataset(self.url, self.raw_dir)
+            _extract_file(filepath, self.raw_dir)
+        except Exception:
+            raise RuntimeError(f"Failed download and extract file from {self.url}.")
+
+    @property
+    def raw_file_names(self):
+        """
+        Names of the raw files, not path.
+        """
+        return self.filenames
+
+    @property
+    def processed_file_names(self):
+        """
+        Names of the processed files, not path.
+
+        Original filenames with _data.pt appended.
+        """
+        return [to_path(f).stem + "_data.pt" for f in self.filenames]
+
+    @property
+    def raw_dir(self) -> str:
+        """
+        Raw directory to find the files, i.e. self.root.
+        """
+        return str(to_path(self.root))
+
+    @property
+    def processed_dir(self) -> str:
+        """
+        Directory to store the processed files, i.e.
+        <self.root>/<self.processed_dirname>
+        """
+        return str(to_path(self.root).joinpath(self.processed_dirname))
 
 
 # this is copied from matmainer.dataset.utils with slight modifications
@@ -108,8 +147,7 @@ def _fetch_external_dataset(url, save_dir):
     filepath = to_path(save_dir).joinpath(filename)
 
     # Fetch data from given url
-    msg = "Fetching {} from {} to {}".format(filename, url, filepath)
-    print(msg, flush=True)
+    logger.info(f"Fetching {filename} from {url} to {filepath}")
 
     r = requests.get(url, stream=True)
 

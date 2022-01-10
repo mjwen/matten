@@ -10,6 +10,7 @@ import torch.nn as nn
 import torchmetrics
 from torch import Tensor
 from torchmetrics import (
+    AUROC,
     F1,
     Accuracy,
     MeanAbsoluteError,
@@ -29,7 +30,7 @@ class Task:
         - init_metric()
 
     Subclass can implement:
-        - metric_aggƒegration()
+        - metric_aggregation()
         - transform()
 
     Args:
@@ -273,14 +274,19 @@ class CanonicalClassificationTask(ClassificationTask):
         if self.is_binary() or average == "micro":
             n = None
 
-        metric = MetricCollection(
-            [
-                Accuracy(num_classes=n, average=average, compute_on_step=False),
-                Precision(num_classes=n, average=average, compute_on_step=False),
-                Recall(num_classes=n, average=average, compute_on_step=False),
-                F1(num_classes=n, average=average, compute_on_step=False),
-            ]
-        )
+        m = [
+            Accuracy(num_classes=n, average=average, compute_on_step=False),
+            Precision(num_classes=n, average=average, compute_on_step=False),
+            Recall(num_classes=n, average=average, compute_on_step=False),
+            F1(num_classes=n, average=average, compute_on_step=False),
+        ]
+
+        # AUROC expect different preds and targets as the other metrics for
+        # multiclass classification, so we only enable binary for it now
+        if self.is_binary():
+            m.append(AUROC(num_classes=n, average=average, compute_on_step=False))
+
+        metric = MetricCollection(m)
 
         return metric
 

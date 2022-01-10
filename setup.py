@@ -32,6 +32,7 @@ setup(
         "pytorch-lightning",
         "lightning-bolts",
         "e3nn",
+        "jsonargparse==3.19.2",
     ],
     extras_require={
         "test": ["pytest"],

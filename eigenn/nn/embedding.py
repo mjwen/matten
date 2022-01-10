@@ -2,8 +2,9 @@ from typing import Dict, List, Tuple
 
 import torch
 from e3nn.o3 import Irreps
+from torch_scatter import scatter
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.data.irreps import DataKey, ModuleIrreps
 
 
 class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
@@ -72,6 +73,52 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
         return data
 
 
+class NodeAttrsFromEdgeAttrs(ModuleIrreps, torch.nn.Module):
+    REQUIRED_KEYS_IRREPS_IN = [DataKey.EDGE_ATTRS, DataKey.EDGE_INDEX]
+
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        field: str = DataKey.EDGE_ATTRS,
+        out_field: str = DataKey.NODE_ATTRS,
+        reduce: str = "mean",
+    ):
+        """
+        Compute node attributes from edge attributes, e.g. mean of the edge attributes.
+
+        This modifies data[out_filed] from data[field].
+
+        Args:
+            irreps_in: input irreps
+            field: field from which to obtain the data
+            out_field: field to which to write the data
+            reduce: reduction method, `mean` or `sum`
+        """
+        super().__init__()
+
+        self.init_irreps(irreps_in, irreps_out={out_field: irreps_in[field]})
+
+        self.field = field
+        self.out_field = out_field
+        self.reduce = reduce
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+
+        edge_src, edge_dst = data[DataKey.EDGE_INDEX]
+
+        x = scatter(
+            data[self.field],
+            edge_dst,
+            dim=0,
+            dim_size=len(data[DataKey.NODE_ATTRS]),
+            reduce=self.reduce,
+        )
+
+        data[self.out_field] = x
+
+        return data
+
+
 class _AtomicNumberToIndex(torch.nn.Module):
     """
     Map non-consecutive atomic numbers to consecutive atomic index.
@@ -114,12 +161,16 @@ class _AtomicNumberToIndex(torch.nn.Module):
         index = self._Z_to_index[atomic_numbers - self._min_Z]
 
         if index.min() < 0:
-            num = None
-            for num, val in enumerate(index):
+            supported = [
+                Z + self._min_Z for Z, idx in enumerate(self._Z_to_index) if idx != -1
+            ]
+            for i, val in enumerate(index):
                 if val == -1:
-                    num = num + self._min_Z
-                    break
-            raise RuntimeError(f"Invalid atomic numbers. {num}")
+                    n = atomic_numbers[i]
+                    raise RuntimeError(
+                        f"Expect atomic numbers to be in {supported}, "
+                        f"got invalid atomic numbers `{n}` for data point `{i}`."
+                    )
 
         return index
 

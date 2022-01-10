@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import torch
 from monty.serialization import loadfn
 
 from eigenn.data.data import Crystal
@@ -15,13 +16,11 @@ class SiNMRDataset(InMemoryDataset):
     The LSDI dataset of 29Si NMR nuclear shielding tensors.
 
     Args:
-        filename: 29Si NMR tensor filename, e.g. ``LSDI_NMR_tensors.json``.
-            Note, this should only be the filename, not the path name.
-            If using local files, it should be placed on a path with `raw` before the
-            filename. For example, <root>/raw/Si_tasks.json
-            where <root> is the path provided by `root`.
+        filename: 29Si NMR tensor filename, e.g. ``LSDI_NMR_tensors.json``. Note, this
+            should only be the filename, not the full path. This file will be
+            searched in `root`.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        root: root directory of the data, will contain `raw` and `processed` files.
+        root: root directory that stores the input and processed data.
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
@@ -34,15 +33,18 @@ class SiNMRDataset(InMemoryDataset):
         self,
         filename: str,
         r_cut: float,
-        root=".",
+        root: Union[str, Path] = ".",
         unpack: bool = True,
-        symmetric: bool = True,
     ):
-        self.r_cut = r_cut
         self.filename = filename
+        self.r_cut = r_cut
         self.unpack = unpack
-        self.symmetric = symmetric
-        super().__init__(filenames=[filename], root=root)
+
+        super().__init__(
+            filenames=[filename],
+            processed_dirname=f"processed_rcut{self.r_cut}",
+            root=root,
+        )
 
     def get_data(self):
         filepath = self.raw_paths[0]
@@ -106,7 +108,7 @@ class SiNMRDataset(InMemoryDataset):
 
 class SiNMRDataMoldule(BaseDataModule):
     """
-    Will search for files at, e.g. `root/raw/<trainset_filename>`.
+    Will search for files at, e.g. `root/<trainset_filename>`.
     """
 
     def __init__(
@@ -139,17 +141,20 @@ class SiNMRDataMoldule(BaseDataModule):
         self.test_data = SiNMRDataset(self.testset_filename, self.r_cut, self.root)
 
     def get_to_model_info(self) -> Dict[str, Any]:
-
-        # TODO This Should be moved to dataset
         atomic_numbers = set()
+        num_neigh = []
         for data in self.train_dataloader():
             a = data.atomic_numbers.tolist()
             atomic_numbers.update(a)
-        num_species = len(atomic_numbers)
+            num_neigh.append(data.num_neigh)
 
-        # return {"num_species": num_species}
+        # .item to convert to float so that lightning cli can save it to yaml
+        average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
 
-        return {"allowed_species": tuple(atomic_numbers)}
+        return {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neighbors": average_num_neighbors,
+        }
 
 
 if __name__ == "__main__":

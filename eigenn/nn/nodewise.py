@@ -1,13 +1,18 @@
 """
 Operations on node features/attrs.
+
+These are based on nequip.nn._atomwise.py
 """
 
 from typing import Dict, Optional
 
+import e3nn
 import torch
 from e3nn.o3 import Irreps
+from torch_scatter import scatter
 
-from eigenn.nn.irreps import DataKey, ModuleIrreps
+from eigenn.data.irreps import DataKey, ModuleIrreps
+from eigenn.nn._nequip import with_batch
 
 
 class NodewiseSelect(ModuleIrreps, torch.nn.Module):
@@ -80,3 +85,65 @@ class NodewiseSelect(ModuleIrreps, torch.nn.Module):
             f"{self.irreps_out[self.out_field]}\n"
             ")"
         )
+
+
+class NodewiseLinear(ModuleIrreps, torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        irreps_out: Irreps = None,
+        field: str = DataKey.NODE_FEATURES,
+        out_field: Optional[str] = None,
+    ):
+        super().__init__()
+
+        self.field = field
+        self.out_field = out_field if out_field is not None else field
+
+        if irreps_out is None:
+            irreps_out = irreps_in[self.field]
+
+        self.init_irreps(
+            irreps_in=irreps_in,
+            irreps_out={self.out_field: irreps_out},
+            required_keys_irreps_in=[self.field],
+        )
+
+        self.linear = e3nn.o3.Linear(
+            irreps_in=self.irreps_in[field], irreps_out=self.irreps_out[self.out_field]
+        )
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        data[self.out_field] = self.linear(data[self.field])
+        return data
+
+
+class NodewiseReduce(ModuleIrreps, torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps],
+        field: str,
+        out_field: Optional[str] = None,
+        reduce: str = "sum",
+    ):
+        super().__init__()
+
+        assert reduce in ("sum", "mean", "min", "max")
+
+        self.reduce = reduce
+        self.field = field
+        self.out_field = f"{reduce}_{field}" if out_field is None else out_field
+
+        self.init_irreps(
+            irreps_in=irreps_in,
+            irreps_out={self.out_field: irreps_in[self.field]},
+            required_keys_irreps_in=[self.field],
+        )
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        with_batch(data)
+        data[self.out_field] = scatter(
+            data[self.field], data[DataKey.BATCH], dim=0, reduce=self.reduce
+        )
+
+        return data
