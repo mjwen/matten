@@ -35,10 +35,12 @@ class SiNMRDataset(InMemoryDataset):
         r_cut: float,
         root: Union[str, Path] = ".",
         unpack: bool = True,
+        symmetric: bool = True,
     ):
         self.filename = filename
         self.r_cut = r_cut
         self.unpack = unpack
+        self.symmetric = symmetric
 
         super().__init__(
             filenames=[filename],
