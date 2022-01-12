@@ -6,14 +6,20 @@ The tasks are helper classes for defining the lighting model.
 
 from typing import Dict, Optional, Tuple
 
+import numpy as np
+import numpy.linalg as linalg
+import scipy.linalg
+import torch
 import torch.nn as nn
 import torchmetrics
+from scipy.linalg import logm, sqrtm
 from torch import Tensor
 from torchmetrics import (
     AUROC,
     F1,
     Accuracy,
     MeanAbsoluteError,
+    MeanSquaredError,
     MetricCollection,
     Precision,
     Recall,
@@ -367,6 +373,145 @@ class CanonicalRegressionTask(RegressionTask):
 
     def init_metric(self):
         metric = MeanAbsoluteError(compute_on_step=False)
+
+        return metric
+
+    def metric_aggregation(self):
+
+        # This requires `mode` of early stopping and checkpoint to be `min`
+        return {"MeanAbsoluteError": 1.0}
+
+
+def adjoint(A, E, f):
+    A_H = A.T.conj().to(E.dtype)
+    n = A.size(0)
+    M = torch.zeros(2 * n, 2 * n, dtype=E.dtype, device=E.device)
+    M[:n, :n] = A_H
+    M[n:, n:] = A_H
+    M[:n, n:] = E
+    return f(M)[:n, n:].to(A.dtype)
+
+
+def logm_scipy(A):
+    return torch.from_numpy(scipy.linalg.logm(A.cpu(), disp=False)[0]).to(A.device)
+
+
+class Logm(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, A):
+        assert A.ndim == 2 and A.size(0) == A.size(1)  # Square matrix
+        assert A.dtype in (
+            torch.float32,
+            torch.float64,
+            torch.complex64,
+            torch.complex128,
+        )
+        ctx.save_for_backward(A)
+        return logm_scipy(A)
+
+    @staticmethod
+    def backward(ctx, G):
+        (A,) = ctx.saved_tensors
+        return adjoint(A, G, logm_scipy)
+
+
+def sqrtm_scipy(A):
+    return torch.from_numpy(scipy.linalg.sqrtm(A.cpu(), disp=False)[0]).to(A.device)
+
+
+class Sqrtm(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, A):
+        assert A.ndim == 2 and A.size(0) == A.size(1)  # Square matrix
+        assert A.dtype in (
+            torch.float32,
+            torch.float64,
+            torch.complex64,
+            torch.complex128,
+        )
+        ctx.save_for_backward(A)
+        return sqrtm_scipy(A)
+
+    @staticmethod
+    def backward(ctx, G):
+        (A,) = ctx.saved_tensors
+        return adjoint(A, G, sqrtm_scipy)
+
+
+class GeodesicLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, yhat, y):
+        sqrtm = Sqrtm.apply
+        loss = torch.tensor(0, dtype=torch.float64)
+        for A, B in zip(yhat, y):
+            inv_sqrt = linalg.inv(sqrtm(yhat))
+            temp = np.matmul(inv_sqrt, np.matmul(y, inv_sqrt))
+            eig, vecs = linalg.eig(temp)
+            dist_sum = 0
+            for i in eig:
+                dist_sum += torch.log(i) ** 2
+            loss = loss + dist_sum
+        return torch.sqrt(dist_sum)
+
+
+class LogGeodesicLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, yhat, y):
+        logm = Logm.apply
+        loss = torch.tensor(0, dtype=torch.float64)
+        for A, B in zip(yhat, y):
+            loss = loss + (torch.sqrt(torch.trace((logm(A) - logm(B)) ** 2)))
+        return loss
+
+
+class MaxRegressionTask(RegressionTask):
+    """
+    Regression task with:
+        - MSELoss loss function
+        - MeanAbsoluteError metric
+        - MeanAbsoluteError contributes to the total metric score
+    """
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        loss_fn: str = "l2",
+        tensor_shape: str = "symmetric",
+        loss_weight: float = 1.0,
+        label_transform_dict: Optional[Dict[str, Tensor]] = None,
+        **kwargs,
+    ):
+        super().__init__(name, loss_weight=loss_weight, **kwargs)
+        self.label_transform_dict = self._check_label_transform_dict(
+            label_transform_dict
+        )
+        self.loss_fn = loss_fn
+        self.tensor_shape = tensor_shape
+
+    def init_loss(self):
+        if self.loss_fn == "l2":
+            return nn.MSELoss()
+        elif self.loss_fn == "l1":
+            return nn.L1Loss()
+        elif self.loss_fn == "g":
+            return GeodesicLoss()
+        elif self.loss_fn == "lg":
+            return LogGeodesicLoss()
+
+    def init_metric(self):
+
+        m = [
+            MeanAbsoluteError(compute_on_step=False),
+            MeanSquaredError(compute_on_step=False),
+            # TODO This throws error, learn how to implement the loss as a metric
+        ]
+
+        metric = MetricCollection(m)
 
         return metric
 
