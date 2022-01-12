@@ -4,7 +4,7 @@ Regression or classification tasks that define the loss function and metrics.
 The tasks are helper classes for defining the lighting model.
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import numpy.linalg as linalg
@@ -24,6 +24,7 @@ from torchmetrics import (
     Precision,
     Recall,
 )
+from torchmetrics.metric import Metric
 
 
 class Task:
@@ -446,14 +447,14 @@ class GeodesicLoss(nn.Module):
         sqrtm = Sqrtm.apply
         loss = torch.tensor(0, dtype=torch.float64)
         for A, B in zip(yhat, y):
-            inv_sqrt = linalg.inv(sqrtm(yhat))
-            temp = np.matmul(inv_sqrt, np.matmul(y, inv_sqrt))
+            inv_sqrt = linalg.inv(sqrtm(A))
+            temp = np.matmul(inv_sqrt, np.matmul(B, inv_sqrt))
             eig, vecs = linalg.eig(temp)
             dist_sum = 0
             for i in eig:
-                dist_sum += torch.log(i) ** 2
+                dist_sum += np.log(i) ** 2
             loss = loss + dist_sum
-        return torch.sqrt(dist_sum)
+        return torch.sqrt(loss)
 
 
 class LogGeodesicLoss(nn.Module):
@@ -466,6 +467,134 @@ class LogGeodesicLoss(nn.Module):
         for A, B in zip(yhat, y):
             loss = loss + (torch.sqrt(torch.trace((logm(A) - logm(B)) ** 2)))
         return loss
+
+
+class LogGeodesicError(Metric):
+    r"""
+    Computes `mean squared logarithmic error`_ (MSLE):
+    .. math:: \text{MSLE} = \frac{1}{N}\sum_i^N (\log_e(1 + y_i) - \log_e(1 + \hat{y_i}))^2
+    Where :math:`y` is a tensor of target values, and :math:`\hat{y}` is a tensor of predictions.
+    Args:
+        compute_on_step:
+            Forward only calls ``update()`` and return None if this is set to False.
+        dist_sync_on_step:
+            Synchronize metric state across processes at each ``forward()``
+            before returning the value at the step.
+        process_group:
+            Specify the process group on which synchronization is called.
+    Example:
+        >>> from torchmetrics import MeanSquaredLogError
+        >>> target = torch.tensor([2.5, 5, 4, 8])
+        >>> preds = torch.tensor([3, 5, 2.5, 7])
+        >>> mean_squared_log_error = MeanSquaredLogError()
+        >>> mean_squared_log_error(preds, target)
+        tensor(0.0397)
+    .. note::
+        Half precision is only support on GPU for this metric
+    """
+    is_differentiable = False
+    higher_is_better = False
+    sum_log_geodesic_error: Tensor
+    total: Tensor
+
+    def __init__(
+        self,
+        compute_on_step: bool = True,
+        dist_sync_on_step: bool = False,
+        process_group: Optional[Any] = None,
+        dist_sync_fn: Callable = None,
+    ) -> None:
+        super().__init__(
+            compute_on_step=compute_on_step,
+            dist_sync_on_step=dist_sync_on_step,
+            process_group=process_group,
+            dist_sync_fn=dist_sync_fn,
+        )
+
+        self.add_state(
+            "sum_log_geodesic_error", default=torch.tensor(0.0), dist_reduce_fx="sum"
+        )
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: Tensor, target: Tensor) -> None:  # type: ignore
+        """Update state with predictions and targets.
+        Args:
+            preds: Predictions from model
+            target: Ground truth values
+        """
+        sum_log_geodesic_error = LogGeodesicLoss().forward(preds, target)
+        n_obs = target.numel()
+
+        self.sum_log_geodesic_error += sum_log_geodesic_error
+        self.total += n_obs
+
+    def compute(self) -> Tensor:
+        """Compute mean squared logarithmic error over state."""
+        return self.sum_log_geodesic_error / self.total
+
+
+class GeodesicError(Metric):
+    r"""
+    Computes `mean squared logarithmic error`_ (MSLE):
+    .. math:: \text{MSLE} = \frac{1}{N}\sum_i^N (\log_e(1 + y_i) - \log_e(1 + \hat{y_i}))^2
+    Where :math:`y` is a tensor of target values, and :math:`\hat{y}` is a tensor of predictions.
+    Args:
+        compute_on_step:
+            Forward only calls ``update()`` and return None if this is set to False.
+        dist_sync_on_step:
+            Synchronize metric state across processes at each ``forward()``
+            before returning the value at the step.
+        process_group:
+            Specify the process group on which synchronization is called.
+    Example:
+        >>> from torchmetrics import MeanSquaredLogError
+        >>> target = torch.tensor([2.5, 5, 4, 8])
+        >>> preds = torch.tensor([3, 5, 2.5, 7])
+        >>> mean_squared_log_error = MeanSquaredLogError()
+        >>> mean_squared_log_error(preds, target)
+        tensor(0.0397)
+    .. note::
+        Half precision is only support on GPU for this metric
+    """
+    is_differentiable = False
+    higher_is_better = False
+    sum_geodesic_error: Tensor
+    total: Tensor
+
+    def __init__(
+        self,
+        compute_on_step: bool = True,
+        dist_sync_on_step: bool = False,
+        process_group: Optional[Any] = None,
+        dist_sync_fn: Callable = None,
+    ) -> None:
+        super().__init__(
+            compute_on_step=compute_on_step,
+            dist_sync_on_step=dist_sync_on_step,
+            process_group=process_group,
+            dist_sync_fn=dist_sync_fn,
+        )
+
+        self.add_state(
+            "sum_geodesic_error", default=torch.tensor(0.0), dist_reduce_fx="sum"
+        )
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: Tensor, target: Tensor) -> None:  # type: ignore
+        """Update state with predictions and targets.
+        Args:
+            preds: Predictions from model
+            target: Ground truth values
+        """
+        sum_geodesic_error = GeodesicLoss().forward(preds, target)
+        n_obs = target.numel()
+
+        self.sum_geodesic_error += sum_geodesic_error
+        self.total += n_obs
+
+    def compute(self) -> Tensor:
+        """Compute mean squared logarithmic error over state."""
+        return self.sum_geodesic_error / self.total
 
 
 class MaxRegressionTask(RegressionTask):
@@ -481,7 +610,7 @@ class MaxRegressionTask(RegressionTask):
         name: str,
         *,
         loss_fn: str = "l2",
-        tensor_shape: str = "symmetric",
+        tensor_sym: str = "symmetric",
         loss_weight: float = 1.0,
         label_transform_dict: Optional[Dict[str, Tensor]] = None,
         **kwargs,
@@ -491,7 +620,7 @@ class MaxRegressionTask(RegressionTask):
             label_transform_dict
         )
         self.loss_fn = loss_fn
-        self.tensor_shape = tensor_shape
+        self.tensor_sym = tensor_sym
 
     def init_loss(self):
         if self.loss_fn == "l2":
@@ -505,11 +634,18 @@ class MaxRegressionTask(RegressionTask):
 
     def init_metric(self):
 
-        m = [
-            MeanAbsoluteError(compute_on_step=False),
-            MeanSquaredError(compute_on_step=False),
-            # TODO This throws error, learn how to implement the loss as a metric
-        ]
+        if self.tensor_sym == "symmetric":
+            m = [
+                MeanAbsoluteError(compute_on_step=False),
+                MeanSquaredError(compute_on_step=False),
+                LogGeodesicError(compute_on_step=False),
+                GeodesicError(compute_on_step=False),
+            ]
+        elif self.tensor_sym == "nonsymmetric":
+            m = [
+                MeanAbsoluteError(compute_on_step=False),
+                MeanSquaredError(compute_on_step=False),
+            ]
 
         metric = MetricCollection(m)
 
