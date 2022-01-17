@@ -15,7 +15,7 @@ def train_test_split_dataframe(
 
     Args:
         df: dataframe to split
-        test_size : If float, should be between 0.0 and 1.0 and represent the proportion
+        test_size: If float, should be between 0.0 and 1.0 and represent the proportion
             of the dataset to include in the test split. If int, represents the
             absolute number of test samples.
         stratify: name of the column used as label to do stratified split. This is
