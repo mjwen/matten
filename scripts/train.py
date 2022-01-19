@@ -30,24 +30,29 @@ def main():
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
+        #
         ##
         model_class=EnergyModel,
-        # model_class=SEGNNModel,
         parser_kwargs={
             "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
         },
         ##
+        # model_class=SEGNNModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "minimal_segnn.yaml").as_posix()
+        #     ]
+        # },
+        ##  To do classification, use the below two lines
         #
-        # To do classification, use the below two lines
-        #
-        ##
         # model_class=SEGNNClassification,
         # parser_kwargs={
         #     "default_config_files": [
         #         CWD.joinpath("configs", "minimal_classification.yaml").as_posix()
         #     ]
         # },
-        ##
+        #
+        #
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,

@@ -8,12 +8,7 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
-from eigenn.nn.segnn_conv import (
-    EmbeddingLayer,
-    PredictionHead,
-    SEGNNConv,
-    SEGNNMessagePassing,
-)
+from eigenn.nn.segnn_conv import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
 
 OUT_FIELD_NAME = "my_model_output"
 
@@ -85,7 +80,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             EmbeddingLayer,
             {
                 "irreps_out": {"node_features": hparams["conv_layer_irreps"]},
-                "batch_norm": hparams["batch_norm"],
+                "normalization": hparams["normalization"],
             },
         )
 
@@ -109,12 +104,12 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "message_kwargs": {
                     "fc_num_hidden_layers": hparams["invariant_layers"],
                     "fc_hidden_size": hparams["invariant_neurons"],
-                    "batch_norm": hparams["batch_norm"],
+                    "normalization": hparams["normalization"],
                 },
                 "update_kwargs": {
                     "use_self_connection": hparams["use_sc"],
                     "avg_num_neighbors": num_neigh,
-                    "batch_norm": hparams["batch_norm"],
+                    "normalization": hparams["normalization"],
                 },
             },
         )
@@ -152,7 +147,7 @@ if __name__ == "__main__":
         "resnet": True,
         "conv_to_output_hidden_irreps_out": "16x0e",
         "task_name": "my_task",
-        "batch_norm": True,
+        "normalization": "batch",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
