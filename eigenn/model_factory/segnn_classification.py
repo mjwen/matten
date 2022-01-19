@@ -12,12 +12,7 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
-from eigenn.nn.segnn_conv import (
-    EmbeddingLayer,
-    PredictionHead,
-    SEGNNConv,
-    SEGNNMessagePassing,
-)
+from eigenn.nn.segnn_conv import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
 
 OUT_FIELD_NAME = "my_model_output"
 

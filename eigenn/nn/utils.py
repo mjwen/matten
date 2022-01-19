@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as fn
-from e3nn.nn import FullyConnectedNet, Gate, NormActivation
+from e3nn.nn import BatchNorm, FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import Irrep, Irreps, TensorProduct
 from torch import Tensor
 
@@ -45,8 +45,8 @@ class ActivationLayer(torch.nn.Module):
             tp_irreps_in2: second irreps for the tensor product layer
             tp_irreps_out: intended output irreps for the tensor product layer.
                 Note, typically this is not the actual irreps out we will use for the
-                tensor product. The actual one is typically determined here, i.e.
-                the `irreps_in` attribute of this class.
+                tensor product. The actual one is determined here, i.e. the `irreps_in`
+                attribute of this class.
             activation_type: `gate` or `norm`
             activation_scalars: activation function for scalar irreps (i.e. l=0).
                 Should be something like {'e':act_e, 'o':act_o}, where `act_e` is the
@@ -91,8 +91,8 @@ class ActivationLayer(torch.nn.Module):
 
         # in and out irreps of activation
 
-        ir, _, _ = Irreps(tp_irreps_out).sort()
-        tp_irreps_out = ir.simplify()
+        ir_tmp, _, _ = Irreps(tp_irreps_out).sort()
+        tp_irreps_out = ir_tmp.simplify()
 
         irreps_scalars = Irreps(
             [
@@ -257,7 +257,7 @@ class UVUTensorProduct(torch.nn.Module):
         product with given instructions.
         """
 
-        # the simplify is possible because irreps_mid is sorted
+        # simplify() is possible because irreps_mid is sorted
         return self.irreps_mid.simplify()
 
 
@@ -351,7 +351,44 @@ def tp_path_exists(irreps_in1, irreps_in2, ir_out):
     return False
 
 
+class NormalizationLayer(torch.nn.Module):
+    """
+    A wrapper class to do method.
+
+    Args:
+        irreps: irreps of the tensor
+        method: normalization method; should be one of `batch`, `instance`, and `none`.
+    """
+
+    def __init__(self, irreps: Irreps, method: str = None):
+        super().__init__()
+
+        self.method = method
+
+        supported = ("batch", "instance", "none", None)
+        assert method in supported, f"Unsupported normalization {method}"
+
+        if method is not None and method != "none":
+            if method == "instance":
+                instance = True
+            else:
+                instance = False
+            self.n = BatchNorm(irreps, instance=instance)
+        else:
+            self.n = None
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.n is not None:
+            x = self.n(x)
+
+        return x
+
+
 class DetectAnomaly(ModuleIrreps, torch.nn.Module):
+    """
+    Check anomaly in a dict of tensor.
+    """
+
     def __init__(self, irreps_in: Dict[str, Irreps], name: str):
         super().__init__()
         self.init_irreps(irreps_in=irreps_in)

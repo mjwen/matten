@@ -1,12 +1,17 @@
 from typing import Callable, Dict, Optional
 
 import torch
-from e3nn.nn import BatchNorm
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps, Linear
 from torch_scatter import scatter
 
 from eigenn.data.irreps import DataKey, ModuleIrreps
-from eigenn.nn.utils import ACTIVATION, ActivationLayer, ScalarMLP, UVUTensorProduct
+from eigenn.nn.utils import (
+    ACTIVATION,
+    ActivationLayer,
+    NormalizationLayer,
+    ScalarMLP,
+    UVUTensorProduct,
+)
 
 
 class SEGNNMessage(ModuleIrreps, torch.nn.Module):
@@ -29,7 +34,7 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         activation_type: str = "gate",
         activation_scalars: Dict[str, str] = None,
         activation_gates: Dict[str, str] = None,
-        batch_norm: bool = False,
+        normalization: str = None,
     ):
         """
 
@@ -39,8 +44,8 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         embedding, with params derived from fully connected layer on edge distance.
 
         Update function: tensor product between aggregated message from neighbors nodes
-        and node feats of atom i, with params derived from node attrs (e.g. initial species
-        embedding).
+        and node feats of atom i, with params derived from node attrs (e.g. initial
+        species embedding).
 
         Alternative update function: tensor product between aggregated message from
         neighbors and steerable node attrs (e.g. sum of edge embedding of neighbors plus
@@ -68,7 +73,8 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
             fc_num_hidden_layers: number of hidden layers for the radial MLP, excluding
                 input and output layers
             fc_hidden_size: hidden layer size for the radial MLP
-            batch_norm: whether to apply batch norm before activation
+            normalization: applied normalization, should be `batch`, `instance` or
+                `none`.
         """
 
         super().__init__()
@@ -97,8 +103,8 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
             activation_scalars=activation_scalars,
             activation_gates=activation_gates,
         )
-        irreps_before_message_act = self.message_activation.irreps_in
-        irreps_after_message_act = self.message_activation.irreps_out
+        irreps_before_msg_act = self.message_activation.irreps_in
+        irreps_after_msg_act = self.message_activation.irreps_out
 
         # TODO, linear_1 is not necessary to make the model work, used to increase
         #  model capacity
@@ -114,7 +120,7 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         self.message_tp = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
-            irreps_before_message_act,
+            irreps_before_msg_act,
             mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
             mlp_hidden_size=fc_hidden_size,
             mlp_num_hidden_layers=fc_num_hidden_layers,
@@ -125,22 +131,22 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         # the irreps_in of message_activation.
         # Although self.message_activation.irreps_in is used as the input irreps_out
         # for message_tp, the actual irreps_out of message_tp may not be equal to it
+        # (mainly because UVU tensor product is used, not fully connected)
         self.linear_2 = Linear(
             irreps_in=self.message_tp.irreps_out,
-            irreps_out=irreps_before_message_act,
+            irreps_out=irreps_before_msg_act,
             internal_weights=True,
             shared_weights=True,
         )
 
-        if batch_norm:
-            self.bn = BatchNorm(irreps_before_message_act)
-        else:
-            self.bn = None
+        self.normalization = NormalizationLayer(
+            irreps_after_msg_act, method=normalization
+        )
 
         #
         # Set irreps_out
         #
-        self.irreps_out[DataKey.EDGE_MESSAGE] = irreps_after_message_act
+        self.irreps_out[DataKey.EDGE_MESSAGE] = irreps_after_msg_act
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         node_feats_in = data[DataKey.NODE_FEATURES]
@@ -151,9 +157,8 @@ class SEGNNMessage(ModuleIrreps, torch.nn.Module):
         node_feats = self.linear_1(node_feats_in)
         msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
         msg_per_edge = self.linear_2(msg_per_edge)
-        if self.bn:
-            msg_per_edge = self.bn(msg_per_edge)
         msg_per_edge = self.message_activation(msg_per_edge)
+        msg_per_edge = self.normalization(msg_per_edge)
 
         data[DataKey.EDGE_MESSAGE] = msg_per_edge
 
@@ -178,7 +183,7 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
         activation_gates: Dict[str, str] = None,
         use_self_connection: bool = True,
         avg_num_neighbors: int = None,
-        batch_norm: bool = False,
+        normalization: str = None,
     ):
         """
 
@@ -216,6 +221,8 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
             conv_layer_irreps: irreps for the node features in the conv layer
             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
                 SE3-Transformer paper.
+            normalization: applied normalization, should be `batch`, `instance` or
+                `none`.
         """
 
         super().__init__()
@@ -247,7 +254,7 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
         irreps_after_update_act = self.update_activation.irreps_out
 
         # Note, here the weights does not depend on node attrs and such, so we share
-        # them. Of course, wen can make them dependent of scalar node attrs as done
+        # them. Of course, when can make them dependent of scalar node attrs as done
         # above.
         self.update_tp = UVUTensorProduct(
             edge_message_irreps_in,
@@ -263,10 +270,9 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
             shared_weights=True,
         )
 
-        if batch_norm:
-            self.bn = BatchNorm(irreps_before_update_act)
-        else:
-            self.bn = None
+        self.normalization = NormalizationLayer(
+            irreps_after_update_act, method=normalization
+        )
 
         #
         # self connection
@@ -306,12 +312,14 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
         if self.self_connection is not None:
             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
 
-        if self.bn:
-            node_feats = self.bn(node_feats)
-
         node_feats = self.update_activation(node_feats)
 
+        node_feats = self.normalization(node_feats)
+
         data[DataKey.NODE_FEATURES] = node_feats
+
+        # pop out edge message, which takes a lot of space
+        data.pop(DataKey.EDGE_MESSAGE)
 
         return data
 
@@ -516,17 +524,20 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
         self,
         irreps_in: Dict[str, Irreps],
         irreps_out: Dict[str, Irreps],
-        batch_norm: bool = False,
+        normalization: str = None,
     ):
         """
-        Node embedding layers before conv layer.
+        Node embedding layer.
 
-        Tensor product between node feats and node attrs.
+        - tensor product between node feats and node attrs.
+        - activation
+        - normalization (optional)
 
         Args:
             irreps_in:
             irreps_out: expected irreps out, actual irreps out determined within layer
-            batch_norm:
+            normalization: applied normalization, should be `batch`, `instance` or
+                `none`.
         """
 
         super().__init__()
@@ -541,244 +552,241 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
             node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_out
         )
 
-        if batch_norm:
-            self.bn = BatchNorm(self.activation.irreps_in)
-        else:
-            self.bn = None
-
         # tensor product between node feats and node attrs
         self.tp = FullyConnectedTensorProduct(
             node_feats_irreps_in, node_attrs_irreps, self.activation.irreps_in
         )
 
+        out = self.activation.irreps_out
+        self.normalization = NormalizationLayer(out, method=normalization)
+
         # store actual irreps out
-        self.irreps_out[DataKey.NODE_FEATURES] = self.activation.irreps_out
+        self.irreps_out[DataKey.NODE_FEATURES] = out
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         node_feats = data[DataKey.NODE_FEATURES]
         node_attrs = data[DataKey.NODE_ATTRS]
 
         node_feats = self.tp(node_feats, node_attrs)
-
-        if self.bn:
-            node_feats = self.bn(node_feats)
         node_feats = self.activation(node_feats)
+        node_feats = self.normalization(node_feats)
 
         data[DataKey.NODE_FEATURES] = node_feats
 
         return data
 
 
-# TODO, this is outdated, use SEGNNMessagePassing directly
-class SEGNNConv(ModuleIrreps, torch.nn.Module):
-    REQUIRED_KEYS_IRREPS_IN = [
-        DataKey.NODE_FEATURES,
-        DataKey.NODE_ATTRS,
-        DataKey.EDGE_EMBEDDING,
-        DataKey.EDGE_ATTRS,
-        DataKey.EDGE_INDEX,
-    ]
-
-    REQUIRED_TYPE_IRREPS_IN = {DataKey.EDGE_EMBEDDING: "0e"}
-
-    def __init__(
-        self,
-        irreps_in: Dict[str, Irreps],
-        conv_layer_irreps: Irreps,
-        *,
-        fc_num_hidden_layers: int = 1,
-        fc_hidden_size: int = 8,
-        activation_type: str = "gate",
-        activation_scalars: Dict[str, str] = None,
-        activation_gates: Dict[str, str] = None,
-        use_self_connection: bool = True,
-        avg_num_neighbors: int = None,
-    ):
-        """
-
-        SEGNN message passing.
-
-        Message function: tensor product between node feats of neighbors and edge
-        embedding, with params derived from fully connected layer on edge distance.
-
-        Update function: tensor product between aggregated message from neighbors nodes
-        and node feats of atom i, with params derived from node attrs (e.g. initial species
-        embedding).
-
-        Alternative update function: tensor product between aggregated message from
-        neighbors and steerable node attrs (e.g. sum of edge embedding of neighbors plus
-        optionally steerable node feats, e.g. node force, velocity)
-        With params derived from node attrs (e.g. initial species embedding).
-
-        We should use alternative update function. The reasoning is that:
-        in the message function, all we care is neighboring atoms j, then in the tensor
-        product, we do tensor product between its node features (trainable) and the SH
-        edge embedding (not trainable).
-        To follow this idea, when do update, we care about node i, we should do tensor
-        product between the aggregated message from all j (trainable) (in fact we can
-        combine i and the aggregate j features. No matter how we do it, the underlying
-        principle is that this is trainable) and some feature that is not trainable.
-        Apparently the alternative update function satisfy this.
-
-        But why we want the second component in the tensor product be not trainable?
-        Well, this serves as a kernel, although the kernel is trainable, we should not
-        parameterize the kernel on features, but can on attrs, or we can initializes the
-        weights to follow some distribution, not making it dependent on feats or attrs.
-
-        Args:
-            irreps_in: input irreps, with available keys in `DataKey`
-            conv_layer_irreps: irreps for the node features in the conv layer
-            fc_num_hidden_layers: number of hidden layers for the radial MLP, excluding
-                input and output layers
-            fc_hidden_size: hidden layer size for the radial MLP
-            use_self_connection: whether to use self interaction, e.g. Eq.10 in the
-                SE3-Transformer paper.
-        """
-
-        super().__init__()
-
-        self.avg_num_neighbors = avg_num_neighbors
-
-        # init irreps
-        # irreps_out will be set later when we know them
-        self.init_irreps(irreps_in)
-
-        node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
-        node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
-        edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
-        conv_layer_irreps = Irreps(conv_layer_irreps)
-
-        #
-        # message step
-        #
-
-        # nonlinear activation function for message
-        # (this is applied after the tensor product, but we need to init it first to
-        # determine its irreps in, which is the irreps_out for tensor product)
-        self.message_activation = ActivationLayer(
-            node_feats_irreps_in,
-            edge_attrs_irreps,
-            conv_layer_irreps,
-            activation_type=activation_type,
-            activation_scalars=activation_scalars,
-            activation_gates=activation_gates,
-        )
-        irreps_before_message_act = self.message_activation.irreps_in
-        irreps_after_message_act = self.message_activation.irreps_out
-
-        # TODO, linear_1 is not necessary to make the model work, used to increase
-        #  model capacity
-        # first linear on node feats
-        self.linear_1 = Linear(
-            irreps_in=node_feats_irreps_in,
-            irreps_out=node_feats_irreps_in,
-            internal_weights=True,
-            shared_weights=True,
-        )
-
-        # tensor product for message function
-        self.message_tp = UVUTensorProduct(
-            node_feats_irreps_in,
-            edge_attrs_irreps,
-            irreps_before_message_act,
-            mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
-            mlp_hidden_size=fc_hidden_size,
-            mlp_num_hidden_layers=fc_num_hidden_layers,
-        )
-
-        # second linear on edge message
-        # This layer is necessary to convert the irreps_out of the tensor product to
-        # the irreps_in of message_activation.
-        # Although self.message_activation.irreps_in is used as the input irreps_out
-        # for message_tp, the actual irreps_out of message_tp may not be equal to it
-        self.linear_2 = Linear(
-            irreps_in=self.message_tp.irreps_out,
-            irreps_out=irreps_before_message_act,
-            internal_weights=True,
-            shared_weights=True,
-        )
-
-        #
-        # update step
-        #
-        self.update_activation = ActivationLayer(
-            irreps_after_message_act,
-            node_attrs_irreps,
-            conv_layer_irreps,
-            activation_type=activation_type,
-            activation_scalars=activation_scalars,
-            activation_gates=activation_gates,
-        )
-        irreps_before_update_act = self.update_activation.irreps_in
-        irreps_after_update_act = self.update_activation.irreps_out
-
-        # Note, here the weights does not depend on node attrs and such, so we share
-        # them. Of course, wen can make them dependent of scalar node attrs as done
-        # above.
-        self.update_tp = UVUTensorProduct(
-            irreps_after_message_act,
-            node_attrs_irreps,
-            irreps_before_update_act,
-            internal_and_share_weights=True,
-        )
-
-        self.linear_3 = Linear(
-            irreps_in=self.update_tp.irreps_out,
-            irreps_out=irreps_before_update_act,
-            internal_weights=True,
-            shared_weights=True,
-        )
-
-        #
-        # self connection
-        #
-        if use_self_connection:
-            self.self_connection = FullyConnectedTensorProduct(
-                node_feats_irreps_in, node_attrs_irreps, irreps_before_update_act
-            )
-        else:
-            self.self_connection = None
-
-        #
-        # Set irreps_out
-        #
-        self.irreps_out[DataKey.NODE_FEATURES] = irreps_after_update_act
-
-    def forward(self, data: DataKey.Type) -> DataKey.Type:
-        # shallow copy to avoid modifying the input
-        data = data.copy()
-
-        node_feats_in = data[DataKey.NODE_FEATURES]
-        node_attrs = data[DataKey.NODE_ATTRS]
-        edge_embedding = data[DataKey.EDGE_EMBEDDING]
-        edge_attrs = data[DataKey.EDGE_ATTRS]
-        edge_src, edge_dst = data[DataKey.EDGE_INDEX]
-
-        #
-        # message step
-        #
-        node_feats = self.linear_1(node_feats_in)
-        msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
-        msg_per_edge = self.linear_2(msg_per_edge)
-        msg_per_edge = self.message_activation(msg_per_edge)
-
-        # aggregate message
-        msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))
-
-        if self.avg_num_neighbors is not None:
-            msg = msg / self.avg_num_neighbors ** 0.5
-
-        #
-        # update step
-        #
-        node_feats = self.update_tp(msg, node_attrs)
-        node_feats = self.linear_3(node_feats)
-
-        if self.self_connection is not None:
-            node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
-
-        node_feats = self.update_activation(node_feats)
-
-        data[DataKey.NODE_FEATURES] = node_feats
-
-        return data
+#
+# # TODO, this is outdated, use SEGNNMessagePassing directly
+# class SEGNNConv(ModuleIrreps, torch.nn.Module):
+#     REQUIRED_KEYS_IRREPS_IN = [
+#         DataKey.NODE_FEATURES,
+#         DataKey.NODE_ATTRS,
+#         DataKey.EDGE_EMBEDDING,
+#         DataKey.EDGE_ATTRS,
+#         DataKey.EDGE_INDEX,
+#     ]
+#
+#     REQUIRED_TYPE_IRREPS_IN = {DataKey.EDGE_EMBEDDING: "0e"}
+#
+#     def __init__(
+#         self,
+#         irreps_in: Dict[str, Irreps],
+#         conv_layer_irreps: Irreps,
+#         *,
+#         fc_num_hidden_layers: int = 1,
+#         fc_hidden_size: int = 8,
+#         activation_type: str = "gate",
+#         activation_scalars: Dict[str, str] = None,
+#         activation_gates: Dict[str, str] = None,
+#         use_self_connection: bool = True,
+#         avg_num_neighbors: int = None,
+#     ):
+#         """
+#
+#         SEGNN message passing.
+#
+#         Message function: tensor product between node feats of neighbors and edge
+#         embedding, with params derived from fully connected layer on edge distance.
+#
+#         Update function: tensor product between aggregated message from neighbors nodes
+#         and node feats of atom i, with params derived from node attrs (e.g. initial species
+#         embedding).
+#
+#         Alternative update function: tensor product between aggregated message from
+#         neighbors and steerable node attrs (e.g. sum of edge embedding of neighbors plus
+#         optionally steerable node feats, e.g. node force, velocity)
+#         With params derived from node attrs (e.g. initial species embedding).
+#
+#         We should use alternative update function. The reasoning is that:
+#         in the message function, all we care is neighboring atoms j, then in the tensor
+#         product, we do tensor product between its node features (trainable) and the SH
+#         edge embedding (not trainable).
+#         To follow this idea, when do update, we care about node i, we should do tensor
+#         product between the aggregated message from all j (trainable) (in fact we can
+#         combine i and the aggregate j features. No matter how we do it, the underlying
+#         principle is that this is trainable) and some feature that is not trainable.
+#         Apparently the alternative update function satisfy this.
+#
+#         But why we want the second component in the tensor product be not trainable?
+#         Well, this serves as a kernel, although the kernel is trainable, we should not
+#         parameterize the kernel on features, but can on attrs, or we can initializes the
+#         weights to follow some distribution, not making it dependent on feats or attrs.
+#
+#         Args:
+#             irreps_in: input irreps, with available keys in `DataKey`
+#             conv_layer_irreps: irreps for the node features in the conv layer
+#             fc_num_hidden_layers: number of hidden layers for the radial MLP, excluding
+#                 input and output layers
+#             fc_hidden_size: hidden layer size for the radial MLP
+#             use_self_connection: whether to use self interaction, e.g. Eq.10 in the
+#                 SE3-Transformer paper.
+#         """
+#
+#         super().__init__()
+#
+#         self.avg_num_neighbors = avg_num_neighbors
+#
+#         # init irreps
+#         # irreps_out will be set later when we know them
+#         self.init_irreps(irreps_in)
+#
+#         node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
+#         node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
+#         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
+#         conv_layer_irreps = Irreps(conv_layer_irreps)
+#
+#         #
+#         # message step
+#         #
+#
+#         # nonlinear activation function for message
+#         # (this is applied after the tensor product, but we need to init it first to
+#         # determine its irreps in, which is the irreps_out for tensor product)
+#         self.message_activation = ActivationLayer(
+#             node_feats_irreps_in,
+#             edge_attrs_irreps,
+#             conv_layer_irreps,
+#             activation_type=activation_type,
+#             activation_scalars=activation_scalars,
+#             activation_gates=activation_gates,
+#         )
+#         irreps_before_message_act = self.message_activation.irreps_in
+#         irreps_after_message_act = self.message_activation.irreps_out
+#
+#         # TODO, linear_1 is not necessary to make the model work, used to increase
+#         #  model capacity
+#         # first linear on node feats
+#         self.linear_1 = Linear(
+#             irreps_in=node_feats_irreps_in,
+#             irreps_out=node_feats_irreps_in,
+#             internal_weights=True,
+#             shared_weights=True,
+#         )
+#
+#         # tensor product for message function
+#         self.message_tp = UVUTensorProduct(
+#             node_feats_irreps_in,
+#             edge_attrs_irreps,
+#             irreps_before_message_act,
+#             mlp_input_size=self.irreps_in[DataKey.EDGE_EMBEDDING].dim,
+#             mlp_hidden_size=fc_hidden_size,
+#             mlp_num_hidden_layers=fc_num_hidden_layers,
+#         )
+#
+#         # second linear on edge message
+#         # This layer is necessary to convert the irreps_out of the tensor product to
+#         # the irreps_in of message_activation.
+#         # Although self.message_activation.irreps_in is used as the input irreps_out
+#         # for message_tp, the actual irreps_out of message_tp may not be equal to it
+#         self.linear_2 = Linear(
+#             irreps_in=self.message_tp.irreps_out,
+#             irreps_out=irreps_before_message_act,
+#             internal_weights=True,
+#             shared_weights=True,
+#         )
+#
+#         #
+#         # update step
+#         #
+#         self.update_activation = ActivationLayer(
+#             irreps_after_message_act,
+#             node_attrs_irreps,
+#             conv_layer_irreps,
+#             activation_type=activation_type,
+#             activation_scalars=activation_scalars,
+#             activation_gates=activation_gates,
+#         )
+#         irreps_before_update_act = self.update_activation.irreps_in
+#         irreps_after_update_act = self.update_activation.irreps_out
+#
+#         # Note, here the weights does not depend on node attrs and such, so we share
+#         # them. Of course, wen can make them dependent of scalar node attrs as done
+#         # above.
+#         self.update_tp = UVUTensorProduct(
+#             irreps_after_message_act,
+#             node_attrs_irreps,
+#             irreps_before_update_act,
+#             internal_and_share_weights=True,
+#         )
+#
+#         self.linear_3 = Linear(
+#             irreps_in=self.update_tp.irreps_out,
+#             irreps_out=irreps_before_update_act,
+#             internal_weights=True,
+#             shared_weights=True,
+#         )
+#
+#         #
+#         # self connection
+#         #
+#         if use_self_connection:
+#             self.self_connection = FullyConnectedTensorProduct(
+#                 node_feats_irreps_in, node_attrs_irreps, irreps_before_update_act
+#             )
+#         else:
+#             self.self_connection = None
+#
+#         #
+#         # Set irreps_out
+#         #
+#         self.irreps_out[DataKey.NODE_FEATURES] = irreps_after_update_act
+#
+#     def forward(self, data: DataKey.Type) -> DataKey.Type:
+#         # shallow copy to avoid modifying the input
+#         data = data.copy()
+#
+#         node_feats_in = data[DataKey.NODE_FEATURES]
+#         node_attrs = data[DataKey.NODE_ATTRS]
+#         edge_embedding = data[DataKey.EDGE_EMBEDDING]
+#         edge_attrs = data[DataKey.EDGE_ATTRS]
+#         edge_src, edge_dst = data[DataKey.EDGE_INDEX]
+#
+#         #
+#         # message step
+#         #
+#         node_feats = self.linear_1(node_feats_in)
+#         msg_per_edge = self.message_tp(node_feats[edge_src], edge_attrs, edge_embedding)
+#         msg_per_edge = self.linear_2(msg_per_edge)
+#         msg_per_edge = self.message_activation(msg_per_edge)
+#
+#         # aggregate message
+#         msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats))
+#
+#         if self.avg_num_neighbors is not None:
+#             msg = msg / self.avg_num_neighbors ** 0.5
+#
+#         #
+#         # update step
+#         #
+#         node_feats = self.update_tp(msg, node_attrs)
+#         node_feats = self.linear_3(node_feats)
+#
+#         if self.self_connection is not None:
+#             node_feats = node_feats + self.self_connection(node_feats_in, node_attrs)
+#
+#         node_feats = self.update_activation(node_feats)
+#
+#         data[DataKey.NODE_FEATURES] = node_feats
+#
+#         return data
