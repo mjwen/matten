@@ -30,13 +30,18 @@ from eigenn.utils_wandb import (
 class EigennCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
 
+        # TODO, rename this to restore_checkpoint? then allows
+        #  `none`, None (or False) -- not restore
+        #  `auto` -- to automatically find checkpoint
+        #  `<path_to_ckpt>` -- directly given the path to the checkpoint
         parser.add_argument(
             "--restore",
             type=bool,
             default=False,
             help="Path to checkpoint to restore the training. If `True`, will try to "
             "automatically find the checkpoint in wandb logs. Will not try to restore "
-            "if `None` or `False`.",
+            "if `None` or `False`. This can also be the path to the checkpoint to "
+            "restore.",
         )
         parser.add_argument(
             "--skip_test", type=bool, default=False, help="Whether to skip the test?"
@@ -94,8 +99,13 @@ class EigennCLI(LightningCLI):
 
         # restore info
         checkpoint, wandb_id, _ = self._get_restore_info(self.config)
+
+        # TODO resume_from_checkpoint is deprecated by lightning.
+        #  So store the checkpoint like self.config['restore_ckpt']
+        #  and then use in trainer.fit(ckpt_path = self.config['restore_ckpt'])
         if checkpoint:
             self.config["trainer"]["resume_from_checkpoint"] = checkpoint
+
         if wandb_id:
             logger_config = self.config["trainer"].get("logger", [])
             # TODO, this assumes only one wandb logger used
@@ -144,6 +154,7 @@ class EigennCLI(LightningCLI):
         # setup datamodule and get to model into
         datamodule.prepare_data()
         datamodule.setup()
+
         to_model_info = datamodule.get_to_model_info()
 
         return datamodule, to_model_info

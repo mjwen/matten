@@ -267,6 +267,16 @@ class BaseModel(pl.LightningModule):
             mode: train, val, or test
         """
 
+        # `batch_size` needed to ensure the values logged via self.log are correctly
+        # averaged across batch, because batch is PyG graph, and thus lightning
+        # cannot automatically detect the batch size.
+        # NOTE, using batch_size or not does not affect the results (i.e.
+        # loss, metrics, and monitor_key) since we compute them directly. It only
+        # affects the logged value via self.log (which is averaged).
+        # TODO 1. move this to the below ModelForPyGData; 2. this only works when
+        #  each graph has 1 target, if multiple need update.
+        batch_size = batch.num_graphs
+
         # ========== preprocess batch ==========
         graphs, labels = self.preprocess_batch(batch)
 
@@ -284,6 +294,7 @@ class BaseModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=False,
+            batch_size=batch_size,
         )
 
         self.log(
@@ -292,6 +303,7 @@ class BaseModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            batch_size=batch_size,
         )
 
         return total_loss, preds, labels
@@ -334,6 +346,7 @@ class BaseModel(pl.LightningModule):
         Compute metric and logger it at each epoch.
 
         Args:
+            mode: `train`, `val`, or `test`
             log: whether to log the metrics
 
         Returns:
