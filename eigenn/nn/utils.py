@@ -269,7 +269,7 @@ class ScalarMLP(torch.nn.Module):
     Linear -> BN (default to False) -> Activation
 
     Optionally, one can add an output layer by setting `out_size`. For output layer:
-    Linear with the option to use bias of not, activation is not applied
+    Linear with the option to use bias or not, but activation is not applied.
 
     Args:
         in_size: input feature size
@@ -324,7 +324,7 @@ class ScalarMLP(torch.nn.Module):
         return self.mlp(x)
 
     def __repr__(self):
-        s = f"Scalar MLP, num hidden layers: {self.num_hidden_layers}"
+        s = f"ScalarMLP, num hidden layers: {self.num_hidden_layers}"
         if self.has_out_layer:
             s += "; with output layer"
         return s
