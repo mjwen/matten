@@ -507,7 +507,10 @@ class PredictionHead(ModuleIrreps, torch.nn.Module):
         x = data[self.field]
 
         x = self.mlp1(x)
+
+        # pooling
         x = scatter(x, data[DataKey.BATCH], dim=0, reduce=self.reduce)
+
         x = self.mlp2(x)
         data[self.out_field] = x
 
