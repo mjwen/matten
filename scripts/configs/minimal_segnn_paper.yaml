@@ -71,7 +71,7 @@ trainer:
       init_args:
         monitor: val/score
         mode: min
-        patience: 100
+        patience: 200
         min_delta: 0
         verbose: true
     - class_path: pytorch_lightning.callbacks.ModelSummary
