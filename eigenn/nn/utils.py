@@ -5,6 +5,7 @@ import torch.nn.functional as fn
 from e3nn.nn import BatchNorm, FullyConnectedNet, Gate, NormActivation
 from e3nn.o3 import Irrep, Irreps, TensorProduct
 from torch import Tensor
+from torch_scatter import scatter
 
 from eigenn.data.irreps import DataKey, ModuleIrreps
 from eigenn.nn._nequip import ShiftedSoftPlus
@@ -351,42 +352,12 @@ def tp_path_exists(irreps_in1, irreps_in2, ir_out):
     return False
 
 
-class NormalizationLayer(torch.nn.Module):
-    """
-    A wrapper class to do method.
-
-    Args:
-        irreps: irreps of the tensor
-        method: normalization method; should be one of `batch`, `instance`, and `none`.
-    """
-
-    def __init__(self, irreps: Irreps, method: str = None):
-        super().__init__()
-
-        self.method = method
-
-        supported = ("batch", "instance", "none", None)
-        assert method in supported, f"Unsupported normalization {method}"
-
-        if method is not None and method != "none":
-            if method == "instance":
-                instance = True
-            else:
-                instance = False
-            self.n = BatchNorm(irreps, instance=instance)
-        else:
-            self.n = None
-
-    def forward(self, x: Tensor) -> Tensor:
-        if self.n is not None:
-            x = self.n(x)
-
-        return x
-
-
 class DetectAnomaly(ModuleIrreps, torch.nn.Module):
     """
     Check anomaly in a dict of tensor.
+
+    This is supposed to be used as layer when constructing the model, and it will check
+    the values of the data dict of its previous layer.
     """
 
     def __init__(self, irreps_in: Dict[str, Irreps], name: str):
@@ -406,3 +377,240 @@ class DetectAnomaly(ModuleIrreps, torch.nn.Module):
                 raise ValueError(f"Anomaly detected for {k} of {self.name}")
 
         return data
+
+
+class NormalizationLayer(torch.nn.Module):
+    """
+    A wrapper class to do method.
+
+    Args:
+        irreps: irreps of the tensor
+        method: normalization method; should be one of `batch`, `instance`, and `none`.
+    """
+
+    def __init__(self, irreps: Irreps, method: str = None):
+        super().__init__()
+
+        self.method = method
+
+        supported = ("batch", "instance", "none", None)
+        assert method in supported, f"Unsupported normalization {method}"
+
+        if method is not None and method != "none":
+            if method == "instance":
+                self.n = InstanceNorm(irreps)
+            else:
+                self.n = BatchNorm(irreps)
+        else:
+            self.n = None
+
+    def forward(self, x: Tensor, batch: Tensor) -> Tensor:
+        """
+
+        Args:
+            x:
+            batch: index of the graph the nodes belong to
+
+        Returns:
+
+        """
+        if self.method == "batch":
+            x = self.n(x)
+        elif self.method == "instance":
+            x = self.n(x, batch)
+
+        return x
+
+
+# copied for the repo of segnn paper
+# The e3nn InstanceNorm does not work, because it treats each node as an instance.
+# However, for each node, there is only one channel, and thus instance normalization is
+# impossible.
+# This implementation treat each graph as an instance, and treat each node as a
+# channel. Then instance is possible. This is more like a graph normalization.
+class InstanceNorm(torch.nn.Module):
+    """
+    Instance normalization for orthonormal representations
+    It normalizes by the norm of the representations.
+    Note that the norm is invariant only for orthonormal representations.
+    Irreducible representations `wigner_D` are orthonormal.
+    Parameters
+    ----------
+    irreps : `Irreps`
+        representation
+    eps : float
+        avoid division by zero when we normalize by the variance
+    affine : bool
+        do we have weight and bias parameters
+    reduce : {'mean', 'max'}
+        method used to reduce
+    """
+
+    def __init__(
+        self, irreps, eps=1e-5, affine=True, reduce="mean", normalization="component"
+    ):
+        super().__init__()
+
+        self.irreps = Irreps(irreps)
+        self.eps = eps
+        self.affine = affine
+
+        num_scalar = sum(mul for mul, ir in self.irreps if ir.l == 0)
+        num_features = self.irreps.num_irreps
+
+        if affine:
+            self.weight = torch.nn.Parameter(torch.ones(num_features))
+            self.bias = torch.nn.Parameter(torch.zeros(num_scalar))
+        else:
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
+
+        assert isinstance(reduce, str), "reduce should be passed as a string value"
+        assert reduce in ["mean", "max"], "reduce needs to be 'mean' or 'max'"
+        self.reduce = reduce
+
+        assert normalization in [
+            "norm",
+            "component",
+        ], "normalization needs to be 'norm' or 'component'"
+        self.normalization = normalization
+
+    def __repr__(self):
+        return f"{self.__class__.__name__} ({self.irreps}, eps={self.eps})"
+
+    def forward(self, input, batch):
+        """evaluate
+        Parameters
+        ----------
+        input : `torch.Tensor`
+            tensor of shape ``(batch, ..., irreps.dim)``
+        Returns
+        -------
+        `torch.Tensor`
+            tensor of shape ``(batch, ..., irreps.dim)``
+        """
+        # batch, *size, dim = input.shape  # TODO: deal with batch
+        # input = input.reshape(batch, -1, dim)  # [batch, sample, stacked features]
+        # input has shape [batch * nodes, dim], but with variable nr of nodes.
+        # the input batch slices this into separate graphs
+        dim = input.shape[-1]
+
+        fields = []
+        ix = 0
+        iw = 0
+        ib = 0
+
+        for (
+            mul,
+            ir,
+        ) in (
+            self.irreps
+        ):  # mul is the multiplicity (number of copies) of some irrep type (ir)
+            d = ir.dim
+            field = input[:, ix : ix + mul * d]  # [batch * sample, mul * repr]
+            ix += mul * d
+
+            # [batch * sample, mul, repr]
+            field = field.reshape(-1, mul, d)
+
+            # For scalars first compute and subtract the mean
+            if ir.l == 0:
+                # Compute the mean
+                field_mean = global_mean_pool(field, batch).reshape(
+                    -1, mul, 1
+                )  # [batch, mul, 1]]
+                # Subtract the mean
+                field = field - field_mean[batch]
+
+            # Then compute the rescaling factor (norm of each feature vector)
+            # Rescaling of the norms themselves based on the option "normalization"
+            if self.normalization == "norm":
+                field_norm = field.pow(2).sum(-1)  # [batch * sample, mul]
+            elif self.normalization == "component":
+                field_norm = field.pow(2).mean(-1)  # [batch * sample, mul]
+            else:
+                raise ValueError(
+                    "Invalid normalization option {}".format(self.normalization)
+                )
+            # Reduction method
+            if self.reduce == "mean":
+                field_norm = global_mean_pool(field_norm, batch)  # [batch, mul]
+            elif self.reduce == "max":
+                field_norm = global_max_pool(field_norm, batch)  # [batch, mul]
+            else:
+                raise ValueError("Invalid reduce option {}".format(self.reduce))
+
+            # Then apply the rescaling (divide by the sqrt of the squared_norm, i.e., divide by the norm
+            field_norm = (field_norm + self.eps).pow(-0.5)  # [batch, mul]
+
+            if self.affine:
+                weight = self.weight[None, iw : iw + mul]  # [batch, mul]
+                iw += mul
+                field_norm = field_norm * weight  # [batch, mul]
+
+            field = field * field_norm[batch].reshape(
+                -1, mul, 1
+            )  # [batch * sample, mul, repr]
+
+            if self.affine and d == 1:  # scalars
+                bias = self.bias[ib : ib + mul]  # [batch, mul]
+                ib += mul
+                field += bias.reshape(mul, 1)  # [batch * sample, mul, repr]
+
+            # Save the result, to be stacked later with the rest
+            fields.append(field.reshape(-1, mul * d))  # [batch * sample, mul * repr]
+
+        if ix != dim:
+            fmt = "`ix` should have reached input.size(-1) ({}), but it ended at {}"
+            msg = fmt.format(dim, ix)
+            raise AssertionError(msg)
+
+        output = torch.cat(fields, dim=-1)  # [batch * sample, stacked features]
+        return output
+
+
+# TODO remove
+def global_mean_pool(x, batch, size: Optional[int] = None):
+    r"""Returns batch-wise graph-level-outputs by averaging node features
+    across the node dimension, so that for a single graph
+    :math:`\mathcal{G}_i` its output is computed by
+
+    .. math::
+        \mathbf{r}_i = \frac{1}{N_i} \sum_{n=1}^{N_i} \mathbf{x}_n
+
+    Args:
+        x (Tensor): Node feature matrix
+            :math:`\mathbf{X} \in \mathbb{R}^{(N_1 + \ldots + N_B) \times F}`.
+        batch (LongTensor): Batch vector :math:`\mathbf{b} \in {\{ 0, \ldots,
+            B-1\}}^N`, which assigns each node to a specific example.
+        size (int, optional): Batch-size :math:`B`.
+            Automatically calculated if not given. (default: :obj:`None`)
+
+    :rtype: :class:`Tensor`
+    """
+
+    size = int(batch.max().item() + 1) if size is None else size
+    return scatter(x, batch, dim=0, dim_size=size, reduce="mean")
+
+
+# TODO remove
+def global_max_pool(x, batch, size: Optional[int] = None):
+    r"""Returns batch-wise graph-level-outputs by taking the channel-wise
+    maximum across the node dimension, so that for a single graph
+    :math:`\mathcal{G}_i` its output is computed by
+
+    .. math::
+        \mathbf{r}_i = \mathrm{max}_{n=1}^{N_i} \, \mathbf{x}_n
+
+    Args:
+        x (Tensor): Node feature matrix
+            :math:`\mathbf{X} \in \mathbb{R}^{(N_1 + \ldots + N_B) \times F}`.
+        batch (LongTensor): Batch vector :math:`\mathbf{b} \in {\{ 0, \ldots,
+            B-1\}}^N`, which assigns each node to a specific example.
+        size (int, optional): Batch-size :math:`B`.
+            Automatically calculated if not given. (default: :obj:`None`)
+
+    :rtype: :class:`Tensor`
+    """
+    size = int(batch.max().item() + 1) if size is None else size
+    return scatter(x, batch, dim=0, dim_size=size, reduce="max")
