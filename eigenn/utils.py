@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Union
 
-
 import torch
 import yaml
 
@@ -80,7 +79,7 @@ def detect_nan_and_inf(
         file: file where this function is called, can be `__file__`.
         name: name of the tensor.
         level: to show stack info of which level. 1 means where this function is
-            called; 2 means the functional that calls this function...
+            called; 2 means the function that calls this function...
         filename: yaml filename to write the tensor
     """
 
