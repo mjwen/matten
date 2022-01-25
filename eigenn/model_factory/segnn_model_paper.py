@@ -9,6 +9,7 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
 from eigenn.nn.segnn_paper import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
+from eigenn.nn.utils import DetectAnomaly
 
 OUT_FIELD_NAME = "my_model_output"
 
@@ -52,10 +53,12 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "allowed_species": dataset_hparams["allowed_species"],
             },
         ),
+        # "anomaly_1": (DetectAnomaly, {"name": "anomaly_1"}),
         "spharm_edges": (
             SphericalHarmonicEdgeAttrs,
             {"irreps_edge_sh": hparams["irreps_edge_sh"]},
         ),
+        # "anomaly_2": (DetectAnomaly, {"name": "anomaly_2"}),
         "radial_basis": (
             RadialBasisEdgeEncoding,
             {
@@ -66,6 +69,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
+        # "anomaly_3": (DetectAnomaly, {"name": "anomaly_3"}),
         "node_attrs_layer": (NodeAttrsFromEdgeAttrs, {}),
     }
 
@@ -79,6 +83,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "normalization": hparams["normalization"],
             },
         )
+
+        # layers[f"anomaly_embedding_{i}"] = (
+        #     DetectAnomaly,
+        #     {"name": f"anomaly_embedding_{i}"},
+        # )
 
     # ===== message passing layers =====
     for i in range(hparams["num_layers"]):
@@ -101,11 +110,15 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             },
         )
 
+        # layers[f"anomaly_mp_{i}"] = (DetectAnomaly, {"name": f"anomaly_mp_{i}"})
+
     # ===== prediction layers =====
     layers["mean_scalar_prediction"] = (
         PredictionHead,
         {"out_field": OUT_FIELD_NAME, "reduce": hparams["reduce"]},
     )
+
+    # layers[f"anomaly_pred"] = (DetectAnomaly, {"name": f"anomaly_pred"})
 
     model = create_sequential_module(modules=OrderedDict(layers))
 

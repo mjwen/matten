@@ -17,7 +17,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
         activation_type: str = "gate",
         activation_scalars: Dict[str, str] = None,
         activation_gates: Dict[str, str] = None,
-        normalization: str = "batch",
+        normalization: str = None,
         use_resnet: bool = True,
     ):
         """
@@ -29,6 +29,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
             activation_type:
             activation_scalars:
             activation_gates:
+            normalization: batch, instance, or None
             use_resnet:
         """
         super().__init__()
@@ -114,6 +115,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         node_feats = data[DataKey.NODE_FEATURES]
         node_attrs = data[DataKey.NODE_ATTRS]
+        batch = data[DataKey.BATCH]
 
         edge_embedding = data[DataKey.EDGE_EMBEDDING]
         edge_attrs = data[DataKey.EDGE_ATTRS]
@@ -125,7 +127,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
 
         x = self.message_layer1(x, edge_attrs)
         x = self.message_layer2(x, edge_attrs)
-        x = self.message_norm(x)
+        x = self.message_norm(x, edge_dst)
 
         msg = scatter(x, edge_dst, dim=0, dim_size=len(node_feats), reduce="sum")
         x = torch.cat((node_feats, msg), dim=-1)
@@ -136,7 +138,7 @@ class SEGNNMessagePassing(ModuleIrreps, torch.nn.Module):
         if self.use_resnet:
             x = x + node_feats
 
-        x = self.update_norm(x)
+        x = self.update_norm(x, batch)
 
         data[DataKey.NODE_FEATURES] = x
 
@@ -260,11 +262,12 @@ class PredictionHead(ModuleIrreps, torch.nn.Module):
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         x = data[self.field]
+        batch = data[DataKey.BATCH]
 
         x = self.mlp1(x)
 
         # pooling
-        x = scatter(x, data[DataKey.BATCH], dim=0, reduce=self.reduce)
+        x = scatter(x, batch, dim=0, reduce=self.reduce)
 
         x = self.mlp2(x)
         data[self.out_field] = x
@@ -324,10 +327,11 @@ class EmbeddingLayer(ModuleIrreps, torch.nn.Module):
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         node_feats = data[DataKey.NODE_FEATURES]
         node_attrs = data[DataKey.NODE_ATTRS]
+        batch = data[DataKey.BATCH]
 
         node_feats = self.tp(node_feats, node_attrs)
         node_feats = self.activation(node_feats)
-        node_feats = self.normalization(node_feats)
+        node_feats = self.normalization(node_feats, batch)
 
         data[DataKey.NODE_FEATURES] = node_feats
 
