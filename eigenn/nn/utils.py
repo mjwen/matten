@@ -115,15 +115,28 @@ class ActivationLayer(torch.nn.Module):
             # Setting all ir to 0e if there is path exist, since 0e gates will not
             # change the parity of the output, and we want to keep its parity.
             # If there is no 0e, we use 0o to change the party of the high-order irreps.
-            ir = "0e" if tp_path_exists(tp_irreps_in1, tp_irreps_in2, "0e") else "0o"
-            irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
+            if irreps_gated.dim > 0:
+                if tp_path_exists(tp_irreps_in1, tp_irreps_in2, "0e"):
+                    ir = "0e"
+                elif tp_path_exists(tp_irreps_in1, tp_irreps_in2, "0o"):
+                    ir = "0o"
+                else:
+                    raise ValueError(
+                        f"tp_irreps_in1={tp_irreps_in1} times "
+                        f"tp_irreps_in2={tp_irreps_in2} is unable to produce gates "
+                        f"needed for irreps_gated={irreps_gated}"
+                    )
+            else:
+                ir = None
+            # irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated])
+            irreps_gates = Irreps([(mul, ir) for mul, _ in irreps_gated]).simplify()
 
             self.activation = Gate(
-                irreps_scalars=irreps_scalars,
+                irreps_scalars=irreps_scalars,  # scalars
                 act_scalars=[activation_scalars[ir.p] for _, ir in irreps_scalars],
-                irreps_gates=irreps_gates,
+                irreps_gates=irreps_gates,  # gates (scalars)
                 act_gates=[activation_gates[ir.p] for _, ir in irreps_gates],
-                irreps_gated=irreps_gated,
+                irreps_gated=irreps_gated,  # gated tensors
             )
 
         elif activation_type == "norm":
@@ -148,9 +161,7 @@ class ActivationLayer(torch.nn.Module):
 
     @property
     def irreps_in(self):
-        # irreps_in for Gates and NormActivation and simplified, here we redo it just
-        # for reminder purpose
-        return self.activation.irreps_in.simplify()
+        return self.activation.irreps_in
 
     @property
     def irreps_out(self):
@@ -171,7 +182,7 @@ class UVUTensorProduct(torch.nn.Module):
         mlp_activation: Callable = ACTIVATION["e"]["ssp"],
     ):
         """
-        UVU tensor product as in NeuqIP.
+        UVU tensor product.
 
         Args:
             irreps_in1: irreps of first input, with available keys in `DataKey`
@@ -197,19 +208,19 @@ class UVUTensorProduct(torch.nn.Module):
         for i, (mul, ir_in1) in enumerate(irreps_in1):
             for j, (_, ir_in2) in enumerate(irreps_in2):
                 for ir_out in ir_in1 * ir_in2:
-                    if ir_out in irreps_out:
+                    if ir_out in irreps_out or ir_out == Irreps("0e"):
                         k = len(irreps_mid)
                         irreps_mid.append((mul, ir_out))
                         instructions.append((i, j, k, "uvu", True))
-
-        # sort irreps_mid so we can simplify them later
         irreps_mid = Irreps(irreps_mid)
-        self.irreps_mid, permutation, _ = irreps_mid.sort()
 
         assert irreps_mid.dim > 0, (
             f"irreps_in1={irreps_in1} times irreps_in2={irreps_in2} produces no "
             f"instructions in irreps_out={irreps_out}"
         )
+
+        # sort irreps_mid to let irreps of the same type be adjacent to each other
+        self.irreps_mid, permutation, _ = irreps_mid.sort()
 
         # sort instructions accordingly
         instructions = [
@@ -227,6 +238,11 @@ class UVUTensorProduct(torch.nn.Module):
         )
 
         if not internal_and_share_weights:
+            assert mlp_input_size is not None, (
+                "Expect `mlp_input_size` be provided when "
+                "`internal_and_share_weights` is set to `False`, got `None`"
+            )
+
             # radial network on scalar edge embedding (e.g. edge distance)
             layer_sizes = (
                 [mlp_input_size]
@@ -255,11 +271,11 @@ class UVUTensorProduct(torch.nn.Module):
         """
         Output irreps of the layer.
 
-        This is different from the input `irreps_out`, since we we use the UVU tensor
+        This is different from the input `irreps_out`, since we use the UVU tensor
         product with given instructions.
         """
-
-        # simplify() is possible because irreps_mid is sorted
+        # should be fine to simplify, which will affect the normalization of the next
+        # layer that uses this as irreps_in
         return self.irreps_mid.simplify()
 
 
