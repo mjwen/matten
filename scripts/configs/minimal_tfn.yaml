@@ -1,0 +1,109 @@
+seed_everything: 35
+log_level: info
+
+data:
+  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  init_args:
+    #    root: ../eigenn/dataset/matbench
+    #    trainset_filename: matbench_dielectric_n20.json
+    #    valset_filename: matbench_dielectric_n20.json
+    #    testset_filename: matbench_dielectric_n20.json
+    root: /Users/mjwen/Documents/Dataset/matbench/matbench_jdft2d
+    trainset_filename: matbench_jdft2d_train.json
+    valset_filename: matbench_jdft2d_val.json
+    testset_filename: matbench_jdft2d_test.json
+    r_cut: 5.0
+    loader_kwargs:
+      batch_size: 10
+
+model:
+  backbone_hparams:
+    #
+    # input embedding
+    #
+
+    # atom species embedding
+    species_embedding_dim: 32
+    # species_embedding_irreps_out: 16x0e # not needed when using SpeciesEmbedding
+
+    # spherical harmonics embedding of edge direction
+    irreps_edge_sh: 0e + 1o + 2e
+
+    # radial edge distance embedding
+    num_radial_basis: 8
+    radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
+
+    #
+    # message passing conv layers
+    #
+    num_layers: 3
+
+    # radial network
+    invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
+    invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
+    average_num_neighbors: auto # average number of neighbors, used for normalization. Options: 1. float or int provided here. 2. `auto` to determine it automatically, 3. `null` to not use it.
+
+    conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
+    nonlinearity_type: gate
+    normalization: none
+
+    #
+    # output
+    #
+    conv_to_output_hidden_irreps_out: 16x0e
+    reduce: sum
+
+  # tasks define the loss, metric...
+  tasks:
+    class_path: eigenn.model.task.CanonicalRegressionTask
+    init_args:
+      name: exfoliation_en
+
+trainer:
+  max_epochs: 5 # number of maximum training epochs
+  num_nodes: 1
+  gpus: null
+  # detect_anomaly: true # DEBUG
+  # track_grad_norm: 2 # DEBUG
+  # gradient_clip_val: 0.5
+  # gradient_clip_algorithm: norm
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/score
+        mode: min
+        save_top_k: 3
+        save_last: true
+        verbose: False
+    - class_path: pytorch_lightning.callbacks.EarlyStopping
+      init_args:
+        monitor: val/score
+        mode: min
+        patience: 200
+        min_delta: 0
+        verbose: true
+    - class_path: pytorch_lightning.callbacks.ModelSummary
+      init_args:
+        max_depth: -1
+    - class_path: pytorch_lightning.callbacks.StochasticWeightAveraging
+      init_args:
+        swa_epoch_start: 0.8
+        swa_lrs: null # use default learning rate for swa
+#  logger:
+#    class_path: pytorch_lightning.loggers.wandb.WandbLogger
+#    init_args:
+#      save_dir: wandb_logs # should be provided to make cli save config work
+#      project: tmp-eigenn
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+    # weight_decay: 0.00001
+
+lr_scheduler:
+  class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
+  init_args:
+    warmup_epochs: 10
+    max_epochs: 20 # this should be set to trainer.max_epochs
+    eta_min: 0.0

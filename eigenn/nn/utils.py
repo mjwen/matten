@@ -16,6 +16,7 @@ ACTIVATION = {
     "e": {
         "ssp": ShiftedSoftPlus(),
         "silu": fn.silu,
+        "sigmoid": torch.sigmoid,
     },
     # for odd irreps
     "o": {
