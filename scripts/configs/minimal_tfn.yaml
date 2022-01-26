@@ -89,11 +89,11 @@ trainer:
       init_args:
         swa_epoch_start: 0.8
         swa_lrs: null # use default learning rate for swa
-#  logger:
-#    class_path: pytorch_lightning.loggers.wandb.WandbLogger
-#    init_args:
-#      save_dir: wandb_logs # should be provided to make cli save config work
-#      project: tmp-eigenn
+  logger:
+    class_path: pytorch_lightning.loggers.wandb.WandbLogger
+    init_args:
+      save_dir: wandb_logs # should be provided to make cli save config work
+      project: tmp-eigenn
 
 optimizer:
   class_path: torch.optim.Adam
