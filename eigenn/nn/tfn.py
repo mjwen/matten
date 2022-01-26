@@ -46,13 +46,13 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
         conv_layer_irreps = Irreps(conv_layer_irreps)
 
-        self.sc = FullyConnectedTensorProduct(
-            node_feats_irreps_in, node_attrs_irreps, conv_layer_irreps
-        )
-
+        #
+        # convolution
+        #
         self.lin1 = FullyConnectedTensorProduct(
             node_feats_irreps_in, node_attrs_irreps, node_feats_irreps_in
         )
+
         self.tp = UVUTensorProduct(
             node_feats_irreps_in,
             edge_attrs_irreps,
@@ -63,10 +63,19 @@ class PointConv(ModuleIrreps, torch.nn.Module):
             mlp_activation=ACTIVATION["e"]["silu"],
         )
 
+        # tp_irreps_out may not be the same as the requested irreps_out of the tp
+        # (i.e. conv_layer_irreps) since UVU only products possible paths
         tp_irreps_out = self.tp.irreps_out
 
         self.lin2 = FullyConnectedTensorProduct(
             tp_irreps_out, node_attrs_irreps, conv_layer_irreps
+        )
+
+        #
+        # self connection
+        #
+        self.sc = FullyConnectedTensorProduct(
+            node_feats_irreps_in, node_attrs_irreps, conv_layer_irreps
         )
 
         # inspired by https://arxiv.org/pdf/2002.10444.pdf
@@ -97,7 +106,7 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         msg = self.tp(node_feats[edge_src], edge_attrs, edge_embedding)
         aggregated_msg = scatter(msg, edge_dst, dim_size=len(node_feats), dim=0)
         if self.avg_num_neighbors is not None:
-            aggregated_msg.div(self.avg_num_neighbors ** 0.5)
+            aggregated_msg = aggregated_msg.div(self.avg_num_neighbors ** 0.5)
 
         # update
         node_conv_out = self.lin2(aggregated_msg, node_attrs)
@@ -151,22 +160,23 @@ class PointConvWithActivation(ModuleIrreps, torch.nn.Module):
         self.init_irreps(irreps_in)
 
         node_feats_irreps_in = self.irreps_in[DataKey.NODE_FEATURES]
-        node_attrs_irreps = self.irreps_in[DataKey.NODE_ATTRS]
+        edge_attrs_irreps = self.irreps_in[DataKey.EDGE_ATTRS]
         conv_layer_irreps = Irreps(conv_layer_irreps)
 
         self.act = ActivationLayer(
             node_feats_irreps_in,
-            node_attrs_irreps,
+            edge_attrs_irreps,
             conv_layer_irreps,
             activation_type=activation_type,
             activation_scalars=activation_scalars,
             activation_gates=activation_gates,
         )
+        act_irreps_in = self.act.irreps_in
         act_irreps_out = self.act.irreps_out
 
         self.conv = PointConv(
             irreps_in=self.irreps_in,
-            conv_layer_irreps=act_irreps_out,
+            conv_layer_irreps=act_irreps_in,
             fc_num_hidden_layers=fc_num_hidden_layers,
             fc_hidden_size=fc_hidden_size,
             avg_num_neighbors=avg_num_neighbors,
@@ -184,6 +194,7 @@ class PointConvWithActivation(ModuleIrreps, torch.nn.Module):
 
         x = data[DataKey.NODE_FEATURES]
         x = self.act(x)
+
         x = self.norm(x, batch)
 
         data[DataKey.NODE_FEATURES] = x
