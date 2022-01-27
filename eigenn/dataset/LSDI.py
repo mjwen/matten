@@ -115,9 +115,9 @@ class SiNMRDataMoldule(BaseDataModule):
 
     def __init__(
         self,
-        trainset_filename: Union[str, Path],
-        valset_filename: Union[str, Path],
-        testset_filename: Union[str, Path],
+        trainset_filename: str,
+        valset_filename: str,
+        testset_filename: str,
         *,
         r_cut: float,
         root: Union[str, Path] = ".",
