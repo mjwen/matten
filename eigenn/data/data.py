@@ -16,6 +16,7 @@ from eigenn.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH
 from eigenn.typing import PBC, IntVector, Vector
 
 
+# TODO atomic number should be added as a required key
 class DataPoint(Data):
     """
     Base class of a graph data point (be it a molecule or a crystal).
@@ -262,7 +263,7 @@ class Molecule(DataPoint):
             edge_index = list(zip(*bonds))
         elif edges_from == "complete":
             natoms = config.get_num_atoms()
-            edge_index = list(zip(*itertools.product(natoms, natoms)))
+            edge_index = list(zip(*itertools.product(range(N), range(N))))
         elif "_hop" in edges_from:
             n = int(edges_from.split("_")[0])
             raise NotImplementedError
