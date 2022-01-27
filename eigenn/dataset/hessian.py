@@ -1,14 +1,14 @@
 import itertools
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import ase.data
 import ase.io
 import numpy as np
 import torch
 
-from eigenn.data.data import Crystal, Molecule
+from eigenn.data.data import Molecule
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
 
@@ -43,14 +43,19 @@ class HessianDataset(InMemoryDataset):
                 hessian = np.swapaxes(hessian, 1, 2)
                 hessian = hessian.reshape(-1, 3, 3)
 
+                edge_index = self.fully_connected_graph(N)
+                num_neigh = [N - 1 for _ in range(N)]
+
                 m = Molecule(
                     pos=conf.positions,
-                    edge_index=self.fully_connected_graph(N),
+                    edge_index=edge_index,
                     x=None,
                     y={"hessian": hessian},
                     atomic_numbers=conf.get_atomic_numbers(),
+                    num_neigh=num_neigh,
                 )
                 molecules.append(m)
+
             except Exception as e:
                 warnings.warn(
                     f"Failed converting configuration {i}: {str(e)}. Skip it."
@@ -74,11 +79,64 @@ class HessianDataset(InMemoryDataset):
         return edge_index
 
 
+class HessianDataMoldule(BaseDataModule):
+    """
+    Will search for files at, e.g. `root/<trainset_filename>`.
+    """
+
+    def __init__(
+        self,
+        trainset_filename: str,
+        valset_filename: str,
+        testset_filename: str,
+        *,
+        root: Union[str, Path] = ".",
+        state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
+        restore_state_dict_filename: Optional[Union[str, Path]] = None,
+        **kwargs,
+    ):
+        self.root = root
+
+        super().__init__(
+            trainset_filename,
+            valset_filename,
+            testset_filename,
+            state_dict_filename=state_dict_filename,
+            restore_state_dict_filename=restore_state_dict_filename,
+            **kwargs,
+        )
+
+    def setup(self, stage: Optional[str] = None):
+        self.train_data = HessianDataset(self.trainset_filename, self.root)
+        self.val_data = HessianDataset(self.valset_filename, self.root)
+        self.test_data = HessianDataset(self.testset_filename, self.root)
+
+    def get_to_model_info(self) -> Dict[str, Any]:
+        atomic_numbers = set()
+        num_neigh = []
+        for data in self.train_dataloader():
+            a = data.atomic_numbers.tolist()
+            atomic_numbers.update(a)
+            num_neigh.append(data.num_neigh)
+
+        # .item to convert to float so that lightning cli can save it to yaml
+        average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
+
+        return {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neighbors": average_num_neighbors,
+        }
+
+
 if __name__ == "__main__":
     filename = "ani1_CHO_0-1000_hessian_small.xyz"
     root = "/Users/mjwen/Documents/Dataset/xiaowei_hessian"
-    dataset = HessianDataset(filename=filename, root=root)
-
-    for m in dataset:
-        print(m)
-        break
+    dm = HessianDataMoldule(
+        trainset_filename=filename,
+        valset_filename=filename,
+        testset_filename=filename,
+        root=root,
+    )
+    dm.setup()
+    info = dm.get_to_model_info()
+    print(info)
