@@ -43,6 +43,27 @@ class HessianDataset(InMemoryDataset):
                 hessian = np.swapaxes(hessian, 1, 2)
                 hessian = hessian.reshape(-1, 3, 3)
 
+                # How the N^2 part of the hessian is lay out.
+                # First column gives the row index of the hessian matrix (without
+                # considering the 3) and second column gives the column index.
+                # As an example, for a system with 2 atoms, this will be
+                # [[0, 0],
+                #  [0, 1],
+                #  [1, 0],
+                #  [1, 1]]
+                # meaning that the first 3x3 matrix in the hessian is the (0,
+                # 0) submatrix, and the second is the (0,1) submatrix...
+                #
+                # We use this row based stuff (not something similar to edge_index) for
+                # easy batching.
+                hessian_layout = np.asarray(
+                    list(zip(*itertools.product(range(N), range(N))))
+                ).T
+
+                # number of atoms of the config, repeated N^2 times, one for each
+                # 3x3 block
+                hessian_natoms = N * np.ones(N * N)
+
                 edge_index = self.fully_connected_graph(N)
                 num_neigh = [N - 1 for _ in range(N)]
 
@@ -50,7 +71,11 @@ class HessianDataset(InMemoryDataset):
                     pos=conf.positions,
                     edge_index=edge_index,
                     x=None,
-                    y={"hessian": hessian},
+                    y={
+                        "hessian": hessian,
+                        "hessian_layout": hessian_layout,
+                        "hessian_natoms": hessian_natoms,
+                    },
                     atomic_numbers=conf.get_atomic_numbers(),
                     num_neigh=num_neigh,
                 )
