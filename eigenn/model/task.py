@@ -374,3 +374,27 @@ class CanonicalRegressionTask(RegressionTask):
 
         # This requires `mode` of early stopping and checkpoint to be `min`
         return {"MeanAbsoluteError": 1.0}
+
+
+class HessianRegressionTask(RegressionTask):
+    """
+    Regress task for Hessian, with:
+        - MSELoss loss function
+        - MeanAbsoluteError metric
+        - MeanAbsoluteError contributes to the total metric score
+
+    The loss is inversely weighed by the number of atoms in each configuration.
+    """
+
+    def init_loss(self):
+        return nn.MSELoss()
+
+    def init_metric(self):
+        metric = MeanAbsoluteError(compute_on_step=False)
+
+        return metric
+
+    def metric_aggregation(self):
+
+        # This requires `mode` of early stopping and checkpoint to be `min`
+        return {"MeanAbsoluteError": 1.0}
