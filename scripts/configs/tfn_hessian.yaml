@@ -10,6 +10,7 @@ data:
     testset_filename: ani1_CHO_0-1000_hessian_small.xyz
     loader_kwargs:
       batch_size: 10
+      shuffle: true
 
 model:
   backbone_hparams:
