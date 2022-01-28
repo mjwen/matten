@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -30,19 +31,22 @@ class InMemoryDataset(PyGInMemoryDataset):
             to disk for faster loading later on. `processed_dirname` gives the
             directory name to store the processed files. This should be a string not
             a full path, and the processed files will be stored in
-            `<root>/<processed_dirname>
+            `<root>/<processed_dirname>`
+        reuse: whether to reuse the processed file in `processed_dirname` if found.
     """
 
     def __init__(
         self,
         filenames: List[str],
         root: Union[str, Path] = ".",
-        processed_dirname: str = "processed",
         url: Optional[str] = None,
+        processed_dirname: str = "processed",
+        reuse: bool = True,
     ):
         self.filenames = to_list(filenames)
-        self.url = url
         self.processed_dirname = processed_dirname
+        self.url = url
+        self.root = root
 
         # !!! don't delete this block.
         # otherwise the inherent children class will ignore the download function here
@@ -52,6 +56,20 @@ class InMemoryDataset(PyGInMemoryDataset):
                 class_type.download = InMemoryDataset.download
             if "process" not in self.__class__.__dict__:
                 class_type.process = InMemoryDataset.process
+
+        # whether to reuse?
+        if not reuse:
+            for f in self.processed_paths:
+                p = to_path(f)
+                if p.exists():
+                    p.unlink()
+                    logger.info(f"`reuse=False`, deleting preprocessed data file: {p}")
+        else:
+            if files_exist(self.processed_paths):
+                logger.info(
+                    f"Found existing processed data files: {self.processed_paths}. "
+                    f"Will reuse them. To disable reuse, set `reuse=False`."
+                )
 
         super().__init__(root=root)
 
@@ -79,10 +97,7 @@ class InMemoryDataset(PyGInMemoryDataset):
 
         torch.save((data, slices), self.processed_paths[0])
 
-        logger.info(
-            f"Processed files saved as {self.processed_paths}. Will reuse them "
-            "next time."
-        )
+        logger.info(f"Processed data files saved as {self.processed_paths}.")
 
     def download(self):
         # from torch_geometric.data import download_url
@@ -204,3 +219,9 @@ def _extract_file(filepath, folder):
         # )
 
         print(f"No decompression performed for file: {filepath}")
+
+
+def files_exist(files: List[str]) -> bool:
+    # NOTE: We return `False` in case `files` is empty, leading to a
+    # re-processing of files on every instantiation.
+    return len(files) != 0 and all([os.path.exists(f) for f in files])
