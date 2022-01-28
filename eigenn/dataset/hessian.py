@@ -22,9 +22,9 @@ class HessianDataset(InMemoryDataset):
          root:
     """
 
-    def __init__(self, filename: str, root: Union[str, Path] = "."):
+    def __init__(self, filename: str, root: Union[str, Path] = ".", reuse=True):
         super().__init__(
-            filenames=[filename], root=root, processed_dirname=f"processed"
+            filenames=[filename], root=root, processed_dirname=f"processed", reuse=reuse
         )
 
     def get_data(self):
@@ -52,12 +52,12 @@ class HessianDataset(InMemoryDataset):
                 #  [1, 0],
                 #  [1, 1]]
                 # meaning that the first 3x3 matrix in the hessian is the (0,
-                # 0) submatrix, and the second is the (0,1) submatrix...
+                # 0) sub-matrix, and the second is the (0,1) sub-matrix...
                 #
                 # We use this row based stuff (not something similar to edge_index) for
                 # easy batching.
                 hessian_layout = np.asarray(
-                    list(zip(*itertools.product(range(N), range(N))))
+                    list(zip(*itertools.product(range(N), repeat=2)))
                 ).T
 
                 # number of atoms of the config, repeated N^2 times, one for each
@@ -97,9 +97,11 @@ class HessianDataset(InMemoryDataset):
             N: number of atoms
 
         Returns:
-            edge index, shape (2, N).
+            edge index, shape (2, N). For example, for a system with 3 atoms, this is
+                [[0,0,1,1,2,2],
+                 [1,2,0,2,0,1]]
         """
-        edge_index = np.asarray(list(zip(*itertools.product(range(N), range(N)))))
+        edge_index = np.asarray(list(zip(*itertools.permutations(range(N), r=2))))
 
         return edge_index
 
