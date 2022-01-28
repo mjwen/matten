@@ -10,7 +10,8 @@ data:
     testset_filename: test_processed_data_tensor.json
     r_cut: 5.0
     loader_kwargs:
-      batch_size: 32 #10
+      batch_size: 10
+      shuffle: true
 
 model:
   backbone_hparams:

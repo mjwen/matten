@@ -15,6 +15,7 @@ data:
     r_cut: 5.0
     loader_kwargs:
       batch_size: 10
+      shuffle: true
 
 model:
   backbone_hparams:
