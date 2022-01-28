@@ -263,7 +263,10 @@ class Molecule(DataPoint):
             edge_index = list(zip(*bonds))
         elif edges_from == "complete":
             natoms = config.get_num_atoms()
-            edge_index = list(zip(*itertools.product(range(N), range(N))))
+            edge_index = np.asarray(
+                list(zip(*itertools.permutations(range(natoms), r=2)))
+            )
+
         elif "_hop" in edges_from:
             n = int(edges_from.split("_")[0])
             raise NotImplementedError
