@@ -40,10 +40,12 @@ class TFNModel(ModelForPyGData):
     def decode(self, model_input) -> Dict[str, Tensor]:
 
         out = self.backbone(model_input)
-        out = out[OUT_FIELD_NAME].reshape(-1)
+        out = out[OUT_FIELD_NAME]
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]
+
+        # TODO symmetrize the preds
 
         preds = {task_name: out}
 
@@ -62,7 +64,7 @@ class TFNModel(ModelForPyGData):
         labels = {name: graphs.y[name] for name in self.tasks}
         labels.update(
             {
-                "hessian_layout": graphs.y["hessian_laout"],
+                "hessian_layout": graphs.y["hessian_layout"],
                 "hessian_natoms": graphs.y["hessian_natoms"],
             }
         )
@@ -93,6 +95,9 @@ class TFNModel(ModelForPyGData):
             natoms = natoms
         else:
             raise ValueError("Not supported loss type")
+
+        shape_1_n = [1] * (len(p.shape) - 1)
+        natoms = natoms.reshape(-1, *shape_1_n)
 
         p = p / natoms
         t = t / natoms

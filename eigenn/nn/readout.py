@@ -108,7 +108,7 @@ class IrrepsToHessian(ModuleIrreps, torch.nn.Module):
         column_index = layout[:, 1]
 
         # convert node feats to node pair feats, with of shape
-        # shape of x: (num_index, 9), where num_index = N1^2 +N2^2 + ..., in which
+        # of x: (num_index, 9), where num_index = N1^2 +N2^2 + ..., in which
         # N1, N2... are the number of atoms in the batched molecules
         x = self.tp(node_feats[row_index], node_feats[column_index])
 
