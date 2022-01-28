@@ -2,13 +2,12 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  class_path: eigenn.dataset.hessian.HessianDataMoldule
   init_args:
-    root: ../eigenn/dataset/matbench
-    trainset_filename: matbench_dielectric_n20.json
-    valset_filename: matbench_dielectric_n20.json
-    testset_filename: matbench_dielectric_n20.json
-    r_cut: 5.0
+    root: /Users/mjwen/Documents/Dataset/xiaowei_hessian
+    trainset_filename: ani1_CHO_0-1000_hessian_small.xyz
+    valset_filename: ani1_CHO_0-1000_hessian_small.xyz
+    testset_filename: ani1_CHO_0-1000_hessian_small.xyz
     loader_kwargs:
       batch_size: 10
 
@@ -41,24 +40,21 @@ model:
 
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
-    use_sc: true # use self connection? `true` seems always improve performance
-    batch_norm: false
-    resnet: true
+    normalization: none
 
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e
-    reduce: sum
+    conv_to_output_hidden_irreps_out: 16x0e + 8x1e + 4x2e # should contain irreps that when multipliey with itself, 0e + 1e + 2e can be generated
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.CanonicalRegressionTask
+    class_path: eigenn.model.task.HessianRegressionTask
     init_args:
-      name: n
+      name: hessian
 
 trainer:
-  max_epochs: 2 # number of maximum training epochs
+  max_epochs: 5 # number of maximum training epochs
   num_nodes: 1
   gpus: null
   # detect_anomaly: true # DEBUG
