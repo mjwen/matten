@@ -26,7 +26,7 @@ class HessianDataset(InMemoryDataset):
          root:
     """
 
-    def __init__(self, filename: str, root: Union[str, Path] = ".", reuse=False):
+    def __init__(self, filename: str, root: Union[str, Path] = ".", reuse=True):
         super().__init__(
             filenames=[filename], root=root, processed_dirname=f"processed", reuse=reuse
         )
@@ -122,6 +122,7 @@ class HessianDataMoldule(BaseDataModule):
         testset_filename: str,
         *,
         root: Union[str, Path] = ".",
+        reuse: bool = True,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
@@ -132,15 +133,22 @@ class HessianDataMoldule(BaseDataModule):
             trainset_filename,
             valset_filename,
             testset_filename,
+            reuse=reuse,
             state_dict_filename=state_dict_filename,
             restore_state_dict_filename=restore_state_dict_filename,
             **kwargs,
         )
 
     def setup(self, stage: Optional[str] = None):
-        self.train_data = HessianDataset(self.trainset_filename, self.root)
-        self.val_data = HessianDataset(self.valset_filename, self.root)
-        self.test_data = HessianDataset(self.testset_filename, self.root)
+        self.train_data = HessianDataset(
+            self.trainset_filename, self.root, reuse=self.reuse
+        )
+        self.val_data = HessianDataset(
+            self.valset_filename, self.root, reuse=self.reuse
+        )
+        self.test_data = HessianDataset(
+            self.testset_filename, self.root, reuse=self.reuse
+        )
 
     def get_to_model_info(self) -> Dict[str, Any]:
         atomic_numbers = set()
@@ -162,10 +170,14 @@ class HessianDataMoldule(BaseDataModule):
         return DataLoader(dataset=self.train_data, **self.loader_kwargs)
 
     def val_dataloader(self):
-        return DataLoader(dataset=self.val_data, **self.loader_kwargs)
+        loader_kwargs = self.loader_kwargs.copy()
+        loader_kwargs.pop("shuffle", None)
+        return DataLoader(dataset=self.val_data, **loader_kwargs)
 
     def test_dataloader(self):
-        return DataLoader(dataset=self.test_data, **self.loader_kwargs)
+        loader_kwargs = self.loader_kwargs.copy()
+        loader_kwargs.pop("shuffle", None)
+        return DataLoader(dataset=self.test_data, **loader_kwargs)
 
 
 #

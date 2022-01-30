@@ -15,6 +15,7 @@ class BaseDataModule(LightningDataModule):
         trainset_filename: path to the training set file.
         valset_filename: path to the validation set file.
         testset_filename: path to the validation set file.
+        reuse: whether to reuse preprocessed data if found
         state_dict_filename: path to save the state dict of the data module.
         restore_state_dict_filename: If not `None`, the model is running in
             restore mode and the initial state dict is read from this file. If `None`,
@@ -33,6 +34,7 @@ class BaseDataModule(LightningDataModule):
         valset_filename: Union[str, Path],
         testset_filename: Union[str, Path],
         *,
+        reuse: bool = True,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         loader_kwargs: Optional[Dict[str, Any]] = None,
@@ -42,6 +44,8 @@ class BaseDataModule(LightningDataModule):
         self.trainset_filename = trainset_filename
         self.valset_filename = valset_filename
         self.testset_filename = testset_filename
+
+        self.reuse = reuse
         self.state_dict_filename = state_dict_filename
         self.restore_state_dict_filename = restore_state_dict_filename
         self.loader_kwargs = {} if loader_kwargs is None else loader_kwargs
@@ -62,6 +66,8 @@ class BaseDataModule(LightningDataModule):
         Load data.
 
         Set variables: self.train_data, self.val_data, self.test_data.
+
+        Can use self.reuse to determine to reuse preprocessed data.
         """
 
         # init_state_dict = self.get_init_state_dict()
@@ -79,10 +85,14 @@ class BaseDataModule(LightningDataModule):
         return DataLoader(dataset=self.train_data, **self.loader_kwargs)
 
     def val_dataloader(self):
-        return DataLoader(dataset=self.val_data, **self.loader_kwargs)
+        loader_kwargs = self.loader_kwargs.copy()
+        loader_kwargs.pop("shuffle", None)
+        return DataLoader(dataset=self.val_data, **loader_kwargs)
 
     def test_dataloader(self):
-        return DataLoader(dataset=self.test_data, **self.loader_kwargs)
+        loader_kwargs = self.loader_kwargs.copy()
+        loader_kwargs.pop("shuffle", None)
+        return DataLoader(dataset=self.test_data, **loader_kwargs)
 
     def get_to_model_info(self) -> Dict[str, Any]:
         """
