@@ -24,11 +24,23 @@ class HessianDataset(InMemoryDataset):
     Args:
          filename:
          root:
+         edge_strategy: `complete` | `pmg_mol_graph`
     """
 
-    def __init__(self, filename: str, root: Union[str, Path] = ".", reuse=True):
+    def __init__(
+        self,
+        filename: str,
+        root: Union[str, Path] = ".",
+        reuse=True,
+        edge_strategy: str = "pmg_mol_graph",
+    ):
+        self.edge_strategy = edge_strategy
+
         super().__init__(
-            filenames=[filename], root=root, processed_dirname=f"processed", reuse=reuse
+            filenames=[filename],
+            root=root,
+            processed_dirname=f"processed_edge_strategy-{self.edge_strategy}",
+            reuse=reuse,
         )
 
     def get_data(self):
@@ -38,6 +50,7 @@ class HessianDataset(InMemoryDataset):
 
         molecules = []
         for i, conf in enumerate(configs):
+
             try:
                 # Hessian is a 3N by 3N matrix. But since each molecule has different
                 # number of atoms N, directly passing this to dataloader should not
@@ -68,20 +81,16 @@ class HessianDataset(InMemoryDataset):
                 # 3x3 block
                 hessian_natoms = N * np.ones(N * N)
 
-                edge_index = self.fully_connected_graph(N)
-                num_neigh = [N - 1 for _ in range(N)]
-
-                m = Molecule(
+                m = Molecule.with_edge_strategy(
                     pos=conf.positions,
-                    edge_index=edge_index,
                     x=None,
                     y={
                         "hessian": hessian,
                         "hessian_layout_raw": hessian_layout,
                         "hessian_natoms": hessian_natoms,
                     },
+                    strategy=self.edge_strategy,
                     atomic_numbers=conf.get_atomic_numbers(),
-                    num_neigh=num_neigh,
                 )
                 molecules.append(m)
 
@@ -91,23 +100,6 @@ class HessianDataset(InMemoryDataset):
                 )
 
         return molecules
-
-    @staticmethod
-    def fully_connected_graph(N: int) -> np.ndarray:
-        """
-        Edge index of a fully-connected graph.
-
-        Args:
-            N: number of atoms
-
-        Returns:
-            edge index, shape (2, N). For example, for a system with 3 atoms, this is
-                [[0,0,1,1,2,2],
-                 [1,2,0,2,0,1]]
-        """
-        edge_index = np.asarray(list(zip(*itertools.permutations(range(N), r=2))))
-
-        return edge_index
 
 
 class HessianDataMoldule(BaseDataModule):

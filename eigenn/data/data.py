@@ -1,13 +1,17 @@
 import itertools
 import warnings
-from typing import Dict, List, Optional, Union
+from collections import Counter
+from typing import Dict, List, Optional, Tuple, Union
 
 import ase.geometry
 import ase.neighborlist
 import numpy as np
 import numpy.typing as npt
+import pymatgen
 import torch
-from pymatgen.core.structure import Structure
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.analysis.local_env import OpenBabelNN
+from pymatgen.core import Structure
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -230,8 +234,27 @@ class Molecule(DataPoint):
         y: Dict[str, npt.ArrayLike] = None,
         **kwargs,
     ):
-
         super().__init__(pos=pos, edge_index=edge_index, x=x, y=y, **kwargs)
+
+    @classmethod
+    def with_edge_strategy(
+        cls,
+        pos: List[Vector],
+        x: Dict[str, npt.ArrayLike],
+        y: Dict[str, npt.ArrayLike],
+        strategy: str,
+        **kwargs,
+    ):
+
+        if strategy == "complete":
+            edge_index, num_neigh = complete_graph(len(pos))
+        elif strategy == "pmg_mol_graph":
+            edge_index, num_neigh = pmg_mol_graph(pos, kwargs["atomic_numbers"])
+        else:
+            supported = ["complete", "pmg_mol_graph"]
+            raise ValueError(f"Expect `strategy` be one of {supported}, got {strategy}")
+
+        return cls(pos, edge_index=edge_index, x=x, y=y, num_neigh=num_neigh, **kwargs)
 
     @classmethod
     def from_configuration(
@@ -239,7 +262,7 @@ class Molecule(DataPoint):
         config: Configuration,
         x: Dict[str, npt.ArrayLike],
         y: Dict[str, npt.ArrayLike],
-        edges_from: str = "bonds",
+        edge_strategy: str = "bonds",
         **kwargs,
     ):
         """
@@ -249,7 +272,7 @@ class Molecule(DataPoint):
             config: a configuration
             x:
             y:
-            edges_from: the method used to determine the edges. Options are:
+            edge_strategy: the method used to determine the edges. Options are:
                 - ``bonds``, edges created from the bonds between the atoms.
                 - ``complete``, edges created between every pair of atoms.
                 - ``<n>_hop``, edges created from n (n=1,2,...) hop bond distance.
@@ -258,20 +281,17 @@ class Molecule(DataPoint):
                     same as ``complete``.
         """
         # TODO, `bonds` is not correct, we need to create bidirectional graph
-        if edges_from == "bonds":
+        if edge_strategy == "bonds":
             bonds = config.get_bonds()
             edge_index = list(zip(*bonds))
-        elif edges_from == "complete":
-            natoms = config.get_num_atoms()
-            edge_index = np.asarray(
-                list(zip(*itertools.permutations(range(natoms), r=2)))
-            )
-
-        elif "_hop" in edges_from:
-            n = int(edges_from.split("_")[0])
+        elif edge_strategy == "complete":
+            n = config.get_num_atoms()
+            edge_index = complete_graph(n)
+        elif "_hop" in edge_strategy:
+            n = int(edge_strategy.split("_")[0])
             raise NotImplementedError
         else:
-            raise DataError(f"Not supported `edges_from`: `{edges_from}`")
+            raise DataError(f"Not supported `edge_strategy`: `{edge_strategy}`")
 
         return cls(pos=config.coords, edge_index=edge_index, x=x, y=y, **kwargs)
 
@@ -366,6 +386,12 @@ class Crystal(DataPoint):
             y=y,
             **kwargs,
         )
+
+
+class DataError(Exception):
+    def __init__(self, msg):
+        super().__init__(msg)
+        self.msg = msg
 
 
 # TODO, we can directly return the shift vector using `ijD`, instead of edge_cell_shift
@@ -502,7 +528,63 @@ def neighbor_list_and_relative_vec(
     return edge_index, shifts, cell_tensor, num_neigh
 
 
-class DataError(Exception):
-    def __init__(self, msg):
-        super().__init__(msg)
-        self.msg = msg
+def complete_graph(N: int) -> Tuple[np.ndarray, List[int]]:
+    """
+    Build a complete graph, where each node is connected to all other nodes.
+
+    Args:
+        N: number of atoms
+
+    Returns:
+        edge index, shape (2, N). For example, for a system with 3 atoms, this is
+            [[0,0,1,1,2,2],
+             [1,2,0,2,0,1]]
+        num_neigh: number of neighbors for each atom
+    """
+    edge_index = np.asarray(list(zip(*itertools.permutations(range(N), r=2))))
+    num_neigh = [N - 1 for _ in range(N)]
+
+    return edge_index, num_neigh
+
+
+def pmg_mol_graph(
+    pos: np.ndarray, atomic_numbers: Union[List[int], List[str]]
+) -> Tuple[np.ndarray, List[int]]:
+    """
+    Build graph using pymatgen MoleculeGraph BabelExgtender.
+
+    Args:
+        pos:
+        atomic_numbers:
+
+    Returns:
+        edge index, shape (2, N). For example, for a system with 3 atoms, this is
+            [[0,0,1,1,2,2],
+             [1,2,0,2,0,1]]
+        num_neigh: number of neighbors for each atom
+    """
+    mol = pymatgen.core.Molecule(species=atomic_numbers, coords=pos)
+    mol_graph = MoleculeGraph.with_local_env_strategy(mol, OpenBabelNN(order=True))
+    edges = [(i, j) for i, j, attr in mol_graph.graph.edges.data()]
+
+    # make it bidirectional
+    reverse = [(j, i) for i, j in edges]
+    all_edges = edges + reverse
+
+    # sort by first i
+    all_edges = sorted(all_edges, key=lambda pair: pair[0])
+
+    all_edges = np.asarray(all_edges).T
+
+    # number of neighbors
+    c = Counter(all_edges[0])
+    natoms = len(pos)
+
+    num_neigh = []
+    for i in range(natoms):
+        if i not in c:
+            raise DataError(f"Atom {i} of molecule does not have any neighbor")
+        else:
+            num_neigh.append(c[i])
+
+    return all_edges, num_neigh
