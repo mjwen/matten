@@ -138,27 +138,40 @@ class BaseModel(pl.LightningModule):
 
         return {t.name: t for t in tasks}
 
-    def forward(
-        self, model_input: Dict[str, Any], mode: Optional[str] = None, **kwargs
-    ):
+    def forward(self, batch, mode: Optional[str] = None, **kwargs) -> Tuple[Dict, Dict]:
         """
+        Forward pass step for prediction.
+
+        Intended for prediction use and will not be called at training time. Instead,
+        train_step/validation_step will be called at training time.
+
         Args:
-            model_input:
-            mode: select what to return. See below.
+            batch:
+            mode: select what to return. See `Returns` below.
+            kwargs: extra arguments needed by the model.
+
+        The functionality here is largely the same as `self.shared_step()`.
 
         Returns:
-            If `None`, directly return the value returned by the backbone forward method.
+            A tuple of (predictions, labels), each is a dictionary. The content of
+            predictions depends on the value of mode:
+                If None, returns the model predictions: backbone + decoder.
+                If `backbone`, returns the backbone prediction.
         """
 
-        # TODO, need to add functionality similar to preprocess_batch here, but ignore
-        #  label
+        # ========== preprocess batch ==========
+        graphs, labels = self.preprocess_batch(batch)
 
-        if mode is None:
-            return self.backbone(model_input, **kwargs)
-        elif mode == "decoder":
-            return self.decode(model_input, **kwargs)
+        # ========== compute predictions ==========
+        if mode is None or mode.lower() == "none":
+            preds = self.decode(graphs, **kwargs)
+        elif mode == "backbone":
+            preds = self.backbone(graphs, **kwargs)
         else:
-            raise ValueError(f"Not supported return mode: {mode}")
+            supported = (None, "backbone")
+            raise ValueError(f"Expect mode to be one of {supported}; got {mode}")
+
+        return preds, labels
 
     def preprocess_batch(self, batch) -> Tuple[Any, Dict[str, Tensor]]:
         """
