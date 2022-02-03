@@ -20,7 +20,7 @@ from torch import Tensor
 from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
-from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseLinear
 from eigenn.nn.readout import IrrepsToHessian
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
@@ -128,14 +128,22 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             SphericalHarmonicEdgeAttrs,
             {"irreps_edge_sh": hparams["irreps_edge_sh"]},
         ),
+        # "radial_basis": (
+        #     RadialBasisEdgeEncoding,
+        #     {
+        #         "basis_kwargs": {
+        #             "num_basis": hparams["num_radial_basis"],
+        #             "r_max": hparams["radial_basis_r_cut"],
+        #         },
+        #         "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
+        #     },
+        # ),
         "radial_basis": (
-            RadialBasisEdgeEncoding,
+            EdgeLengthEmbedding,
             {
-                "basis_kwargs": {
-                    "num_basis": hparams["num_radial_basis"],
-                    "r_max": hparams["radial_basis_r_cut"],
-                },
-                "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
+                "num_basis": hparams["num_radial_basis"],
+                "start": hparams["radial_basis_start"],
+                "end": hparams["radial_basis_end"],
             },
         ),
         # This embed features is not necessary any more when we change OneHotEmbedding
@@ -260,16 +268,19 @@ if __name__ == "__main__":
         "species_embedding_dim": 16,
         # "species_embedding_irreps_out": "16x0e",
         "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
-        "irreps_edge_sh": "0e + 1o",
+        "irreps_edge_sh": "0e + 1o + 2e",
         "num_radial_basis": 8,
-        "radial_basis_r_cut": 4,
+        "radial_basis_start": 0.0,
+        "radial_basis_end": 3.0,
+        # "radial_basis_r_cut": 4,
         "num_layers": 3,
         "reduce": "sum",
         "invariant_layers": 2,
         "invariant_neurons": 64,
         "average_num_neighbors": None,
         "nonlinearity_type": "gate",
-        "conv_to_output_hidden_irreps_out": "16x0e",
+        "conv_to_output_hidden_irreps_out": "16x0e + 8x1e + 4x2e",
+        "normalization": "batch",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}

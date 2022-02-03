@@ -1,10 +1,12 @@
 from typing import Dict, List, Tuple
 
 import torch
+from e3nn.math import soft_one_hot_linspace
 from e3nn.o3 import Irreps
 from torch_scatter import scatter
 
 from eigenn.data.irreps import DataKey, ModuleIrreps
+from eigenn.nn._nequip import with_edge_vectors
 
 
 class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
@@ -115,6 +117,54 @@ class NodeAttrsFromEdgeAttrs(ModuleIrreps, torch.nn.Module):
         )
 
         data[self.out_field] = x
+
+        return data
+
+
+class EdgeLengthEmbedding(ModuleIrreps, torch.nn.Module):
+    REQUIRED_KEYS_IRREPS_IN = [DataKey.POSITIONS, DataKey.EDGE_INDEX]
+
+    def __init__(
+        self,
+        irreps_in: Dict[str, Irreps] = None,
+        out_field: str = DataKey.EDGE_EMBEDDING,
+        num_basis: int = 10,
+        start: float = 0.0,
+        end: float = 5.0,
+        basis: str = "smooth_finite",
+        cutoff: bool = True,
+    ):
+        """
+        Embed edge length using basis functions.
+        """
+        super().__init__()
+
+        self.num_basis = num_basis
+        self.start = start
+        self.end = end
+        self.basis = basis
+        self.cutoff = cutoff
+
+        irreps_out = Irreps(f"{num_basis}x0e")
+        self.init_irreps(irreps_in, irreps_out={out_field: irreps_out})
+
+    def forward(self, data: DataKey.Type) -> DataKey.Type:
+        data = with_edge_vectors(data, with_lengths=True)
+        edge_length = data[DataKey.EDGE_LENGTH]
+
+        length_embedding = soft_one_hot_linspace(
+            edge_length,
+            start=self.start,
+            end=self.end,
+            number=self.num_basis,
+            basis=self.basis,
+            cutoff=self.cutoff,
+        )
+        # normalize it to ensure second moment close to 1, see
+        # https://docs.e3nn.org/en/stable/guide/convolution.html
+        length_embedding = length_embedding.mul(self.num_basis ** 0.5)
+
+        data[DataKey.EDGE_EMBEDDING] = length_embedding
 
         return data
 

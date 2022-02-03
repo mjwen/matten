@@ -36,7 +36,7 @@ class BaseModel(pl.LightningModule):
 
     Subclass must implement:
         - init_backbone(): create the underlying torch model
-        - init_tasks(): create tasks that defines initialize the loss function and metrics
+        - init_tasks(): create tasks that initialize the loss function and metrics
         - preprocess_batch(): preprocess the batched data to get input for the model
           and labels
         - decode(): compute model prediction using the torch model
@@ -45,6 +45,11 @@ class BaseModel(pl.LightningModule):
         - compute_loss(): compute the loss using model prediction and the target
     """
 
+    # TODO, for `tasks`, instance of Task will be passed.
+    #  When saving checkpoint, the instantiated object will be saved, and when
+    #  loading it back, the object will be loaded (although at a different address).
+    #  This can work without any problem, but we may want to pass hyperparams for
+    #  tasks in and instantiate it in the model (just as optimizer_hparams).
     def __init__(
         self,
         tasks: Union[Task, List[Task]] = None,

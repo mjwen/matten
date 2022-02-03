@@ -27,8 +27,9 @@ model:
     irreps_edge_sh: 0e + 1o + 2e
 
     # radial edge distance embedding
-    num_radial_basis: 8
-    radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
+    num_radial_basis: 10
+    radial_basis_start: 0.95
+    radial_basis_end: 1.57
 
     #
     # message passing conv layers
