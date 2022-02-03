@@ -106,7 +106,7 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         msg = self.tp(node_feats[edge_src], edge_attrs, edge_embedding)
         aggregated_msg = scatter(msg, edge_dst, dim_size=len(node_feats), dim=0)
         if self.avg_num_neighbors is not None:
-            aggregated_msg = aggregated_msg.div(self.avg_num_neighbors ** 0.5)
+            aggregated_msg = aggregated_msg.div(self.avg_num_neighbors**0.5)
 
         # update
         node_conv_out = self.lin2(aggregated_msg, node_attrs)

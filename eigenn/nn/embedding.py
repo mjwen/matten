@@ -162,7 +162,7 @@ class EdgeLengthEmbedding(ModuleIrreps, torch.nn.Module):
         )
         # normalize it to ensure second moment close to 1, see
         # https://docs.e3nn.org/en/stable/guide/convolution.html
-        length_embedding = length_embedding.mul(self.num_basis ** 0.5)
+        length_embedding = length_embedding.mul(self.num_basis**0.5)
 
         data[DataKey.EDGE_EMBEDDING] = length_embedding
 

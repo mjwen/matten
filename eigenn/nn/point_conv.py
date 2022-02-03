@@ -175,7 +175,7 @@ class PointConvUpdate(ModuleIrreps, torch.nn.Module):
         )
 
         if self.avg_num_neighbors is not None:
-            msg = msg / self.avg_num_neighbors ** 0.5
+            msg = msg / self.avg_num_neighbors**0.5
 
         msg = self.linear_2(msg)
 
@@ -474,7 +474,7 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         msg = scatter_add(msg_per_edge, edge_dst, dim_size=len(node_feats))
 
         if self.avg_num_neighbors is not None:
-            msg = msg / self.avg_num_neighbors ** 0.5
+            msg = msg / self.avg_num_neighbors**0.5
 
         msg = self.linear_2(msg)
 

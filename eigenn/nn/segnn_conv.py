@@ -301,7 +301,7 @@ class SEGNNUpdate(ModuleIrreps, torch.nn.Module):
         msg = scatter(msg_per_edge, edge_dst, dim=0, dim_size=len(node_feats_in))
 
         if self.avg_num_neighbors is not None:
-            msg = msg / self.avg_num_neighbors ** 0.5
+            msg = msg / self.avg_num_neighbors**0.5
 
         #
         # update step
