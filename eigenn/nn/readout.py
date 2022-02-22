@@ -5,6 +5,7 @@ from e3nn.io import CartesianTensor
 from e3nn.o3 import FullyConnectedTensorProduct, Irreps
 
 from eigenn.data.irreps import DataKey, ModuleIrreps
+from eigenn.dataset.hessian import symmetrize_hessian
 from eigenn.nn.utils import tp_path_exists
 
 
@@ -65,6 +66,7 @@ class IrrepsToHessian(ModuleIrreps, torch.nn.Module):
         irreps_in: Dict[str, Irreps],
         field: str = DataKey.NODE_FEATURES,
         out_field: Optional[str] = None,
+        symmetrize: bool = True,
     ):
         """
         Convert irreps tensor to 3N by 3N Hessian matrix of a configuration.
@@ -77,11 +79,14 @@ class IrrepsToHessian(ModuleIrreps, torch.nn.Module):
             irreps_in:
             field:
             out_field:
+            symmetrize: whether to symmetrize the output by (H + H^T)/2, where T
+                denote transpose.
         """
         super().__init__()
 
         self.field = field
         self.out_field = field if out_field is None else out_field
+        self.symmetrize = symmetrize
 
         # NOTE, should not add output to irreps_out, since it is a cartesian tensor,
         # no longer an irreps
@@ -114,6 +119,12 @@ class IrrepsToHessian(ModuleIrreps, torch.nn.Module):
 
         # convert irreps tensor to cartesian tensor
         cartesian_tensor = self.ct.to_cartesian(x)  # (num_index, 3, 3)
+
+        if self.symmetrize:
+            # number of atoms of each graph
+            ptr = data["ptr"]
+            natoms = [j - i for i, j in zip(ptr[:-1], ptr[1:])]
+            cartesian_tensor = symmetrize_hessian(cartesian_tensor, natoms)
 
         data[self.out_field] = cartesian_tensor
 

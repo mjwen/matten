@@ -189,13 +189,13 @@ class Collater(object):
         elem = batch[0]
         if isinstance(elem, Data) or isinstance(elem, HeteroData):
 
-            # @@@ NOTE, add Data.y.hessian_layout
+            # add Data.y.hessian_layout, this is similar to edge index,
+            # should increase by the number of atoms in the previous graph
             i = 0
             for d in batch:
                 # should use different name to not overwrite hessian_layout_raw
                 d["y"]["hessian_layout"] = d["y"]["hessian_layout_raw"] + i
                 i += d.num_nodes
-            # @@@
 
             return Batch.from_data_list(batch, self.follow_batch, self.exclude_keys)
         elif isinstance(elem, torch.Tensor):
@@ -263,6 +263,45 @@ class DataLoader(torch.utils.data.DataLoader):
             collate_fn=Collater(follow_batch, exclude_keys),
             **kwargs,
         )
+
+
+def symmetrize_hessian(H: torch.Tensor, natoms: List[int]) -> torch.Tensor:
+    """
+    Symmetrize a Hessian matrix by H = (H + H^T)/2, where T denotes matrix transpose.
+
+    This can deal with batched cases.
+
+    Args:
+        H: shape (M, 3, 3) the batched Hessian to symmetrize. For a list of molecules
+            with number of atoms N1, N2, ... N_n, M = N1^2 + N2^2 + ... + N_n^2. Also,
+            this assumes each for each molecule, the N1^2 3x3 blocks is stacked
+            according to
+            [(0, 0),
+             (0, 1),
+             ...
+             (0, N1-1)
+             (1, 0),
+             ...
+             (N1-1, N1-1)
+             ]
+            which is the same as HessianDataset.get_data().
+        natoms: number of atoms for individual molecules in the batch.
+    """
+    H_by_mol = torch.split(H, [i**2 for i in natoms], dim=0)
+
+    # This can be slow, do we have better ways to do it?
+    sym_H = []
+    for x, n in zip(H_by_mol, natoms):
+        x = x.reshape(n, n, 3, 3)
+        x = torch.swapaxes(x, 1, 2)
+        x = x.reshape(n * 3, n * 3)
+        x = (x + x.T) / 2
+        x = x.reshape(n, 3, n, 3)
+        x = torch.swapaxes(x, 1, 2)
+        x = x.reshape(-1, 3, 3)
+        sym_H.append(x)
+
+    return torch.cat(sym_H)
 
 
 if __name__ == "__main__":
