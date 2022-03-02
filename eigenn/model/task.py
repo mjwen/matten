@@ -383,6 +383,7 @@ class CanonicalRegressionTask(RegressionTask):
         return {"MeanAbsoluteError": 1.0}
 
 
+
 def adjoint(A, E, f):
     A_H = A.T.conj().to(E.dtype)
     n = A.size(0)
@@ -648,6 +649,27 @@ class MaxRegressionTask(RegressionTask):
             ]
 
         metric = MetricCollection(m)
+    def metric_aggregation(self):
+
+        # This requires `mode` of early stopping and checkpoint to be `min`
+        return {"MeanAbsoluteError": 1.0}
+
+
+class HessianRegressionTask(RegressionTask):
+    """
+    Regress task for Hessian, with:
+        - MSELoss loss function
+        - MeanAbsoluteError metric
+        - MeanAbsoluteError contributes to the total metric score
+
+    The loss is inversely weighed by the number of atoms in each configuration.
+    """
+
+    def init_loss(self):
+        return nn.MSELoss()
+
+    def init_metric(self):
+        metric = MeanAbsoluteError(compute_on_step=False)
 
         return metric
 
