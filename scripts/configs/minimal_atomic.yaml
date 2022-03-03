@@ -9,6 +9,8 @@ data:
     valset_filename: LSDI_NMR_tensor.json
     testset_filename: LSDI_NMR_tensor.json
     r_cut: 5.0
+    output_format: cartesian # `cartesian` or `irreps`, should be the same as `output_format` of model below
+    output_formula: ij=ji # should always be in cartesian formula
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -57,10 +59,10 @@ model:
     # - When output_format == `irreps`, output_formula should specify the irreps of
     #   the tensor, e.g. 0e+2e for a symmetric 2nd-order tensor
     # (see e3nn.io.CartesianTensor)
-    # output_format: cartesian
-    # output_formula: ij=ji
-    output_format: irreps
-    output_formula: 0e + 2e
+    output_format: cartesian
+    output_formula: ij=ji
+    # output_format: irreps
+    # output_formula: 0e + 2e
 
   # tasks define the loss, metric...
   tasks:

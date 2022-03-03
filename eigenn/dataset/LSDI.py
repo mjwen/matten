@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
+from e3nn.io import CartesianTensor
 from monty.serialization import loadfn
 
 from eigenn.data.data import Crystal
@@ -24,22 +25,33 @@ class SiNMRDataset(InMemoryDataset):
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
+        output_format: format of the target tensor, should be `cartesian` for `irreps`.
+        output_formula: formula specifying symmetry of tensor. No matter what
+            output_format is, output_formula should be given in cartesian notation.
+            e.g. `ij=ji` for a general 2D tensor and `ij=ji` for a symmetric 2D tensor.
     """
 
     def __init__(
         self,
         filename: str,
         r_cut: float,
+        *,
         root: Union[str, Path] = ".",
         unpack: bool = True,
+        output_format: str = "cartesian",
+        output_formula: str = "ij=ji",
     ):
         self.filename = filename
         self.r_cut = r_cut
         self.unpack = unpack
 
+        assert output_format in ("cartesian", "irreps")
+        self.output_format = output_format
+        self.output_formula = output_formula
+
         super().__init__(
             filenames=[filename],
-            processed_dirname=f"processed_rcut{self.r_cut}",
+            processed_dirname=f"processed_rcut-{self.r_cut}_format-{self.output_format}",
             root=root,
         )
 
@@ -64,8 +76,16 @@ class SiNMRDataset(InMemoryDataset):
             data = unpacked_data
 
         crystals = []
+
+        # converter for irreps tensor
+        converter = CartesianTensor(formula=self.output_formula)
+
         # convert to crystal data point
         for irow, row in enumerate(data):
+
+            output = torch.as_tensor(row["tensor"])
+            if self.output_format == "irreps":
+                output = converter.from_cartesian(output)
 
             try:
                 # get structure
@@ -77,7 +97,7 @@ class SiNMRDataset(InMemoryDataset):
                 #     }
                 # where value is nx3x3
                 y = {
-                    "tensor_output": np.asarray(row["tensor"]),
+                    "tensor_output": output,
                     "node_masks": np.asarray(row["index"], dtype=bool),
                 }
                 # atomic numbers, shape (N_atom,)
@@ -111,12 +131,16 @@ class SiNMRDataMoldule(BaseDataModule):
         *,
         r_cut: float,
         root: Union[str, Path] = ".",
+        output_format: str = "cartesian",
+        output_formula: str = "ij=ji",
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
     ):
         self.r_cut = r_cut
         self.root = root
+        self.output_format = output_format
+        self.output_formula = output_formula
 
         super().__init__(
             trainset_filename,
@@ -128,9 +152,27 @@ class SiNMRDataMoldule(BaseDataModule):
         )
 
     def setup(self, stage: Optional[str] = None):
-        self.train_data = SiNMRDataset(self.trainset_filename, self.r_cut, self.root)
-        self.val_data = SiNMRDataset(self.valset_filename, self.r_cut, self.root)
-        self.test_data = SiNMRDataset(self.testset_filename, self.r_cut, self.root)
+        self.train_data = SiNMRDataset(
+            self.trainset_filename,
+            self.r_cut,
+            root=self.root,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
+        )
+        self.val_data = SiNMRDataset(
+            self.valset_filename,
+            self.r_cut,
+            root=self.root,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
+        )
+        self.test_data = SiNMRDataset(
+            self.testset_filename,
+            self.r_cut,
+            root=self.root,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
+        )
 
     def get_to_model_info(self) -> Dict[str, Any]:
         atomic_numbers = set()
