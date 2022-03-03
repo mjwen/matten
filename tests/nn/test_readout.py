@@ -35,7 +35,11 @@ def test_irreps_to_hessian():
     assert y.shape == (natoms, 9)  # 9 corresponds to '0e+1e+2e'
 
     layout = torch.tensor([[0, 0], [0, 1], [1, 0], [1, 1]])
-    data = {DataKey.NODE_FEATURES: y, "hessian_layout": layout}
+    data = {
+        DataKey.NODE_FEATURES: y,
+        "hessian_layout": layout,
+        "ptr": torch.tensor([0, 2]),
+    }
 
     out = i2h(data)
     z = out["my_out"]
