@@ -50,7 +50,17 @@ model:
     # output
     #
     conv_to_output_hidden_irreps_out: 16x0e + 8x1e + 4x2e # should contain 0e and 2e for symmetric 2nd-order tensor
-    output_formula: ij=ji # symmetric 2nd-order tensor (see e3nn.io.CartesianTensor)
+
+    # output_format and output_formula should be used together
+    # - When output_format == `cartesian`, output_formula should specific what a
+    #   Cartesian tensor look like, e.g. ij=ji for a symmetric 2nd-order tensor
+    # - When output_format == `irreps`, output_formula should specify the irreps of
+    #   the tensor, e.g. 0e+2e for a symmetric 2nd-order tensor
+    # (see e3nn.io.CartesianTensor)
+    # output_format: cartesian
+    # output_formula: ij=ji
+    output_format: irreps
+    output_formula: 0e + 2e
 
   # tasks define the loss, metric...
   tasks:
