@@ -62,7 +62,7 @@ model:
     output_format: cartesian
     output_formula: ij=ji
     # output_format: irreps
-    # output_formula: 0e + 2e
+    # output_formula: 0e + 2e  # 0e + 1o + 2e
 
   # tasks define the loss, metric...
   tasks:
