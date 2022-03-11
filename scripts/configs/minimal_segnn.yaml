@@ -49,7 +49,7 @@ model:
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e
+    # conv_to_output_hidden_irreps_out: 16x0e
     reduce: sum
 
   # tasks define the loss, metric...

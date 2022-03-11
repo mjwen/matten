@@ -2,13 +2,15 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  class_path: eigenn.dataset.matbench_tensor.MatbenchTensorDataMoldule
   init_args:
-    root: ../eigenn/dataset/matbench
-    trainset_filename: matbench_dielectric_n20.json
-    valset_filename: matbench_dielectric_n20.json
-    testset_filename: matbench_dielectric_n20.json
+    root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor
+    trainset_filename: crystal_elasticity_n20.json
+    valset_filename: crystal_elasticity_n20.json
+    testset_filename: crystal_elasticity_n20.json
     r_cut: 5.0
+    output_format: irreps # `cartesian` or `irreps`, should be the same as `output_format` of model below
+    output_formula: ijkl=jikl=klij # should always be in cartesian formula
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -24,7 +26,7 @@ model:
     # species_embedding_irreps_out: 16x0e # not needed when using SpeciesEmbedding
 
     # spherical harmonics embedding of edge direction
-    irreps_edge_sh: 0e + 1o + 2e
+    irreps_edge_sh: 0e + 1o + 2e + 3o + 4e
 
     # radial edge distance embedding
     num_radial_basis: 8
@@ -43,8 +45,20 @@ model:
     #
     # output
     #
-    # conv_to_output_hidden_irreps_out: 16x0e
-    reduce: sum
+    conv_to_output_hidden_irreps_out: 16x0e + 16x1o + 8x2e + 4x3o + 2x4e
+
+    # output_format and output_formula should be used together
+    # - When output_format == `cartesian`, output_formula should specific what a
+    #   Cartesian tensor look like, e.g. ij=ji for a symmetric 2nd-order tensor
+    # - When output_format == `irreps`, output_formula should specify the irreps of
+    #   the tensor, e.g. 0e+2e for a symmetric 2nd-order tensor
+    # (see e3nn.io.CartesianTensor)
+    output_format: irreps # `cartesian` or `irreps`, should be the same as `output_format` of model below
+    output_formula: 2x0e+2x2e+1x4e # 2x0e+2x2e+1x4e for elastic tensor
+    # output_format: cartesian
+    # output_formula: ijkl=jikl=klij
+
+    reduce: mean
 
   # tasks define the loss, metric...
   tasks:
