@@ -26,22 +26,24 @@ class InMemoryDataset(PyGInMemoryDataset):
             Will try to find the files in root; if they exist, will use them. If not,
             will try to download from `url`.
         root: root to store the raw dataset.
-        url: path to download the dataset.
         processed_dirname: the files give by `filenames` will be processed and saved
             to disk for faster loading later on. `processed_dirname` gives the
             directory name to store the processed files. This should be a string not
             a full path, and the processed files will be stored in
             `<root>/<processed_dirname>`
         reuse: whether to reuse the processed file in `processed_dirname` if found.
+        url: path to download the dataset if not present.
     """
+
+    # TODO, better to move the logic of using url to download to datamodule
 
     def __init__(
         self,
         filenames: List[str],
         root: Union[str, Path] = ".",
-        url: Optional[str] = None,
         processed_dirname: str = "processed",
         reuse: bool = True,
+        url: Optional[str] = None,
     ):
         self.filenames = to_list(filenames)
         self.processed_dirname = processed_dirname
@@ -68,7 +70,7 @@ class InMemoryDataset(PyGInMemoryDataset):
             if files_exist(self.processed_paths):
                 logger.info(
                     f"Found existing processed data files: {self.processed_paths}. "
-                    f"Will reuse them. To disable reuse, set `reuse=False`."
+                    f"Will reuse them. To disable reuse, set `reuse=False` of dataset."
                 )
 
         super().__init__(root=root)
