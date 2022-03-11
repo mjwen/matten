@@ -1,17 +1,23 @@
 """
-mjwen implementation of segnn style model
+Strict reimplementation of SEGNN model.
+
+For tensor prediction.
 """
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
 import torch
+from e3nn.io import CartesianTensor
 from torch import Tensor
 
 from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
-from eigenn.nn.segnn_conv import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
+from eigenn.nn.nodewise import NodewiseLinear
+from eigenn.nn.readout import IrrepsToCartesianTensor
+from eigenn.nn.segnn_paper import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
+from eigenn.nn.utils import DetectAnomaly
 
 OUT_FIELD_NAME = "my_model_output"
 
@@ -46,10 +52,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     The actual function to create the model.
     """
 
-    num_neigh = hparams["average_num_neighbors"]
-    if isinstance(num_neigh, str) and num_neigh.lower() == "auto":
-        num_neigh = dataset_hparams["average_num_neighbors"]
-
     # ===== input embedding layers =====
     layers = {
         "one_hot": (
@@ -59,10 +61,12 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "allowed_species": dataset_hparams["allowed_species"],
             },
         ),
+        # "anomaly_1": (DetectAnomaly, {"name": "anomaly_1"}),
         "spharm_edges": (
             SphericalHarmonicEdgeAttrs,
             {"irreps_edge_sh": hparams["irreps_edge_sh"]},
         ),
+        # "anomaly_2": (DetectAnomaly, {"name": "anomaly_2"}),
         "radial_basis": (
             RadialBasisEdgeEncoding,
             {
@@ -73,6 +77,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
             },
         ),
+        # "anomaly_3": (DetectAnomaly, {"name": "anomaly_3"}),
         "node_attrs_layer": (NodeAttrsFromEdgeAttrs, {}),
     }
 
@@ -86,6 +91,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "normalization": hparams["normalization"],
             },
         )
+
+        # layers[f"anomaly_embedding_{i}"] = (
+        #     DetectAnomaly,
+        #     {"name": f"anomaly_embedding_{i}"},
+        # )
 
     # ===== message passing layers =====
     for i in range(hparams["num_layers"]):
@@ -104,24 +114,64 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
                 "activation_type": hparams["nonlinearity_type"],
                 "use_resnet": hparams["resnet"],
-                "message_kwargs": {
-                    "fc_num_hidden_layers": hparams["invariant_layers"],
-                    "fc_hidden_size": hparams["invariant_neurons"],
-                    "normalization": hparams["normalization"],
-                },
-                "update_kwargs": {
-                    "use_self_connection": hparams["use_sc"],
-                    "avg_num_neighbors": num_neigh,
-                    "normalization": hparams["normalization"],
-                },
+                "normalization": hparams["normalization"],
             },
         )
 
+        # layers[f"anomaly_mp_{i}"] = (DetectAnomaly, {"name": f"anomaly_mp_{i}"})
+
     # ===== prediction layers =====
-    layers["mean_scalar_prediction"] = (
+    #
+    # determining output formula and irreps
+    #
+
+    output_format = hparams["output_format"]
+
+    if output_format == "cartesian":
+        # e.g. ij=ji for a symmetric 2D tensor
+        formula = hparams["output_formula"]
+        output_irreps = CartesianTensor(formula)
+
+    elif output_format == "irreps":
+        # e.g. '0e+2e' for a symmetric 2D tensor
+        output_irreps = hparams["output_formula"]
+
+    else:
+        supported = ["cartesian", "irreps"]
+        raise ValueError(
+            f"Expect `output_format` to be one of {supported}; got {output_format}"
+        )
+
+    layers.update(
+        {
+            # TODO: the next linear throws out all L > 0, don't create them in the
+            #  last layer of convnet
+            # -- output block --
+            "conv_to_output_hidden": (
+                NodewiseLinear,
+                {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
+            ),
+            "output_hidden_to_tensor": (
+                NodewiseLinear,
+                {"irreps_out": output_irreps, "out_field": OUT_FIELD_NAME},
+            ),
+        }
+    )
+
+    # convert irreps tensor to cartesian tensor
+    if output_format == "cartesian":
+        layers["output_cartesian_tensor"] = (
+            IrrepsToCartesianTensor,
+            {"formula": formula, "field": OUT_FIELD_NAME},
+        )
+
+    # pooling
+    layers["output_pooling"] = (
         PredictionHead,
         {"out_field": OUT_FIELD_NAME, "reduce": hparams["reduce"]},
     )
+
+    # layers[f"anomaly_pred"] = (DetectAnomaly, {"name": f"anomaly_pred"})
 
     model = create_sequential_module(modules=OrderedDict(layers))
 
@@ -142,15 +192,13 @@ if __name__ == "__main__":
         "radial_basis_r_cut": 4,
         "num_layers": 3,
         "reduce": "sum",
-        "invariant_layers": 2,
-        "invariant_neurons": 64,
-        "average_num_neighbors": None,
-        "use_sc": True,
         "nonlinearity_type": "gate",
         "resnet": True,
         "conv_to_output_hidden_irreps_out": "16x0e",
         "task_name": "my_task",
         "normalization": "batch",
+        "output_format": "irreps",
+        "output_formula": "2x0e+2x2e+1x4e",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}

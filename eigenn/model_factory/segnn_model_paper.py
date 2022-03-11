@@ -1,3 +1,6 @@
+"""
+Strict reimplementation of SEGNN model.
+"""
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 

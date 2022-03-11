@@ -156,7 +156,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         output_irreps = CartesianTensor(formula)
 
     elif output_format == "irreps":
-        # e.g. '1e+2e' for a symmetric 2D tensor
+        # e.g. '0e+2e' for a symmetric 2D tensor
         output_irreps = hparams["output_formula"]
 
     else:
@@ -164,25 +164,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         raise ValueError(
             f"Expect `output_format` to be one of {supported}; got {output_format}"
         )
-
-    # # output cartesian tensor
-    # if "output_formula" in hparams:
-    #
-    #     formula = hparams["output_formula"]  # e.g. ij=ji for a general 2D tensor
-    #
-    #     # get irreps for the formula (CartesisanTensor is a subclass of Irreps)
-    #     output_irreps = CartesianTensor(formula)
-    #
-    # # output irreps tensor
-    # else:
-    #     formula = None
-    #
-    #     if "output_irreps" in hparams:
-    #         output_irreps = hparams["output_irreps"]
-    #     else:
-    #         # default to scalar
-    #         output_irreps = "1x0e"
-    #
 
     # data keys
     OUT_FIELD_ATOM = "atomic_output"
