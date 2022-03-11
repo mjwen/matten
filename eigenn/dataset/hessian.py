@@ -22,16 +22,17 @@ class HessianDataset(InMemoryDataset):
     Hessian dataset for small molecules.
 
     Args:
-         filename:
-         root:
-         edge_strategy: `complete` | `pmg_mol_graph`
+        filename:
+        root:
+        reuse: whether to reuse the preprocessed data.
+        edge_strategy: `complete` | `pmg_mol_graph`
     """
 
     def __init__(
         self,
         filename: str,
         root: Union[str, Path] = ".",
-        reuse=True,
+        reuse: bool = True,
         edge_strategy: str = "pmg_mol_graph",
     ):
         self.edge_strategy = edge_strategy

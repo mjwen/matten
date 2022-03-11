@@ -25,6 +25,7 @@ class MatbenchDataset(InMemoryDataset):
             If using local files, it should be in the `root` directory.
         r_cut: neighbor cutoff distance, in unit Angstrom.
         root: root directory that stores the input and processed data.
+        reuse: whether to reuse the preprocessed data.
     """
 
     MATBENCH_WEBSITE = "https://hackingmaterials.lbl.gov/automatminer/datasets.html"
@@ -186,6 +187,9 @@ if __name__ == "__main__":
         trainset_filename="matbench_jdft2d.json",
         valset_filename="matbench_jdft2d.json",
         testset_filename="matbench_jdft2d.json",
+        # trainset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
+        # valset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
+        # testset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
         r_cut=5.0,
         root="/tmp",
         reuse=False,

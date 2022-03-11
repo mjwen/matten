@@ -22,6 +22,7 @@ class SiNMRDataset(InMemoryDataset):
             searched in `root`.
         r_cut: neighbor cutoff distance, in unit Angstrom.
         root: root directory that stores the input and processed data.
+        reuse: whether to reuse the preprocessed data.
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
@@ -37,6 +38,7 @@ class SiNMRDataset(InMemoryDataset):
         r_cut: float,
         *,
         root: Union[str, Path] = ".",
+        reuse: bool = True,
         unpack: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ij=ji",
@@ -53,6 +55,7 @@ class SiNMRDataset(InMemoryDataset):
             filenames=[filename],
             processed_dirname=f"processed_rcut-{self.r_cut}_format-{self.output_format}",
             root=root,
+            reuse=reuse,
         )
 
     def get_data(self):
@@ -131,6 +134,7 @@ class SiNMRDataMoldule(BaseDataModule):
         *,
         r_cut: float,
         root: Union[str, Path] = ".",
+        reuse: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ij=ji",
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
@@ -139,6 +143,7 @@ class SiNMRDataMoldule(BaseDataModule):
     ):
         self.r_cut = r_cut
         self.root = root
+        self.reuse = reuse
         self.output_format = output_format
         self.output_formula = output_formula
 
@@ -156,6 +161,7 @@ class SiNMRDataMoldule(BaseDataModule):
             self.trainset_filename,
             self.r_cut,
             root=self.root,
+            reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )
@@ -163,6 +169,7 @@ class SiNMRDataMoldule(BaseDataModule):
             self.valset_filename,
             self.r_cut,
             root=self.root,
+            reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )
@@ -170,6 +177,7 @@ class SiNMRDataMoldule(BaseDataModule):
             self.testset_filename,
             self.r_cut,
             root=self.root,
+            reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )
@@ -198,6 +206,7 @@ if __name__ == "__main__":
         valset_filename="LSDI_NMR_tensor.json",
         testset_filename="LSDI_NMR_tensor.json",
         r_cut=5.0,
+        reuse=False,
         root=Path.cwd().joinpath("LSDI_NMR"),
     )
     dm.prepare_data()
