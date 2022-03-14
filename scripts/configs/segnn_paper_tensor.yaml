@@ -9,6 +9,7 @@ data:
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
     r_cut: 5.0
+    field_name: elastic_tensor_cartesian
     output_format: irreps # `cartesian` or `irreps`, should be the same as `output_format` of model below
     output_formula: ijkl=jikl=klij # should always be in cartesian formula
     loader_kwargs:
@@ -64,7 +65,7 @@ model:
   tasks:
     class_path: eigenn.model.task.CanonicalRegressionTask
     init_args:
-      name: n
+      name: elastic_tensor_cartesian
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

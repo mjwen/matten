@@ -14,9 +14,9 @@ from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import NodeAttrsFromEdgeAttrs, SpeciesEmbedding
-from eigenn.nn.nodewise import NodewiseLinear
+from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
 from eigenn.nn.readout import IrrepsToCartesianTensor
-from eigenn.nn.segnn_paper import EmbeddingLayer, PredictionHead, SEGNNMessagePassing
+from eigenn.nn.segnn_paper import EmbeddingLayer, SEGNNMessagePassing
 from eigenn.nn.utils import DetectAnomaly
 
 OUT_FIELD_NAME = "my_model_output"
@@ -158,7 +158,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         }
     )
 
-    # convert irreps tensor to cartesian tensor
+    # convert irreps tensor to cartesian tensor if necessary
     if output_format == "cartesian":
         layers["output_cartesian_tensor"] = (
             IrrepsToCartesianTensor,
@@ -167,8 +167,12 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     # pooling
     layers["output_pooling"] = (
-        PredictionHead,
-        {"out_field": OUT_FIELD_NAME, "reduce": hparams["reduce"]},
+        NodewiseReduce,
+        {
+            "field": OUT_FIELD_NAME,
+            "out_field": OUT_FIELD_NAME,
+            "reduce": hparams["reduce"],
+        },
     )
 
     # layers[f"anomaly_pred"] = (DetectAnomaly, {"name": f"anomaly_pred"})

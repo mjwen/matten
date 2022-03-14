@@ -73,13 +73,14 @@ class MatbenchTensorDataset(InMemoryDataset):
         df["structure"] = df["structure"].apply(lambda s: Structure.from_dict(s))
 
         # convert output to tensor
-        output = df[self.field_name].apply(lambda x: torch.as_tensor(x))
+        df[self.field_name] = df[self.field_name].apply(lambda x: torch.as_tensor(x))
 
         # convert to irreps tensor is necessary
         converter = CartesianTensor(formula=self.output_formula)
         if self.output_format == "irreps":
-            output = converter.from_cartesian(output)
-        df[self.field_name] = output
+            df[self.field_name] = df[self.field_name].apply(
+                lambda x: converter.from_cartesian(x)
+            )
 
         property_columns = [self.field_name]
 
@@ -200,7 +201,7 @@ class MatbenchTensorDataMoldule(BaseDataModule):
 
 if __name__ == "__main__":
 
-    dm = MatbenchDataMoldule(
+    dm = MatbenchTensorDataMoldule(
         trainset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
         valset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
         testset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
