@@ -38,14 +38,11 @@ class TFNModel(ModelForPyGData):
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
-
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]
-
-        # TODO symmetrize the preds
 
         preds = {task_name: out}
 
@@ -114,9 +111,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     The actual function to create the model.
     """
 
-    # ===== embedding layers =====
+    # ===== input embedding layers =====
     layers = {
-        # -- Encode --
         "one_hot": (
             SpeciesEmbedding,
             {
