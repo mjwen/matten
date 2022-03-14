@@ -31,8 +31,8 @@ model:
 
     # radial edge distance embedding
     num_radial_basis: 10
-    radial_basis_start: 0.95
-    radial_basis_end: 1.57
+    radial_basis_start: 0.
+    radial_basis_end: 5.
 
     #
     # message passing conv layers
@@ -52,7 +52,7 @@ model:
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e + 16x1o + 8x2e + 4x3o + 2x4e
+    conv_to_output_hidden_irreps_out: 16x0e + 8x2e + 2x4e
 
     # output_format and output_formula should be used together
     # - When output_format == `cartesian`, output_formula should specific what a
@@ -88,7 +88,7 @@ trainer:
         mode: min
         save_top_k: 3
         save_last: true
-        verbose: False
+        verbose: false
     - class_path: pytorch_lightning.callbacks.EarlyStopping
       init_args:
         monitor: val/score

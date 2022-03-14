@@ -23,6 +23,7 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
+from eigenn.nn.readout import IrrepsToCartesianTensor
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
 
 OUT_FIELD_NAME = "my_model_output"
