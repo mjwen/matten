@@ -18,8 +18,9 @@ from eigenn.model_factory.segnn_classification import SEGNNClassification
 from eigenn.model_factory.segnn_model import SEGNNModel
 from eigenn.model_factory.segnn_model_paper import SEGNNModel as SEGNNModelPaper
 from eigenn.model_factory.segnn_model_paper_tensor import SEGNNModel as SEGNNModelTensor
-from eigenn.model_factory.tfn_hessian import TFNModel as HessianModel
-from eigenn.model_factory.tfn_model import TFNModel
+from eigenn.model_factory.tfn_hessian import TFNModel as TFNHessian
+from eigenn.model_factory.tfn_scalar import TFNModel
+from eigenn.model_factory.tfn_tensor import TFNModel as TFNTensor
 from eigenn.utils import to_path
 
 CWD = to_path(__file__).parent
@@ -44,9 +45,23 @@ def main():
         # model_class=TFNModel,
         # parser_kwargs={
         #     "default_config_files": [
-        #         CWD.joinpath("configs", "minimal_tfn.yaml").as_posix()
+        #         CWD.joinpath("configs", "tfn_scalar.yaml").as_posix()
         #     ]
         # },
+        ##
+        # model_class=TFNHessian,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_hessian.yaml").as_posix()
+        #     ]
+        # },
+        ##
+        model_class=TFNTensor,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=SEGNNModel,
         # parser_kwargs={
@@ -61,19 +76,13 @@ def main():
         #         CWD.joinpath("configs", "minimal_segnn_paper.yaml").as_posix()
         #     ]
         # },
-        # model_class=HessianModel,
+        ##
+        # model_class=SEGNNModelTensor,
         # parser_kwargs={
         #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_hessian.yaml").as_posix()
+        #         CWD.joinpath("configs", "segnn_paper_tensor.yaml").as_posix()
         #     ]
         # },
-        ##
-        model_class=SEGNNModelTensor,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "segnn_paper_tensor.yaml").as_posix()
-            ]
-        },
         ##
         ##  To do classification, use the below two lines
         #
