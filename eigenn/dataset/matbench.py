@@ -122,7 +122,7 @@ class MatbenchDataset(InMemoryDataset):
         return crystals
 
 
-class MatbenchDataMoldule(BaseDataModule):
+class MatbenchDataModule(BaseDataModule):
     """
     Will search for fi`root/<trainset_filename>`.
     """
@@ -183,7 +183,7 @@ class MatbenchDataMoldule(BaseDataModule):
 
 if __name__ == "__main__":
 
-    dm = MatbenchDataMoldule(
+    dm = MatbenchDataModule(
         trainset_filename="matbench_jdft2d.json",
         valset_filename="matbench_jdft2d.json",
         testset_filename="matbench_jdft2d.json",

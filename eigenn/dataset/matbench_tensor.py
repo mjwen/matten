@@ -116,7 +116,7 @@ class MatbenchTensorDataset(InMemoryDataset):
         return crystals
 
 
-class MatbenchTensorDataMoldule(BaseDataModule):
+class MatbenchTensorDataModule(BaseDataModule):
     """
     Will search for fi`root/<trainset_filename>`.
     """
@@ -201,7 +201,7 @@ class MatbenchTensorDataMoldule(BaseDataModule):
 
 if __name__ == "__main__":
 
-    dm = MatbenchTensorDataMoldule(
+    dm = MatbenchTensorDataModule(
         trainset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
         valset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
         testset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",

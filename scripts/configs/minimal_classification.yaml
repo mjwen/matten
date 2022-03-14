@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataMoldule
+  class_path: eigenn.dataset.matbench.MatbenchDataModule
   init_args:
     root: ../eigenn/dataset/matbench
     trainset_filename: matbench_mp_is_metal_n20.json

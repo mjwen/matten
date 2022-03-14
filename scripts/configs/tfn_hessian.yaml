@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.hessian.HessianDataMoldule
+  class_path: eigenn.dataset.hessian.HessianDataModule
   init_args:
     root: /Users/mjwen/Documents/Dataset/xiaowei_hessian
     trainset_filename: ani1_CHO_0-1000_hessian_small.xyz

@@ -121,7 +121,7 @@ class SiNMRDataset(InMemoryDataset):
         return crystals
 
 
-class SiNMRDataMoldule(BaseDataModule):
+class SiNMRDataModule(BaseDataModule):
     """
     Will search for files at, e.g. `root/<trainset_filename>`.
     """
@@ -201,7 +201,7 @@ class SiNMRDataMoldule(BaseDataModule):
 
 if __name__ == "__main__":
 
-    dm = SiNMRDataMoldule(
+    dm = SiNMRDataModule(
         trainset_filename="LSDI_NMR_tensor.json",
         valset_filename="LSDI_NMR_tensor.json",
         testset_filename="LSDI_NMR_tensor.json",

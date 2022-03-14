@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench_tensor.MatbenchTensorDataMoldule
+  class_path: eigenn.dataset.matbench_tensor.MatbenchTensorDataModule
   init_args:
     root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor
     trainset_filename: crystal_elasticity_n20.json

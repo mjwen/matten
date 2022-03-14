@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.LSDI.SiNMRDataMoldule
+  class_path: eigenn.dataset.LSDI.SiNMRDataModule
   init_args:
     root: ../eigenn/dataset/LSDI_NMR
     trainset_filename: LSDI_NMR_tensor.json
