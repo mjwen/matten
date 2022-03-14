@@ -78,8 +78,8 @@ class EigennCLI(LightningCLI):
         parser.link_arguments("data", "model.data_hparams")
 
     def before_instantiate_classes(self) -> None:
-        level = self.config["log_level"].upper()
-        set_logger(level=level)
+        log_level = self.config["log_level"].upper()
+        set_logger(level=log_level)
 
     # Reimplement instantiate_classes to call datamodule setup() and pass necessary
     # dataset info to model as `hparams_dataset`

@@ -70,7 +70,8 @@ class InMemoryDataset(PyGInMemoryDataset):
             if files_exist(self.processed_paths):
                 logger.info(
                     f"Found existing processed data files: {self.processed_paths}. "
-                    f"Will reuse them. To disable reuse, set `reuse=False` of dataset."
+                    f"Will reuse them. To disable reuse, set `reuse=False` of "
+                    "DataModule."
                 )
 
         super().__init__(root=root)

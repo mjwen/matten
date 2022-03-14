@@ -38,7 +38,7 @@ model:
     #
     num_layers: 3
 
-    conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
+    conv_layer_irreps: 32x0o+32x0e + 16x1o+16x1e + 8x2o+8x2e + 4x3o+4x3e + 4x4o+4x4e
     nonlinearity_type: gate
     normalization: batch # normalization method, `batch`, `instance` or `none`
     resnet: true
