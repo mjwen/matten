@@ -72,8 +72,8 @@ class IrrepsToHessian(ModuleIrreps, torch.nn.Module):
         Convert irreps tensor to 3N by 3N Hessian matrix of a configuration.
 
         Each 3x3 sub matrix in the rows 3i~3i+3 and columns 3j~3j+3 of the Hessian
-        matrix is constructed from the node features of atom i, and atom j (by
-        mapping the tensor products of the node features to a general 3x3 matrix).
+        matrix is constructed from the node features (0e+1e+2e) of atom i, and atom
+        j (by mapping the tensor products of the node features to a general 3x3 matrix).
 
         Args:
             irreps_in:

@@ -103,7 +103,7 @@ class HessianDataset(InMemoryDataset):
         return molecules
 
 
-class HessianDataMoldule(BaseDataModule):
+class HessianDataModule(BaseDataModule):
     """
     Will search for files at, e.g. `root/<trainset_filename>`.
     """
@@ -308,7 +308,7 @@ def symmetrize_hessian(H: torch.Tensor, natoms: List[int]) -> torch.Tensor:
 if __name__ == "__main__":
     filename = "ani1_CHO_0-1000_hessian_small.xyz"
     root = "/Users/mjwen/Documents/Dataset/xiaowei_hessian"
-    dm = HessianDataMoldule(
+    dm = HessianDataModule(
         trainset_filename=filename,
         valset_filename=filename,
         testset_filename=filename,
