@@ -1,6 +1,10 @@
 """
 Tensor field network based on the implementation at:
 https://github.com/e3nn/e3nn/blob/bd873a1cfcbad36c2ac233e9e48d7b7c3c5892f4/e3nn/nn/models/v2106/gate_points_networks.py#L1
+
+With one difference:
+- remove the `alpha` part for self connection, which we found to tend to be zeros all
+  the time.
 """
 
 
@@ -78,16 +82,16 @@ class PointConv(ModuleIrreps, torch.nn.Module):
             node_feats_irreps_in, node_attrs_irreps, conv_layer_irreps
         )
 
-        # inspired by https://arxiv.org/pdf/2002.10444.pdf
-        self.alpha = FullyConnectedTensorProduct(
-            tp_irreps_out, node_attrs_irreps, Irreps("0e")
-        )
-        with torch.no_grad():
-            self.alpha.weight.zero_()
-        assert self.alpha.output_mask[0] == 1.0, (
-            f"tp_irreps_out={tp_irreps_out} and node_attrs_irreps"
-            f"={self.irreps_node_attr} are not able to generate scalars"
-        )
+        # # inspired by https://arxiv.org/pdf/2002.10444.pdf
+        # self.alpha = FullyConnectedTensorProduct(
+        #     tp_irreps_out, node_attrs_irreps, Irreps("0e")
+        # )
+        # # with torch.no_grad():
+        # #     self.alpha.weight.zero_()
+        # assert self.alpha.output_mask[0] == 1.0, (
+        #     f"tp_irreps_out={tp_irreps_out} and node_attrs_irreps"
+        #     f"={self.irreps_node_attr} are not able to generate scalars"
+        # )
 
         # add output irreps
         self.irreps_out[DataKey.NODE_FEATURES] = conv_layer_irreps
@@ -111,19 +115,21 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         # update
         node_conv_out = self.lin2(aggregated_msg, node_attrs)
 
-        # m=1: tp has path to generate result, m=0: has not
-        # So, the below snippet means:
-        # When m = 0 (i.e. no self connection path exists), alpha = 1; node feats
-        # will take full update from node_conv_out.
-        # When m = 1 (i.e. self connection path exists), alpha = alpha; node feats
-        # will only take alpha `amount` of node_conv_out. Actually, alpha is
-        # initialized to zero, so this means taking no node_conv_out at all.
-        # As learning progress, since alpha is learnable, this will gradually take
-        # effect.
-        alpha = self.alpha(aggregated_msg, node_attrs)
-        m = self.sc.output_mask
-        alpha = (1 - m) + alpha * m
-        node_feats = node_self_connection + alpha * node_conv_out
+        # # m=1: tp has path to generate result, m=0: has not
+        # # So, the below snippet means:
+        # # When m = 0 (i.e. no self connection path exists), alpha = 1; node feats
+        # # will take full update from node_conv_out.
+        # # When m = 1 (i.e. self connection path exists), alpha = alpha; node feats
+        # # will only take alpha `amount` of node_conv_out. Actually, alpha is
+        # # initialized to zero, so this means taking no node_conv_out at all.
+        # # As learning progress, since alpha is learnable, this will gradually take
+        # # effect.
+        # alpha = self.alpha(aggregated_msg, node_attrs)
+        # m = self.sc.output_mask
+        # alpha = (1 - m) + alpha * m
+        # node_feats = node_self_connection + alpha * node_conv_out
+
+        node_feats = node_self_connection + node_conv_out
 
         data[DataKey.NODE_FEATURES] = node_feats
 
