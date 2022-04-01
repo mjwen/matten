@@ -76,8 +76,8 @@ class MatbenchTensorDataset(InMemoryDataset):
         df[self.field_name] = df[self.field_name].apply(lambda x: torch.as_tensor(x))
 
         # convert to irreps tensor is necessary
-        converter = CartesianTensor(formula=self.output_formula)
         if self.output_format == "irreps":
+            converter = CartesianTensor(formula=self.output_formula)
             df[self.field_name] = df[self.field_name].apply(
                 lambda x: converter.from_cartesian(x)
             )
@@ -130,9 +130,9 @@ class MatbenchTensorDataModule(BaseDataModule):
         *,
         r_cut: float,
         root: Union[str, Path] = ".",
+        reuse: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ijkl=jikl=klij",
-        reuse: bool = True,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,

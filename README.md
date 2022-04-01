@@ -1,10 +1,12 @@
 # eigenn
 
-Equivariant Invariant Graph Enabled Neural Network
+Equivariant Invariant Graph Enabled Neural Network (eigenn)
 
 ## Install
 
 This below installing guide should get you started on Mac, without using GPUs.
+
+- eigenn requires Python 3.9+
 
 - [PyTorch](https://pytorch.org)
 

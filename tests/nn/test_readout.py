@@ -27,6 +27,7 @@ def test_irreps_to_hessian():
     i2h = IrrepsToHessian(
         irreps_in={DataKey.NODE_FEATURES: "0e + 1e + 2e"},
         out_field="my_out",
+        symmetrize=False,
     )
 
     natoms = 2
@@ -38,7 +39,7 @@ def test_irreps_to_hessian():
     data = {
         DataKey.NODE_FEATURES: y,
         "hessian_layout": layout,
-        "ptr": torch.tensor([0, 2]),
+        "ptr": torch.tensor([0, 2]),  # used to get the number of atoms in a config
     }
 
     out = i2h(data)
