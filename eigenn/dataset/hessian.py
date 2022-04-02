@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import warnings
 from collections.abc import Mapping, Sequence
@@ -9,8 +11,10 @@ import ase.io
 import numpy as np
 import torch
 import torch.utils.data
+from e3nn.io import CartesianTensor
 from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Batch, Data, Dataset, HeteroData
+from torchtyping import TensorType
 
 from eigenn.data.data import Molecule
 from eigenn.data.datamodule import BaseDataModule
@@ -31,11 +35,16 @@ class HessianDataset(InMemoryDataset):
     def __init__(
         self,
         filename: str,
-        root: Union[str, Path] = ".",
+        *,
+        root: str | Path = ".",
         reuse: bool = True,
         edge_strategy: str = "pmg_mol_graph",
+        output_format: str = "cartesian",
+        output_formula: str = "ij=ij",
     ):
         self.edge_strategy = edge_strategy
+        self.output_format = output_format
+        self.output_formula = output_formula
 
         super().__init__(
             filenames=[filename],
@@ -49,6 +58,9 @@ class HessianDataset(InMemoryDataset):
         filepath = self.raw_paths[0]
         configs = ase.io.read(filepath, index=":")
 
+        # convert to irreps tensor is necessary
+        converter = CartesianTensor(formula=self.output_formula)
+
         molecules = []
         for i, conf in enumerate(configs):
 
@@ -57,9 +69,11 @@ class HessianDataset(InMemoryDataset):
                 # number of atoms N, directly passing this to dataloader should not
                 # work (cannot batch). So we reshape it to a N^2 by 3 by 3 matrix.
                 N = len(conf)
-                hessian = conf.info["hessian"].reshape(N, 3, N, 3)
-                hessian = np.swapaxes(hessian, 1, 2)
-                hessian = hessian.reshape(-1, 3, 3)
+                hessian = torch.as_tensor(conf.info["hessian"], dtype=torch.float32)
+                hessian = hessian.reshape(N, 3, N, 3).swapaxes(1, 2).reshape(-1, 3, 3)
+
+                if self.output_format == "irreps":
+                    hessian = converter.from_cartesian(hessian)
 
                 # How the N^2 part of the hessian is lay out.
                 # First column gives the row index of the hessian matrix (without
@@ -74,21 +88,17 @@ class HessianDataset(InMemoryDataset):
                 #
                 # We use this row based stuff (not something similar to edge_index) for
                 # easy batching.
-                hessian_layout = np.asarray(
-                    list(zip(*itertools.product(range(N), repeat=2)))
-                ).T
-
-                # number of atoms of the config, repeated N^2 times, one for each
-                # 3x3 block
-                hessian_natoms = N * np.ones(N * N)
+                hessian_off_diag_layout = torch.as_tensor(
+                    [[i, j] for i in range(N) for j in range(N) if i != j]
+                )
 
                 m = Molecule.with_edge_strategy(
                     pos=conf.positions,
                     x=None,
                     y={
                         "hessian": hessian,
-                        "hessian_layout_raw": hessian_layout,
-                        "hessian_natoms": hessian_natoms,
+                        "hessian_off_diag_layout_raw": hessian_off_diag_layout,
+                        "hessian_natoms": torch.tensor([N]),
                     },
                     strategy=self.edge_strategy,
                     atomic_numbers=conf.get_atomic_numbers(),
@@ -116,11 +126,15 @@ class HessianDataModule(BaseDataModule):
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
+        output_format: str = "cartesian",
+        output_formula: str = "ij=ij",
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
     ):
         self.root = root
+        self.output_format = output_format
+        self.output_formula = output_formula
 
         super().__init__(
             trainset_filename,
@@ -134,13 +148,25 @@ class HessianDataModule(BaseDataModule):
 
     def setup(self, stage: Optional[str] = None):
         self.train_data = HessianDataset(
-            self.trainset_filename, self.root, reuse=self.reuse
+            self.trainset_filename,
+            root=self.root,
+            reuse=self.reuse,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
         )
         self.val_data = HessianDataset(
-            self.valset_filename, self.root, reuse=self.reuse
+            self.valset_filename,
+            root=self.root,
+            reuse=self.reuse,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
         )
         self.test_data = HessianDataset(
-            self.testset_filename, self.root, reuse=self.reuse
+            self.testset_filename,
+            root=self.root,
+            reuse=self.reuse,
+            output_format=self.output_format,
+            output_formula=self.output_formula,
         )
 
     def get_to_model_info(self) -> Dict[str, Any]:
@@ -175,7 +201,8 @@ class HessianDataModule(BaseDataModule):
 
 #
 # Collater and DataLoader copied from PyG.
-# We need to use `hessian_layout` to select node features. In a sense, it is similar
+# We need to use `hessian_off_diag_layout` to select node features. In a sense,
+# it is similar
 # to how edge_index should be treated when batching: i.e. the index of the next graph
 # should be added by the total number of edges in the previous graph. However,
 # since we provide it as an attribute in y, this will not be done by the default
@@ -190,12 +217,15 @@ class Collater(object):
         elem = batch[0]
         if isinstance(elem, Data) or isinstance(elem, HeteroData):
 
-            # add Data.y.hessian_layout, this is similar to edge index,
-            # should increase by the number of atoms in the previous graph
+            # add Data.y.hessian_off_diag_layout, this is similar to edge index,
+            # should increase by the number of atoms in each molecule.
+            #
             i = 0
             for d in batch:
-                # should use different name to not overwrite hessian_layout_raw
-                d["y"]["hessian_layout"] = d["y"]["hessian_layout_raw"] + i
+                # should use different name to not overwrite hessian_off_diag_layout_raw
+                d["y"]["hessian_off_diag_layout"] = (
+                    d["y"]["hessian_off_diag_layout_raw"] + i
+                )
                 i += d.num_nodes
 
             return Batch.from_data_list(batch, self.follow_batch, self.exclude_keys)
@@ -266,16 +296,18 @@ class DataLoader(torch.utils.data.DataLoader):
         )
 
 
-def symmetrize_hessian(H: torch.Tensor, natoms: List[int]) -> torch.Tensor:
+def symmetrize_hessian(
+    H: TensorType["nblocks", 3, 3], natoms: list[int]
+) -> torch.Tensor:
     """
     Symmetrize a Hessian matrix by H = (H + H^T)/2, where T denotes matrix transpose.
 
     This can deal with batched cases.
 
     Args:
-        H: shape (M, 3, 3) the batched Hessian to symmetrize. For a list of molecules
-            with number of atoms N1, N2, ... N_n, M = N1^2 + N2^2 + ... + N_n^2. Also,
-            this assumes each for each molecule, the N1^2 3x3 blocks is stacked
+        H: The batched Hessian to symmetrize. For a list of molecules
+            with number of atoms N1, N2, ... N_n, nblocks = N1^2 + N2^2 + ... + N_n^2.
+            Also, this assumes each for each molecule, the N1^2 3x3 blocks is stacked
             according to
             [(0, 0),
              (0, 1),
@@ -305,6 +337,35 @@ def symmetrize_hessian(H: torch.Tensor, natoms: List[int]) -> torch.Tensor:
     return torch.cat(sym_H)
 
 
+def separate_diagonal_blocks(
+    H: TensorType["N*3", "N*3"],
+) -> tuple[list[TensorType[3, 3]], list[TensorType[3, 3]]]:
+    """
+    Separate the 3N by 3N Hessian matrix into diagonal and off-diagonal 3 by 3 blocks.
+
+    Args:
+        H: shape (3N, 3N), the hessian matrix
+
+    Returns:
+        diagonal: shape (N, 3, 3). Diagonal blocks of the Hessian matrix
+        off_diagonal: shape (N*N-N, 3, 3), off-diagonal blocks of the Hesssian matrix.
+            The mapping between the off-diagonal blocks in H and this returned value is
+            (0, 1) -> 0, (0, 2)->1, ... (0, N-1) -> N-2,
+            (1, 0)-> N-1, (1, 2)-> N ...
+            ...
+    """
+    N = len(H) // 3  # number of atoms
+
+    diag_idx = [i * (N + 1) for i in range(N)]
+    offdiag_idx = sorted(set(range(N * N)) - set(diag_idx))
+
+    H = H.reshape(N, 3, N, 3).swapaxes(1, 2).reshape(N * N, 3, 3)
+    diag = H[diag_idx]
+    offdiag = H[offdiag_idx]
+
+    return diag, offdiag
+
+
 if __name__ == "__main__":
     filename = "ani1_CHO_0-1000_hessian_small.xyz"
     root = "/Users/mjwen/Documents/Dataset/xiaowei_hessian"
@@ -313,7 +374,19 @@ if __name__ == "__main__":
         valset_filename=filename,
         testset_filename=filename,
         root=root,
+        reuse=False,
+        output_format="irreps",
+        output_formula="ij=ij",
+        loader_kwargs={"batch_size": 2},
     )
     dm.setup()
     info = dm.get_to_model_info()
-    print(info)
+    print("to_model_info", info)
+
+    for graph in dm.train_dataloader():
+        print("graph", graph)
+        print("graph.batch", graph.batch)
+        for key, v in graph["y"].items():
+            print(f"{key}: {v}")
+
+        break

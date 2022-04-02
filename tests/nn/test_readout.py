@@ -38,7 +38,7 @@ def test_irreps_to_hessian():
     layout = torch.tensor([[0, 0], [0, 1], [1, 0], [1, 1]])
     data = {
         DataKey.NODE_FEATURES: y,
-        "hessian_layout": layout,
+        "hessian_off_diag_layout": layout,
         "ptr": torch.tensor([0, 2]),  # used to get the number of atoms in a config
     }
 
