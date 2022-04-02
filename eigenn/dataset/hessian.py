@@ -70,34 +70,20 @@ class HessianDataset(InMemoryDataset):
                 # work (cannot batch). So we reshape it to a N^2 by 3 by 3 matrix.
                 N = len(conf)
                 hessian = torch.as_tensor(conf.info["hessian"], dtype=torch.float32)
-                hessian = hessian.reshape(N, 3, N, 3).swapaxes(1, 2).reshape(-1, 3, 3)
+                hessian = hessian.reshape(N * 3, N * 3)
+                diag, off_diag, off_diag_layout = separate_diagonal_blocks(hessian)
 
                 if self.output_format == "irreps":
-                    hessian = converter.from_cartesian(hessian)
-
-                # How the N^2 part of the hessian is lay out.
-                # First column gives the row index of the hessian matrix (without
-                # considering the 3) and second column gives the column index.
-                # As an example, for a system with 2 atoms, this will be
-                # [[0, 0],
-                #  [0, 1],
-                #  [1, 0],
-                #  [1, 1]]
-                # meaning that the first 3x3 matrix in the hessian is the (0,
-                # 0) sub-matrix, and the second is the (0,1) sub-matrix...
-                #
-                # We use this row based stuff (not something similar to edge_index) for
-                # easy batching.
-                hessian_off_diag_layout = torch.as_tensor(
-                    [[i, j] for i in range(N) for j in range(N) if i != j]
-                )
+                    diag = converter.from_cartesian(diag)
+                    off_diag = converter.from_cartesian(off_diag)
 
                 m = Molecule.with_edge_strategy(
                     pos=conf.positions,
                     x=None,
                     y={
-                        "hessian": hessian,
-                        "hessian_off_diag_layout_raw": hessian_off_diag_layout,
+                        "hessian_diag": diag,
+                        "hessian_off_diag": off_diag,
+                        "hessian_off_diag_layout_raw": off_diag_layout,
                         "hessian_natoms": torch.tensor([N]),
                     },
                     strategy=self.edge_strategy,
@@ -339,20 +325,23 @@ def symmetrize_hessian(
 
 def separate_diagonal_blocks(
     H: TensorType["N*3", "N*3"],
-) -> tuple[list[TensorType[3, 3]], list[TensorType[3, 3]]]:
+) -> tuple[TensorType["N", 3, 3], TensorType["N*N-N", 3, 3], TensorType["N*N-N", 2]]:
     """
     Separate the 3N by 3N Hessian matrix into diagonal and off-diagonal 3 by 3 blocks.
 
     Args:
-        H: shape (3N, 3N), the hessian matrix
+        H: the hessian matrix
 
     Returns:
-        diagonal: shape (N, 3, 3). Diagonal blocks of the Hessian matrix
-        off_diagonal: shape (N*N-N, 3, 3), off-diagonal blocks of the Hesssian matrix.
-            The mapping between the off-diagonal blocks in H and this returned value is
-            (0, 1) -> 0, (0, 2)->1, ... (0, N-1) -> N-2,
+        diagonal: Diagonal blocks of the Hessian matrix
+        off_diagonal: off-diagonal blocks of the Hessian matrix.
+        off_diagonal_layout: How the off diagonal part of the Hessian is layed out.
+            I.e. the mapping between the off-diagonal blocks and this returned value is
+            (0, 1) -> 0, (0, 2)-> 1, ... (0, N-1) -> N-2,
             (1, 0)-> N-1, (1, 2)-> N ...
-            ...
+
+            First column gives the row index of the hessian matrix (without
+            considering the 3) and second column gives the column index.
     """
     N = len(H) // 3  # number of atoms
 
@@ -363,7 +352,11 @@ def separate_diagonal_blocks(
     diag = H[diag_idx]
     offdiag = H[offdiag_idx]
 
-    return diag, offdiag
+    offdiag_layout = torch.as_tensor(
+        [[i, j] for i in range(N) for j in range(N) if i != j]
+    )
+
+    return diag, offdiag, offdiag_layout
 
 
 if __name__ == "__main__":
