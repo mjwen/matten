@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.dataset.hessian import symmetrize_hessian
+from eigenn.dataset.hessian import separate_diagonal_blocks, symmetrize_hessian
 
 
 def test_symmetrize_hessian():
@@ -33,3 +33,26 @@ def test_symmetrize_hessian():
     sym_H2 = sym_H[1].reshape(n2, n2, 3, 3)
     sym_H2 = torch.swapaxes(sym_H2, 1, 2).reshape(n2 * 3, n2 * 3)
     assert torch.allclose(sym_H2, ref_sym_H2)
+
+
+def test_separate_diagonal_blocks():
+    N = 4
+    H = torch.arange(N * 3 * N * 3).reshape(N * 3, N * 3).to(torch.float)
+
+    diag_blocks, off_blocks, off_diag_layout = separate_diagonal_blocks(H)
+
+    assert diag_blocks.shape == (N, 3, 3)
+    assert off_blocks.shape == (N * N - N, 3, 3)
+
+    # diag part
+    for i in range(N):
+        assert torch.allclose(diag_blocks[i], H[3 * i : 3 * i + 3, 3 * i : 3 * i + 3])
+
+    # off diag part
+    k = 0
+    for i in range(N):
+        for j in range(N):
+            if i != j:
+                torch.allclose(diag_blocks[i], H[3 * i : 3 * i + 3, 3 * j : 3 * j + 3])
+                torch.allclose(off_diag_layout[k], torch.tensor((i, j)))
+                k += 1
