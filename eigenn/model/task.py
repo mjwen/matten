@@ -35,7 +35,7 @@ class Task:
 
     Args:
         name: name of the task
-        loss_weight: in multi-task learning, e.g. fitting energy an forces together,
+        loss_weight: in multitask learning, e.g. fitting energy an forces together,
             the total loss is a weighted sum of the losses of individual tasks.
             loss_weight gives the weight of this task.
         kwargs: extra information that is needed for the task.
@@ -54,7 +54,6 @@ class Task:
 
         self._name = name
         self._loss_weight = loss_weight
-        self._task_type = None
 
         # store kwargs as attribute
         self.__dict__.update(kwargs)
@@ -376,25 +375,5 @@ class CanonicalRegressionTask(RegressionTask):
         return {"MeanAbsoluteError": 1.0}
 
 
-class HessianRegressionTask(RegressionTask):
-    """
-    Regress task for Hessian, with:
-        - MSELoss loss function
-        - MeanAbsoluteError metric
-        - MeanAbsoluteError contributes to the total metric score
-
-    The loss is inversely weighed by the number of atoms in each configuration.
-    """
-
-    def init_loss(self):
-        return nn.MSELoss()
-
-    def init_metric(self):
-        metric = MeanAbsoluteError(compute_on_step=False)
-
-        return metric
-
-    def metric_aggregation(self):
-
-        # This requires `mode` of early stopping and checkpoint to be `min`
-        return {"MeanAbsoluteError": 1.0}
+HessianRegressionTaskDiag = CanonicalRegressionTask
+HessianRegressionTaskOffDiag = CanonicalRegressionTask

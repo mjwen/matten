@@ -1,10 +1,7 @@
-from __future__ import annotations
-
-import itertools
 import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import ase.data
 import ase.io
@@ -36,11 +33,11 @@ class HessianDataset(InMemoryDataset):
         self,
         filename: str,
         *,
-        root: str | Path = ".",
+        root: Union[str, Path] = ".",
         reuse: bool = True,
         edge_strategy: str = "pmg_mol_graph",
-        output_format: str = "cartesian",
-        output_formula: str = "ij=ij",
+        output_format: str = "irreps",
+        output_formula: str = "ij=ij",  # TODO delete this, not used
     ):
         self.edge_strategy = edge_strategy
         self.output_format = output_format
@@ -59,7 +56,8 @@ class HessianDataset(InMemoryDataset):
         configs = ase.io.read(filepath, index=":")
 
         # convert to irreps tensor is necessary
-        converter = CartesianTensor(formula=self.output_formula)
+        converter_diag = CartesianTensor(formula="ij=ji")
+        converter_off_diag = CartesianTensor(formula="ij=ij")
 
         molecules = []
         for i, conf in enumerate(configs):
@@ -74,8 +72,8 @@ class HessianDataset(InMemoryDataset):
                 diag, off_diag, off_diag_layout = separate_diagonal_blocks(hessian)
 
                 if self.output_format == "irreps":
-                    diag = converter.from_cartesian(diag)
-                    off_diag = converter.from_cartesian(off_diag)
+                    diag = converter_diag.from_cartesian(diag)
+                    off_diag = converter_off_diag.from_cartesian(off_diag)
 
                 m = Molecule.with_edge_strategy(
                     pos=conf.positions,
@@ -283,7 +281,7 @@ class DataLoader(torch.utils.data.DataLoader):
 
 
 def symmetrize_hessian(
-    H: TensorType["nblocks", 3, 3], natoms: list[int]
+    H: TensorType["nblocks", 3, 3], natoms: List[int]
 ) -> torch.Tensor:
     """
     Symmetrize a Hessian matrix by H = (H + H^T)/2, where T denotes matrix transpose.
@@ -325,7 +323,7 @@ def symmetrize_hessian(
 
 def separate_diagonal_blocks(
     H: TensorType["N*3", "N*3"],
-) -> tuple[TensorType["N", 3, 3], TensorType["N*N-N", 3, 3], TensorType["N*N-N", 2]]:
+) -> Tuple[TensorType["N", 3, 3], TensorType["N*N-N", 3, 3], TensorType["N*N-N", 2]]:
     """
     Separate the 3N by 3N Hessian matrix into diagonal and off-diagonal 3 by 3 blocks.
 

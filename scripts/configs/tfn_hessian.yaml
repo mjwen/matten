@@ -9,6 +9,8 @@ data:
     valset_filename: ani1_CHO_0-1000_hessian_small.xyz
     testset_filename: ani1_CHO_0-1000_hessian_small.xyz
     reuse: true
+    output_format: irreps
+    output_formula: ij=ij
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -48,13 +50,16 @@ model:
     #
     # output
     #
-    conv_to_output_hidden_irreps_out: 16x0e + 8x1e + 4x2e # should contain irreps that when multipliey with itself, 0e + 1e + 2e can be generated
+    conv_to_output_hidden_irreps_out: 0e+1e+1e+1e+2e #  should be fixed to this
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.HessianRegressionTask
-    init_args:
-      name: hessian
+    - class_path: eigenn.model.task.HessianRegressionTaskDiag
+      init_args:
+        name: hessian_diag
+    - class_path: eigenn.model.task.HessianRegressionTaskOffDiag
+      init_args:
+        name: hessian_off_diag
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

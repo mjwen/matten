@@ -22,7 +22,7 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseLinear
-from eigenn.nn.readout import IrrepsToHessian
+from eigenn.nn.readout import IrrepsToIrrepsHessian
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
 
 OUT_FIELD_NAME = "model_output"
@@ -39,32 +39,27 @@ class TFNModel(ModelForPyGData):
 
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)
-        out = out[OUT_FIELD_NAME]
 
-        # current we only support one task, so 0 is the name
-        task_name = list(self.tasks.keys())[0]
-
-        preds = {task_name: out}
+        preds = {
+            "hessian_diag": out["hessian_ii_block"],
+            "hessian_off_diag": out["hessian_ij_block"],
+        }
 
         return preds
 
     def preprocess_batch(self, batch):
         """
-        Overwrite the default one to get hessian_natoms and hessian_layout to label,
-        so that we can use it to properly compute loss
-
+        Overwrite the default one to get hessian_natoms and hessian_off_diag_layout to
+        label, so that we can use it to properly compute loss
         """
         graphs = batch
         graphs = graphs.to(self.device)  # lightning cannot move graphs to gpu
 
-        # task labels (name should be `hessian` here)
-        labels = {name: graphs.y[name] for name in self.tasks}
-        labels.update(
-            {
-                "hessian_layout": graphs.y["hessian_layout"],
-                "hessian_natoms": graphs.y["hessian_natoms"],
-            }
-        )
+        # task labels :w
+        labels = {
+            name: graphs.y[name]
+            for name in ["hessian_diag", "hessian_off_diag", "hessian_natoms"]
+        }
 
         # convert graphs to a dict to use NequIP stuff
         graphs = graphs.tensor_property_to_dict()
@@ -75,35 +70,29 @@ class TFNModel(ModelForPyGData):
         self, preds: Dict[str, Tensor], labels: Dict[str, Tensor]
     ) -> Tuple[Dict[str, Tensor], Tensor]:
 
-        # here we hard code it for simplicity
-        task_name = "hessian"
-        p = preds[task_name]
-        t = labels[task_name]
+        name_diag = "hessian_diag"
+        loss_diag = get_loss(
+            self.loss_fns[name_diag],
+            preds[name_diag],
+            labels[name_diag],
+            labels["hessian_natoms"],
+            mode=name_diag,
+        )
 
-        # scale prediction and target by the number of atoms, such that each
-        # configuration contributes equally to the loss
-        natoms = labels["hessian_natoms"]
+        name_off = "hessian_off_diag"
+        loss_off = get_loss(
+            self.loss_fns[name_off],
+            preds[name_off],
+            labels[name_off],
+            labels["hessian_natoms"],
+            mode=name_off,
+        )
 
-        loss_fn = self.loss_fns[task_name]
+        loss_individual = {name_diag: loss_diag, name_off: loss_off}
 
-        if isinstance(loss_fn, torch.nn.MSELoss):
-            natoms = torch.sqrt(natoms)
-        elif isinstance(loss_fn, torch.nn.L1Loss):
-            natoms = natoms
-        else:
-            raise ValueError("Not supported loss type")
+        loss_total = loss_diag + loss_off
 
-        shape_1_n = [1] * (len(p.shape) - 1)
-        natoms = natoms.reshape(-1, *shape_1_n)
-
-        p = p / natoms
-        t = t / natoms
-        loss = loss_fn(p, t)
-
-        individual_losses = {task_name: loss}
-        total_loss = loss
-
-        return individual_losses, total_loss
+        return loss_individual, loss_total
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):
@@ -245,7 +234,9 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     )
 
     # output layer
-    layers["output"] = (IrrepsToHessian, {"out_field": OUT_FIELD_NAME})
+    # outfield hard-coded IrrepsToIrrepsHessian, they are hessian_ii_block and
+    # hessian_ij_block
+    layers["output"] = (IrrepsToIrrepsHessian, {"out_field": None})
 
     # create the sequential model
     model = create_sequential_module(
@@ -253,6 +244,50 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     )
 
     return model
+
+
+def get_loss(loss_fn, p, t, natoms, mode):
+    """
+    Args:
+        mode: `hessian_diag` | `hessian_off_diag`
+    """
+
+    if mode == "hessian_diag":
+
+        if isinstance(loss_fn, torch.nn.MSELoss):
+            # for each molecule, there are n diagonal components;
+            # repeat each n times
+            scale = torch.sqrt(torch.repeat_interleave(natoms, natoms, dim=0))
+        elif isinstance(loss_fn, torch.nn.L1Loss):
+            scale = torch.repeat_interleave(natoms, natoms, dim=0)
+        else:
+            raise ValueError
+
+    elif mode == "hessian_off_diag":
+
+        if isinstance(loss_fn, torch.nn.MSELoss):
+            # for each molecule, there are n**2 - n off-diagonal blocks
+            scale = torch.sqrt(
+                torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
+            )
+        elif isinstance(loss_fn, torch.nn.L1Loss):
+            scale = torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
+        else:
+            raise ValueError
+    else:
+        raise ValueError("Not supported loss type")
+
+    # make scale have the same shape of pred and target, except for the highest
+    # dim. e.g. p has shape (108, 6) and scale has shape (108,), which will
+    # make scale of shape(108, 1)
+    extra_shape = [1] * (len(p.shape) - 1)
+    scale = scale.reshape(-1, *extra_shape)
+
+    p = p / scale
+    t = t / scale
+    loss = loss_fn(p, t)
+
+    return loss
 
 
 if __name__ == "__main__":
