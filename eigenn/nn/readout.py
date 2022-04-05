@@ -180,7 +180,10 @@ class IrrepsToIrrepsHessian(ModuleIrreps, torch.nn.Module):
         # check irreps
         # note, cannot use 0e + 3x1e + 2e, which is different
         expect_irreps_in = Irreps("0e + 1e + 1e + 1e + 2e")
-        assert self.irreps_in[self.field] == expect_irreps_in
+        assert self.irreps_in[self.field] == expect_irreps_in, (
+            "expect irreps to be `0e + 1e + 1e + 1e + 2e` for the converting module; "
+            f"got {self.irreps_in[self.field]}"
+        )
 
         # extractor to separate 0e+1e+1e+1e+2e into 0e+2e and three 1e
         self.extract = Extract(
