@@ -23,13 +23,13 @@ def get_model():
     hparams = {
         "species_embedding_dim": 16,
         # "species_embedding_irreps_out": "16x0e",
-        "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
+        "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e",
         "irreps_edge_sh": "0e + 1o + 2e",
         "num_radial_basis": 8,
-        "radial_basis_start": 0.0,
-        "radial_basis_end": 3.0,
+        "radial_basis_start": 0.5,
+        "radial_basis_end": 2.0,
         # "radial_basis_r_cut": 4,
-        "num_layers": 3,
+        "num_layers": 2,
         "reduce": "sum",
         "invariant_layers": 2,
         "invariant_neurons": 64,
@@ -52,7 +52,7 @@ def load_dataset(filename, root):
     return loader
 
 
-def test_hessian_model():
+def test_hessian_symmetric():
     """
     - the diagonal blocks are symmetric
     - two off-diagonal blocks (i,j) and (j,i) are transpose of each other
