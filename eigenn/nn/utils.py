@@ -439,6 +439,8 @@ class NormalizationLayer(torch.nn.Module):
         return x
 
 
+# TODO there is bug in the below moddule, as it does not distinguish training and
+#  predicting mode when there is affine transformation.
 # copied for the repo of segnn paper
 # The e3nn InstanceNorm does not work, because it treats each node as an instance.
 # However, for each node, there is only one channel, and thus instance normalization is
@@ -482,6 +484,11 @@ class InstanceNorm(torch.nn.Module):
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)
 
+        # TODO, this does not work for saving data.
+        # mean and stdev, and norm should be buffer such that we save the model and
+        # load back, they will be recovered, Take a look at the e3nn BatchNorm
+        # implementation
+
         assert isinstance(reduce, str), "reduce should be passed as a string value"
         assert reduce in ["mean", "max"], "reduce needs to be 'mean' or 'max'"
         self.reduce = reduce
@@ -517,12 +524,8 @@ class InstanceNorm(torch.nn.Module):
         iw = 0
         ib = 0
 
-        for (
-            mul,
-            ir,
-        ) in (
-            self.irreps
-        ):  # mul is the multiplicity (number of copies) of some irrep type (ir)
+        for (mul, ir) in self.irreps:
+            # mul is the multiplicity (number of copies) of some irrep type (ir)
             d = ir.dim
             field = input[:, ix : ix + mul * d]  # [batch * sample, mul * repr]
             ix += mul * d
@@ -586,7 +589,6 @@ class InstanceNorm(torch.nn.Module):
         return output
 
 
-# TODO remove
 def global_mean_pool(x, batch, size: Optional[int] = None):
     r"""Returns batch-wise graph-level-outputs by averaging node features
     across the node dimension, so that for a single graph
@@ -610,7 +612,6 @@ def global_mean_pool(x, batch, size: Optional[int] = None):
     return scatter(x, batch, dim=0, dim_size=size, reduce="mean")
 
 
-# TODO remove
 def global_max_pool(x, batch, size: Optional[int] = None):
     r"""Returns batch-wise graph-level-outputs by taking the channel-wise
     maximum across the node dimension, so that for a single graph
