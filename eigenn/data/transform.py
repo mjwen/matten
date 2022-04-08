@@ -5,6 +5,8 @@ This is for data standardization. Unlike scalars, where we can treat each compon
 separately and obtain statistics from them, tensors need to be treated at least on
 the irreps level.
 """
+from __future__ import annotations
+
 from typing import Union
 
 import torch
@@ -83,27 +85,48 @@ class MeanNormNormalize(Normalize):
         self.reduce = reduce
         self.eps = eps
 
+        # Cannot register None as buffer for mean and norm, which means this module
+        # does not need them. As a result, we cannot load them via state dict.
+        if mean is None or norm is None:
+            self.mean_norm_initialized = False
+        else:
+            self.mean_norm_initialized = True
+
+        if mean is None:
+            mean = torch.zeros(self.irreps.dim)
+        if norm is None:
+            norm = torch.zeros(self.irreps.dim)
+
         self.register_buffer("mean", mean)
         self.register_buffer("norm", norm)
 
     def forward(
         self, data: TensorType["batch", "D"]  # noqa: F821
     ) -> TensorType["batch", "D"]:  # noqa: F821
-        if self.mean is None or self.norm is None:
-            self.mean, self.norm = self._compute_mean_and_norm(data)
+        if not self.mean_norm_initialized:
+            raise RuntimeError("mean and norm not initialized.")
 
         return (data - self.mean) / self.norm
 
     def inverse(
         self, data: TensorType["batch", "D"]  # noqa: F821
     ) -> TensorType["batch", "D"]:  # noqa: F821
-        if self.mean is None or self.norm is None:
-            raise RuntimeError(
-                "Cannot perform inverse transform; either mean or norm is `None`."
-            )
+        if not self.mean_norm_initialized:
+            raise RuntimeError("mean and norm not initialized.")
+
         return data * self.norm + self.mean
 
-    def _compute_mean_and_norm(self, data: TensorType["batch", "D"]):  # noqa: F821
+    # mean and norm
+    def load_state_dict(
+        self, state_dict: "OrderedDict[str, Tensor]", strict: bool = True
+    ):
+        super().load_state_dict(state_dict, strict)
+        self.mean_norm_initialized = True
+
+    def compute_statistics(self, data: TensorType["batch", "D"]):  # noqa: F821
+        """
+        Compute the mean and norm statistics.
+        """
 
         all_mean = []
         all_norm = []
@@ -174,5 +197,8 @@ class MeanNormNormalize(Normalize):
             f"Expect len(all_norm) and data.shape[-1] to be equal; got {len(all_norm)} "
             f"and {dim}."
         )
+
+        # Warning, do not delete this line,
+        self.load_state_dict({"mean": all_mean, "norm": all_norm})
 
         return all_mean, all_norm
