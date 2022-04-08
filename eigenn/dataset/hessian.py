@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import ase.data
 import ase.io
-import numpy as np
 import torch
 import torch.utils.data
 from e3nn.io import CartesianTensor
@@ -281,7 +280,7 @@ class DataLoader(torch.utils.data.DataLoader):
 
 
 def symmetrize_hessian(
-    H: TensorType["nblocks", 3, 3], natoms: List[int]
+    H: TensorType["nblocks", 3, 3], natoms: List[int]  # noqa: F821
 ) -> torch.Tensor:
     """
     Symmetrize a Hessian matrix by H = (H + H^T)/2, where T denotes matrix transpose.
@@ -322,8 +321,12 @@ def symmetrize_hessian(
 
 
 def separate_diagonal_blocks(
-    H: TensorType["N*3", "N*3"],
-) -> Tuple[TensorType["N", 3, 3], TensorType["N*N-N", 3, 3], TensorType["N*N-N", 2]]:
+    H: TensorType["N*3", "N*3"],  # noqa: F821
+) -> Tuple[
+    TensorType["N", 3, 3],  # noqa: F821
+    TensorType["N*N-N", 3, 3],  # noqa: F821
+    TensorType["N*N-N", 2],  # noqa: F821
+]:
     """
     Separate the 3N by 3N Hessian matrix into diagonal and off-diagonal 3 by 3 blocks.
 

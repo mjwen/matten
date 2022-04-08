@@ -23,7 +23,10 @@ class Normalize(nn.Module):
 
         self.irreps = Irreps(irreps)
 
-    def forward(self, data: TensorType["batch", "D"]) -> TensorType["batch", "D"]:
+    def forward(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
+
         """
         Transform the data.
 
@@ -33,7 +36,9 @@ class Normalize(nn.Module):
         """
         raise NotImplementedError
 
-    def inverse(self, data: TensorType["batch", "D"]) -> TensorType["batch", "D"]:
+    def inverse(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
         """
         Inverse transform the data.
 
@@ -81,20 +86,24 @@ class MeanNormNormalize(Normalize):
         self.register_buffer("mean", mean)
         self.register_buffer("norm", norm)
 
-    def forward(self, data: TensorType["batch", "D"]) -> TensorType["batch", "D"]:
+    def forward(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
         if self.mean is None or self.norm is None:
             self.mean, self.norm = self._compute_mean_and_norm(data)
 
         return (data - self.mean) / self.norm
 
-    def inverse(self, data: TensorType["batch", "D"]) -> TensorType["batch", "D"]:
+    def inverse(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
         if self.mean is None or self.norm is None:
             raise RuntimeError(
                 "Cannot perform inverse transform; either mean or norm is `None`."
             )
         return data * self.norm + self.mean
 
-    def _compute_mean_and_norm(self, data: TensorType["batch", "D"]):
+    def _compute_mean_and_norm(self, data: TensorType["batch", "D"]):  # noqa: F821
 
         all_mean = []
         all_norm = []
