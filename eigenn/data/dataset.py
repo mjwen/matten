@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import requests
 import torch
@@ -31,8 +31,11 @@ class InMemoryDataset(PyGInMemoryDataset):
             directory name to store the processed files. This should be a string not
             a full path, and the processed files will be stored in
             `<root>/<processed_dirname>`
-        reuse: whether to reuse the processed file in `processed_dirname` if found.
         url: path to download the dataset if not present.
+        reuse: whether to reuse the processed file in `processed_dirname` if found.
+        compute_dataset_statistics: a callable to compute dataset statistics. The
+            callable is expected to take a list of `DataPoint` as input and probably
+            and return a dict of dataset statistics.
     """
 
     # TODO, better to move the logic of using url to download to datamodule
@@ -40,15 +43,19 @@ class InMemoryDataset(PyGInMemoryDataset):
     def __init__(
         self,
         filenames: List[str],
+        *,
         root: Union[str, Path] = ".",
         processed_dirname: str = "processed",
-        reuse: bool = True,
         url: Optional[str] = None,
+        compute_dataset_statistics: Callable = None,
+        pre_transform: Callable = None,
+        reuse: bool = True,
     ):
         self.filenames = to_list(filenames)
+        self.root = root
         self.processed_dirname = processed_dirname
         self.url = url
-        self.root = root
+        self.compute_dataset_statistics = compute_dataset_statistics
 
         # !!! don't delete this block.
         # otherwise the inherent children class will ignore the download function here
@@ -74,7 +81,7 @@ class InMemoryDataset(PyGInMemoryDataset):
                     "DataModule."
                 )
 
-        super().__init__(root=root)
+        super().__init__(root=root, pre_transform=pre_transform)
 
         self.data, self.slices = torch.load(self.processed_paths[0])
 
@@ -89,6 +96,13 @@ class InMemoryDataset(PyGInMemoryDataset):
 
     def process(self):
         data_list = self.get_data()
+
+        if self.compute_dataset_statistics is not None:
+            statistics = self.compute_dataset_statistics(data_list)
+            # save statistics to disk
+            torch.save(
+                statistics, os.path.join(self.processed_dir, "dataset_statistics.pt")
+            )
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
