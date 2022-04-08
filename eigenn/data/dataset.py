@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import requests
 import torch
@@ -44,6 +44,7 @@ class InMemoryDataset(PyGInMemoryDataset):
         processed_dirname: str = "processed",
         reuse: bool = True,
         url: Optional[str] = None,
+        compute_dataset_statistics: Callable = None,
     ):
         self.filenames = to_list(filenames)
         self.processed_dirname = processed_dirname
@@ -89,6 +90,9 @@ class InMemoryDataset(PyGInMemoryDataset):
 
     def process(self):
         data_list = self.get_data()
+
+        if self.compute_dataset_statistics is not None:
+            self.compute_dataset_statistics(data_list)
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]

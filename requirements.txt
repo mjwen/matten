@@ -1,6 +1,2 @@
-numpy==1.20.0
-scipy==1.6.2
 jsonargprase==3.19.2
-pymatgen
-openbabel
 torchtyping

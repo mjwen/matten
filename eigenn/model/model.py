@@ -1,6 +1,7 @@
 """
 Base Lightning model for regression and classification.
 """
+from argparse import Namespace
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import pytorch_lightning as pl
@@ -53,12 +54,20 @@ class BaseModel(pl.LightningModule):
     def __init__(
         self,
         tasks: Union[Task, List[Task]] = None,
-        backbone_hparams: Dict[str, Any] = None,
-        dataset_hparams: Dict[str, Any] = None,
-        optimizer_hparams: Dict[str, Any] = None,
-        lr_scheduler_hparams: Dict[str, Any] = None,
-        trainer_hparams: Dict[str, Any] = None,
-        data_hparams: Dict[str, Any] = None,
+        # backbone_hparams: Dict[str, Any] = None,
+        # dataset_hparams: Dict[str, Any] = None,
+        # optimizer_hparams: Dict[str, Any] = None,
+        # lr_scheduler_hparams: Dict[str, Any] = None,
+        ## trainer_hparams and data_hparams are passed to let wandb log them
+        # trainer_hparams: Dict[str, Any] = None,
+        # data_hparams: Dict[str, Any] = None,
+        #
+        # #
+        #
+        backbone_hparams: Dict = None,
+        dataset_hparams: Dict = None,
+        optimizer_hparams: Dict = None,
+        lr_scheduler_hparams: Dict = None,
         **kwargs,
     ):
         super().__init__()

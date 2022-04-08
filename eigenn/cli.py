@@ -12,7 +12,11 @@ import pl_bolts
 import torch
 from loguru import logger
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities.cli import LightningCLI
+from pytorch_lightning.utilities.cli import (
+    LR_SCHEDULER_REGISTRY,
+    OPTIMIZER_REGISTRY,
+    LightningCLI,
+)
 from pytorch_lightning.utilities.cli import (
     SaveConfigCallback as LightningSaveConfigCallback,
 )
@@ -55,16 +59,13 @@ class EigennCLI(LightningCLI):
 
         # link_to should be argument of the model
         parser.add_optimizer_args(
-            (torch.optim.Adam, torch.optim.SGD),
+            OPTIMIZER_REGISTRY.classes,
             link_to="model.optimizer_hparams",
         )
 
         # link_to should be argument of the model
         parser.add_lr_scheduler_args(
-            (
-                pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR,
-                torch.optim.lr_scheduler.ReduceLROnPlateau,
-            ),
+            LR_SCHEDULER_REGISTRY.classes,
             link_to="model.lr_scheduler_hparams",
         )
 
@@ -74,8 +75,8 @@ class EigennCLI(LightningCLI):
 
         # link trainer and data configs to model to let wandb log them, the model
         # does not need them to perform any task
-        parser.link_arguments("trainer", "model.trainer_hparams")
-        parser.link_arguments("data", "model.data_hparams")
+        # parser.link_arguments("trainer", "model.trainer_hparams")
+        # parser.link_arguments("data", "model.data_hparams")
 
     def before_instantiate_classes(self) -> None:
         log_level = self.config["log_level"].upper()
