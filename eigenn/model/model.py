@@ -10,7 +10,7 @@ from pytorch_lightning.utilities.cli import instantiate_class
 from torch import Tensor
 
 from eigenn.data.data import DataPoint
-from eigenn.model.task import ClassificationTask, RegressionTask, Task
+from eigenn.model.task import Task, TaskType
 from eigenn.model.utils import TimeMeter
 
 
@@ -224,8 +224,10 @@ class BaseModel(pl.LightningModule):
         for task_name, task in self.tasks.items():
             p = preds[task_name]
             l = labels[task_name]
+            p = task.transform_pred_loss(p)
+            l = task.transform_target_metric(l)
 
-            if task.task_type() == "classification" and task.is_binary():
+            if task.task_type == TaskType.CLASSIFICATION and task.is_binary():
                 # this will use BCEWithLogitsLoss, which requires label be of float
                 p = p.reshape(-1)
                 l = l.reshape(-1).to(torch.get_default_dtype())
@@ -327,7 +329,7 @@ class BaseModel(pl.LightningModule):
 
         return total_loss, preds, labels
 
-    def update_metrics(self, preds, labels, mode):
+    def update_metrics(self, preds: Dict, labels: Dict, mode: str):
         """
         Update metric values at each step, i.e. keep record of values of each step that
         will be used to compute the epoch metrics.
@@ -341,22 +343,16 @@ class BaseModel(pl.LightningModule):
 
             task = self.tasks[task_name]
 
-            # regression metrics
-            if isinstance(task, RegressionTask):
-                p, l = task.transform(preds[task_name], labels[task_name])
-                metric(p, l)
+            p = task.transform_pred_metric(preds[task_name])
+            l = task.transform_target_metric(labels[task_name])
 
-            # classification metrics
-            elif isinstance(task, ClassificationTask):
-                p = preds[task_name]
+            if task.task_type == TaskType.CLASSIFICATION:
                 if task.is_binary():
                     p = torch.sigmoid(p.reshape(-1))
                 else:
                     p = torch.argmax(p, dim=1)
-                metric(p, labels[task_name])
 
-            else:
-                raise RuntimeError(f"Unsupported task type {task.__class__}")
+            metric(p, l)
 
     def compute_metrics(
         self, mode, log: bool = True
