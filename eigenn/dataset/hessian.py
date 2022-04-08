@@ -1,11 +1,12 @@
 import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import ase.data
 import ase.io
 import torch
+import torch.nn as nn
 import torch.utils.data
 from e3nn.io import CartesianTensor
 from torch.utils.data.dataloader import default_collate
@@ -15,6 +16,7 @@ from torchtyping import TensorType
 from eigenn.data.data import Molecule
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
+from eigenn.data.transform import MeanNormNormalize
 
 
 class HessianDataset(InMemoryDataset):
@@ -26,6 +28,8 @@ class HessianDataset(InMemoryDataset):
         root:
         reuse: whether to reuse the preprocessed data.
         edge_strategy: `complete` | `pmg_mol_graph`
+        compute_dataset_statistics: callable to compute dataset statistics. Do not
+            compute if `None`.
     """
 
     def __init__(
@@ -37,16 +41,26 @@ class HessianDataset(InMemoryDataset):
         edge_strategy: str = "pmg_mol_graph",
         output_format: str = "irreps",
         output_formula: str = "ij=ij",  # TODO delete this, not used
+        compute_dataset_statistics: Callable = None,
     ):
         self.edge_strategy = edge_strategy
         self.output_format = output_format
         self.output_formula = output_formula
 
+        processed_dirname = f"processed_edge_strategy-{self.edge_strategy}"
+
+        # forward transform for targets
+        target_transform = HessianTargetTransform(
+            Path(root).joinpath(processed_dirname, "dataset_statistics.pt")
+        )
+
         super().__init__(
             filenames=[filename],
             root=root,
-            processed_dirname=f"processed_edge_strategy-{self.edge_strategy}",
+            processed_dirname=processed_dirname,
             reuse=reuse,
+            compute_dataset_statistics=compute_dataset_statistics,
+            pre_transform=target_transform,
         )
 
     def get_data(self):
@@ -96,6 +110,103 @@ class HessianDataset(InMemoryDataset):
         return molecules
 
 
+def get_dataset_statistics(data: List[Molecule]) -> Dict[str, Any]:
+    """
+    Compute statistics of datasets.
+    """
+
+    hessian_diag = []
+    hessian_off_diag = []
+    atomic_numbers = set()
+    num_neigh = []
+
+    for mol in data:
+        hessian_diag.append(mol.y["hessian_diag"])
+        hessian_off_diag.append(mol.y["hessian_off_diag"])
+
+        atomic_numbers.update(mol.atomic_numbers.tolist())
+        num_neigh.append(mol.num_neigh)
+
+    hessian_diag = torch.cat(hessian_diag)
+    hessian_off_diag = torch.cat(hessian_off_diag)
+
+    atomic_numbers = tuple(atomic_numbers)
+    average_num_neigh = torch.cat(num_neigh).mean()
+
+    def get_mean_norm(t, irreps):
+        normalizer = MeanNormNormalize(irreps=irreps)
+        normalizer.compute_statistics(t)
+
+        return normalizer.state_dict()
+
+    statistics = {
+        # NOTE, the irreps here should match the hessian converter in from the dataset
+        "hessian_diag": get_mean_norm(hessian_diag, irreps="0e+2e"),
+        "hessian_off_diag": get_mean_norm(hessian_off_diag, irreps="0e+1e+2e"),
+        "allowed_species": atomic_numbers,
+        "average_num_neigh": average_num_neigh,
+    }
+
+    return statistics
+
+
+class HessianTargetTransform(nn.Module):
+    def __init__(self, dataset_statistics_path: Union[str, Path] = None):
+        super().__init__()
+
+        self.filename = Path(dataset_statistics_path)
+        self.diag_normalizer = MeanNormNormalize(irreps="0e+2e")
+        self.off_diag_normalizer = MeanNormNormalize(irreps="0e+1e+2e")
+
+    def forward(self, mol: Molecule) -> Molecule:
+        """
+        Update target of Molecule.
+
+        Note, should return it even we modify it in place.
+        """
+        # Instead of providing mean and norm of normalizer at instantiation, we delay
+        # the loading here because this method will typically be called after dataset
+        # statistics has been generated.
+        self._fill_state_dict()
+
+        diag = mol.y["hessian_diag"]  # [N, D], N: num atoms
+        off_diag = mol.y["hessian_off_diag"]  # [N*N-N, D]
+
+        diag = self.diag_normalizer(diag)
+        off_diag = self.off_diag_normalizer(off_diag)
+
+        mol.y["hessian_diag"] = diag
+        mol.y["hessian_off_diag"] = off_diag
+
+        return mol
+
+    def inverse(
+        self,
+        hessian_diag: TensorType["batch", "D"],
+        hessian_off_diag: TensorType["batch", "D"],
+    ):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        self._fill_state_dict()
+
+        diag = self.diag_normalizer.inverse(hessian_diag)
+        off_diag = self.off_diag_normalizer.inverse(hessian_off_diag)
+
+        return diag, off_diag
+
+    def _fill_state_dict(self):
+        if (
+            not self.diag_normalizer.mean_norm_initialized
+            or not self.off_diag_normalizer.mean_norm_initialized
+        ):
+            statistics = torch.load(self.filename)
+            self.diag_normalizer.load_state_dict(statistics["hessian_diag"])
+            self.off_diag_normalizer.load_state_dict(statistics["hessian_off_diag"])
+
+
 class HessianDataModule(BaseDataModule):
     """
     Will search for files at, e.g. `root/<trainset_filename>`.
@@ -136,6 +247,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=get_dataset_statistics,
         )
         self.val_data = HessianDataset(
             self.valset_filename,
@@ -143,6 +255,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=None,  # do not compute
         )
         self.test_data = HessianDataset(
             self.testset_filename,
@@ -150,6 +263,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=None,  # do not compute
         )
 
     def get_to_model_info(self) -> Dict[str, Any]:
