@@ -45,7 +45,7 @@ class Normalize(nn.Module):
 
 
 # Based on e3nn BatchNorm
-class MeanStdNormalize(Normalize):
+class MeanNormNormalize(Normalize):
     """
     Normalize tensors like e3nn BatchNorm:
     - scalars are normalized by subtracting mean and then dividing by norms
@@ -82,8 +82,8 @@ class MeanStdNormalize(Normalize):
         self.register_buffer("norm", norm)
 
     def forward(self, data: TensorType["batch", "D"]) -> TensorType["batch", "D"]:
-        if self.means is None or self.norm is None:
-            self.mean, self.norm = self._compute_mean_and_norm()
+        if self.mean is None or self.norm is None:
+            self.mean, self.norm = self._compute_mean_and_norm(data)
 
         return (data - self.mean) / self.norm
 
@@ -111,6 +111,9 @@ class MeanStdNormalize(Normalize):
             if ir.is_scalar():
                 # compute mean of scalars (higher order tensors does not use mean)
                 field_mean = field.mean(dim=0).reshape(mul)  # [mul]
+
+                # subtract mean for computing stdev as norm below
+                field = field - field_mean.reshape(-1, mul, 1)
             else:
                 # set mean to zero for high order tensors
                 field_mean = torch.zeros(mul)
