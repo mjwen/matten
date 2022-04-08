@@ -56,9 +56,10 @@ class InMemoryDataset(PyGInMemoryDataset):
         self.processed_dirname = processed_dirname
         self.url = url
         self.compute_dataset_statistics = compute_dataset_statistics
+        self.dataset_statistics_filename = "dataset_statistics.pt"
 
         # !!! don't delete this block.
-        # otherwise the inherent children class will ignore the download function here
+        # Otherwise, the inherent children class will ignore the download function here
         class_type = type(self)
         if class_type != InMemoryDataset:
             if "download" not in self.__class__.__dict__:
@@ -73,6 +74,18 @@ class InMemoryDataset(PyGInMemoryDataset):
                 if p.exists():
                     p.unlink()
                     logger.info(f"`reuse=False`, deleting preprocessed data file: {p}")
+
+            # delete dataset statistics file
+            if self.compute_dataset_statistics:
+                p = to_path(self.processed_dir).joinpath(
+                    self.dataset_statistics_filename
+                )
+                if p.exists():
+                    p.unlink()
+                    logger.info(
+                        "`reuse=False`, deleting preprocessed dataset statistics "
+                        f"file: {p}"
+                    )
         else:
             if files_exist(self.processed_paths):
                 logger.info(
@@ -101,7 +114,8 @@ class InMemoryDataset(PyGInMemoryDataset):
             statistics = self.compute_dataset_statistics(data_list)
             # save statistics to disk
             torch.save(
-                statistics, os.path.join(self.processed_dir, "dataset_statistics.pt")
+                statistics,
+                to_path(self.processed_dir).joinpath(self.dataset_statistics_filename),
             )
 
         if self.pre_filter is not None:

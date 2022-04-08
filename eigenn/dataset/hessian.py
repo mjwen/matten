@@ -150,6 +150,7 @@ def get_dataset_statistics(data: List[Molecule]) -> Dict[str, Any]:
     return statistics
 
 
+# TODO, create an abstract class for Target Transform and place in data.transform.py
 class HessianTargetTransform(nn.Module):
     def __init__(self, dataset_statistics_path: Union[str, Path] = None):
         super().__init__()
