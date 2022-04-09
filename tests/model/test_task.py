@@ -30,10 +30,7 @@ def test_regression_task():
     name = "some_test"
     loss_weight = 2.0
 
-    label_transform_dict = {"mean": torch.tensor(1.0), "std": torch.tensor(2.0)}
-    task = CanonicalRegressionTask(
-        name=name, loss_weight=loss_weight, label_transform_dict=label_transform_dict
-    )
+    task = CanonicalRegressionTask(name=name, loss_weight=loss_weight)
 
     # property
     assert task.name == name
@@ -48,6 +45,8 @@ def test_regression_task():
     assert out["MeanAbsoluteError"] == 0.25
 
     # transform
-    t_preds, t_labels = task.transform(preds, labels)
-    assert torch.allclose(t_preds, torch.FloatTensor([1, 1, 3, 5]))
-    assert torch.allclose(t_labels, torch.FloatTensor([3, 1, 3, 5]))
+    preds_transform = task.transform_pred_loss(preds)
+    labels_transform = task.transform_target_metric(labels)
+
+    assert torch.allclose(preds_transform, preds)
+    assert torch.allclose(labels_transform, labels)
