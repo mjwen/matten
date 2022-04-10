@@ -152,7 +152,7 @@ def get_dataset_statistics(data: List[Molecule]) -> Dict[str, Any]:
 
 # TODO, create an abstract class for Target Transform and place in data.transform.py
 class HessianTargetTransform(nn.Module):
-    def __init__(self, dataset_statistics_path: Union[str, Path] = None):
+    def __init__(self, dataset_statistics_path: Union[str, Path]):
         super().__init__()
 
         self.filename = Path(dataset_statistics_path)
@@ -181,11 +181,7 @@ class HessianTargetTransform(nn.Module):
 
         return mol
 
-    def inverse(
-        self,
-        hessian_diag: TensorType["batch", "D"],
-        hessian_off_diag: TensorType["batch", "D"],
-    ):
+    def inverse(self, data: TensorType["batch", "D"], mode: str = "diag"):
         """
         Inverse transform model predictions/targets.
 
@@ -193,10 +189,14 @@ class HessianTargetTransform(nn.Module):
         """
         self._fill_state_dict()
 
-        diag = self.diag_normalizer.inverse(hessian_diag)
-        off_diag = self.off_diag_normalizer.inverse(hessian_off_diag)
+        if mode == "diag":
+            data = self.diag_normalizer.inverse(data)
+        elif mode == "off_diag":
+            data = self.off_diag_normalizer.inverse(data)
+        else:
+            raise ValueError
 
-        return diag, off_diag
+        return data
 
     def _fill_state_dict(self):
         if (

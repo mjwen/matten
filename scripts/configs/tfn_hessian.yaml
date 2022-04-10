@@ -8,7 +8,7 @@ data:
     trainset_filename: ani1_CHO_0-1000_hessian_small.xyz
     valset_filename: ani1_CHO_0-1000_hessian_small.xyz
     testset_filename: ani1_CHO_0-1000_hessian_small.xyz
-    reuse: true
+    reuse: false
     output_format: irreps
     output_formula: ij=ij
     loader_kwargs:
@@ -54,12 +54,14 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    - class_path: eigenn.model.task.HessianRegressionTaskDiag
+    - class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_diag
-    - class_path: eigenn.model.task.HessianRegressionTaskOffDiag
+        mode: diag
+    - class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_off_diag
+        mode: off_diag
 
 trainer:
   max_epochs: 5 # number of maximum training epochs
