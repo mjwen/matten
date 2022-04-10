@@ -157,10 +157,23 @@ def get_dataset_statistics(data: List[Molecule]) -> Dict[str, Any]:
 
 # TODO, create an abstract class for Target Transform and place in data.transform.py
 class HessianTargetTransform(nn.Module):
+    """
+    Forward and inverse normalization of Hessian matrix.
+
+    Forward is intended to be used as `pre_transform` of dataset and inverse is
+    intended to be used before metrics and prediction function to transform the
+    hessian back to the original space.
+
+    Args:
+        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
+        load when the forward or inverse function is called.
+    """
+
     def __init__(self, dataset_statistics_path: Union[str, Path]):
         super().__init__()
+        self.dataset_statistics_path = Path(dataset_statistics_path)
+        self.dataset_statistics_loaded = False
 
-        self.filename = Path(dataset_statistics_path)
         self.diag_normalizer = MeanNormNormalize(irreps="0e+2e")
         self.off_diag_normalizer = MeanNormNormalize(irreps="0e+1e+2e")
 
@@ -173,7 +186,7 @@ class HessianTargetTransform(nn.Module):
         # Instead of providing mean and norm of normalizer at instantiation, we delay
         # the loading here because this method will typically be called after dataset
         # statistics has been generated.
-        self._fill_state_dict()
+        self._fill_state_dict(mol.y["hessian_diag"].device)
 
         diag = mol.y["hessian_diag"]  # [N, D], N: num atoms
         off_diag = mol.y["hessian_off_diag"]  # [N*N-N, D]
@@ -192,7 +205,7 @@ class HessianTargetTransform(nn.Module):
 
         This is supposed to be called in batch mode.
         """
-        self._fill_state_dict()
+        self._fill_state_dict(data.device)
 
         if mode == "diag":
             data = self.diag_normalizer.inverse(data)
@@ -203,14 +216,19 @@ class HessianTargetTransform(nn.Module):
 
         return data
 
-    def _fill_state_dict(self):
-        if (
-            not self.diag_normalizer.mean_norm_initialized
-            or not self.off_diag_normalizer.mean_norm_initialized
-        ):
-            statistics = torch.load(self.filename)
+    def _fill_state_dict(self, device):
+        """
+        Because this is delayed be to called when actual forward or inverse is
+        happening, need to move the tensor to the correct device.
+        """
+        if not self.dataset_statistics_loaded:
+            statistics = torch.load(self.dataset_statistics_path)
+
             self.diag_normalizer.load_state_dict(statistics["hessian_diag"])
             self.off_diag_normalizer.load_state_dict(statistics["hessian_off_diag"])
+            self.to(device)
+
+            self.dataset_statistics_loaded = True
 
 
 class HessianDataModule(BaseDataModule):

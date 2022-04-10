@@ -98,6 +98,50 @@ class TFNModel(ModelForPyGData):
         return loss_individual, loss_total
 
 
+def get_loss(loss_fn, p, t, natoms, mode):
+    """
+    Args:
+        mode: `hessian_diag` | `hessian_off_diag`
+    """
+
+    if mode == "hessian_diag":
+
+        if isinstance(loss_fn, torch.nn.MSELoss):
+            # for each molecule, there are n diagonal components;
+            # repeat each n times
+            scale = torch.sqrt(torch.repeat_interleave(natoms, natoms, dim=0))
+        elif isinstance(loss_fn, torch.nn.L1Loss):
+            scale = torch.repeat_interleave(natoms, natoms, dim=0)
+        else:
+            raise ValueError
+
+    elif mode == "hessian_off_diag":
+
+        if isinstance(loss_fn, torch.nn.MSELoss):
+            # for each molecule, there are n**2 - n off-diagonal blocks
+            scale = torch.sqrt(
+                torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
+            )
+        elif isinstance(loss_fn, torch.nn.L1Loss):
+            scale = torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
+        else:
+            raise ValueError
+    else:
+        raise ValueError("Not supported loss type")
+
+    # make scale have the same shape of pred and target, except for the highest
+    # dim. e.g. p has shape (108, 6) and scale has shape (108,), which will
+    # make scale of shape(108, 1)
+    extra_shape = [1] * (len(p.shape) - 1)
+    scale = scale.reshape(-1, *extra_shape)
+
+    p = p / scale
+    t = t / scale
+    loss = loss_fn(p, t)
+
+    return loss
+
+
 class HessianRegressionTask(CanonicalRegressionTask):
     """
     Only inverse transform prediction and target in metric.
@@ -283,50 +327,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     )
 
     return model
-
-
-def get_loss(loss_fn, p, t, natoms, mode):
-    """
-    Args:
-        mode: `hessian_diag` | `hessian_off_diag`
-    """
-
-    if mode == "hessian_diag":
-
-        if isinstance(loss_fn, torch.nn.MSELoss):
-            # for each molecule, there are n diagonal components;
-            # repeat each n times
-            scale = torch.sqrt(torch.repeat_interleave(natoms, natoms, dim=0))
-        elif isinstance(loss_fn, torch.nn.L1Loss):
-            scale = torch.repeat_interleave(natoms, natoms, dim=0)
-        else:
-            raise ValueError
-
-    elif mode == "hessian_off_diag":
-
-        if isinstance(loss_fn, torch.nn.MSELoss):
-            # for each molecule, there are n**2 - n off-diagonal blocks
-            scale = torch.sqrt(
-                torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
-            )
-        elif isinstance(loss_fn, torch.nn.L1Loss):
-            scale = torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
-        else:
-            raise ValueError
-    else:
-        raise ValueError("Not supported loss type")
-
-    # make scale have the same shape of pred and target, except for the highest
-    # dim. e.g. p has shape (108, 6) and scale has shape (108,), which will
-    # make scale of shape(108, 1)
-    extra_shape = [1] * (len(p.shape) - 1)
-    scale = scale.reshape(-1, *extra_shape)
-
-    p = p / scale
-    t = t / scale
-    loss = loss_fn(p, t)
-
-    return loss
 
 
 if __name__ == "__main__":

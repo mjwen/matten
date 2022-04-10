@@ -93,14 +93,15 @@ class InMemoryDataset(PyGInMemoryDataset):
                 )
 
             # copy dataset statistics to cwd if existing
-            if self.compute_dataset_statistics:
-                p = self.dataset_statistics_path
-                if p.exists():
-                    shutil.copyfile(self.dataset_statistics_path, Path.cwd())
-                    logger.info(
-                        f"Found existing `dataset_statistics.pt` in {p}. Copying it "
-                        f"to {Path.cwd()} to reuse it."
-                    )
+            # note, should copy even compute_dataset_statistics is not needed -- for
+            # the case a later experiment want to use the dataset statistics
+            p = self.dataset_statistics_path
+            if p.exists():
+                shutil.copyfile(p, Path.cwd())
+                logger.info(
+                    f"Found existing `dataset_statistics_path.pt` in {p}. Copying it "
+                    f"to {Path.cwd()} to reuse it."
+                )
 
         super().__init__(root=root, pre_transform=pre_transform)
 
