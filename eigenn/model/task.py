@@ -41,7 +41,8 @@ class Task:
         - transform_...()
 
     Args:
-        name: name of the task
+        name: name of the task. Values with this key in model prediction dict and
+            target dict will be used for loss and metrics computation.
         loss_weight: in multitask learning, e.g. fitting energy an forces together,
             the total loss is a weighted sum of the losses of individual tasks.
             loss_weight gives the weight of this task.
@@ -347,9 +348,6 @@ class CanonicalRegressionTask(Task):
         # This requires `mode` of early stopping and checkpoint to be `min`
         return {"MeanAbsoluteError": 1.0}
 
-
-HessianRegressionTaskDiag = CanonicalRegressionTask
-HessianRegressionTaskOffDiag = CanonicalRegressionTask
 
 if __name__ == "__main__":
     clfn = TaskType("classification")

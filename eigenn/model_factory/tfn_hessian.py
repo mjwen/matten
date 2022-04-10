@@ -12,12 +12,15 @@ number of params.
 
 
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
 
+from eigenn.dataset.hessian import HessianTargetTransform
 from eigenn.model.model import ModelForPyGData
+from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
@@ -93,6 +96,42 @@ class TFNModel(ModelForPyGData):
         loss_total = loss_diag + loss_off
 
         return loss_individual, loss_total
+
+
+class HessianRegressionTask(CanonicalRegressionTask):
+    """
+    Only inverse transform prediction and target in metric.
+
+    Note, in HessianTargetTransform, the target are forward transformed.
+
+    Args:
+        name: name of the task. Values with this key in model prediction dict and
+            target dict will be used for loss and metrics computation.
+        mode: {'diag', 'off_diag'}
+    """
+
+    def __init__(
+        self,
+        name: str,
+        mode: str,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+    ):
+        super(HessianRegressionTask, self).__init__(name)
+
+        self.mode = mode
+        self.normalizer = HessianTargetTransform(dataset_statistics_path)
+
+    def transform_target_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_pred_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_target_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t, mode=self.mode)
+
+    def transform_pred_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t, mode=self.mode)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):
