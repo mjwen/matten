@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
@@ -56,7 +57,6 @@ class InMemoryDataset(PyGInMemoryDataset):
         self.processed_dirname = processed_dirname
         self.url = url
         self.compute_dataset_statistics = compute_dataset_statistics
-        self.dataset_statistics_filename = "dataset_statistics.pt"
 
         # !!! don't delete this block.
         # Otherwise, the inherent children class will ignore the download function here
@@ -77,9 +77,7 @@ class InMemoryDataset(PyGInMemoryDataset):
 
             # delete dataset statistics file
             if self.compute_dataset_statistics:
-                p = to_path(self.processed_dir).joinpath(
-                    self.dataset_statistics_filename
-                )
+                p = self.dataset_statistics_path
                 if p.exists():
                     p.unlink()
                     logger.info(
@@ -93,6 +91,10 @@ class InMemoryDataset(PyGInMemoryDataset):
                     f"Will reuse them. To disable reuse, set `reuse=False` of "
                     "DataModule."
                 )
+
+            # copy dataset statistics to cwd
+            if self.compute_dataset_statistics:
+                shutil.copyfile(self.dataset_statistics_path, Path.cwd())
 
         super().__init__(root=root, pre_transform=pre_transform)
 
@@ -110,13 +112,20 @@ class InMemoryDataset(PyGInMemoryDataset):
     def process(self):
         data_list = self.get_data()
 
+        #
+        # process dataset statistics file
+        #
         if self.compute_dataset_statistics is not None:
             statistics = self.compute_dataset_statistics(data_list)
+            logger.info(f"dataset_statistics: {statistics}")
+
             # save statistics to disk
-            torch.save(
-                statistics,
-                to_path(self.processed_dir).joinpath(self.dataset_statistics_filename),
-            )
+            # Save two copies, one in processed_dir, together with other processed
+            # files, the other in CWD, mainly to be loaded by model.
+            p = self.dataset_statistics_path
+            torch.save(statistics, p)
+            shutil.copy2(p, Path.cwd())
+            logger.info(f"Dataset statistics saved to: {p} and {Path.cwd()}")
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
@@ -175,6 +184,13 @@ class InMemoryDataset(PyGInMemoryDataset):
         <self.root>/<self.processed_dirname>
         """
         return str(to_path(self.root).joinpath(self.processed_dirname))
+
+    @property
+    def dataset_statistics_path(self) -> Path:
+        """
+        Path to the dataset statistics file
+        """
+        return to_path(self.processed_dir).joinpath("dataset_statistics.pt")
 
 
 # this is copied from matmainer.dataset.utils with slight modifications
