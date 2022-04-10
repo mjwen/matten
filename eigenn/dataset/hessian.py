@@ -30,6 +30,7 @@ class HessianDataset(InMemoryDataset):
         edge_strategy: `complete` | `pmg_mol_graph`
         compute_dataset_statistics: callable to compute dataset statistics. Do not
             compute if `None`.
+        normalize_target: whether to normalize the target hessian.
     """
 
     def __init__(
@@ -42,6 +43,7 @@ class HessianDataset(InMemoryDataset):
         output_format: str = "irreps",
         output_formula: str = "ij=ij",  # TODO delete this, not used
         compute_dataset_statistics: Callable = None,
+        normalize_target: bool = True,
     ):
         self.edge_strategy = edge_strategy
         self.output_format = output_format
@@ -50,9 +52,12 @@ class HessianDataset(InMemoryDataset):
         processed_dirname = f"processed_edge_strategy-{self.edge_strategy}"
 
         # forward transform for targets
-        target_transform = HessianTargetTransform(
-            Path(root).joinpath(processed_dirname, "dataset_statistics.pt")
-        )
+        if normalize_target:
+            target_transform = HessianTargetTransform(
+                Path(root).joinpath(processed_dirname, "dataset_statistics.pt")
+            )
+        else:
+            target_transform = None
 
         super().__init__(
             filenames=[filename],

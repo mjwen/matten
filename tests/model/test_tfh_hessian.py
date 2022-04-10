@@ -8,12 +8,13 @@ Test the hessian model to ensure:
 import tempfile
 from pathlib import Path
 
+import pytest
 import torch
 from ase.io.extxyz import read_extxyz, write_extxyz
 from e3nn import o3
 from e3nn.io import CartesianTensor
 
-from eigenn.dataset.hessian import DataLoader, HessianDataset
+from eigenn.dataset.hessian import DataLoader, HessianDataset, get_dataset_statistics
 from eigenn.model_factory.tfn_hessian import create_model
 
 TESTFILE_DIR = Path(__file__).parents[1]
@@ -46,20 +47,27 @@ def get_model():
     return model
 
 
-def load_dataset(filename, root):
-    dataset = HessianDataset(filename=filename, root=root, reuse=False)
+def load_dataset(filename, root, normalize_target: bool):
+    dataset = HessianDataset(
+        filename=filename,
+        root=root,
+        reuse=False,
+        compute_dataset_statistics=get_dataset_statistics,
+        normalize_target=normalize_target,
+    )
     loader = DataLoader(dataset=dataset, batch_size=2, shuffle=False)
     return loader
 
 
-def test_hessian_symmetric():
+@pytest.mark.parametrize("normalize_target", [False, True])
+def test_hessian_symmetric(normalize_target):
     """
     - the diagonal blocks are symmetric
     - two off-diagonal blocks (i,j) and (j,i) are transpose of each other
     """
     filename = TESTFILE_DIR.joinpath("test_files", "hessian_two.xyz")
 
-    loader = load_dataset(filename, root="/tmp")
+    loader = load_dataset(filename, root="/tmp", normalize_target=normalize_target)
     model = get_model()
 
     with torch.no_grad():
@@ -95,12 +103,13 @@ def test_hessian_symmetric():
         assert torch.allclose(x, y.T, rtol=1e-2)
 
 
-def test_hesssian_equivariance():
+@pytest.mark.parametrize("normalize_target", [False, True])
+def test_hesssian_equivariance(normalize_target):
 
     model = get_model()
 
     filename = TESTFILE_DIR.joinpath("test_files", "hessian_one.xyz")
-    loader = load_dataset(filename, root="/tmp")
+    loader = load_dataset(filename, root="/tmp", normalize_target=normalize_target)
 
     # filename = "ani1_CHO_0-1000_hessian_one.xyz"
     # root = "/Users/mjwen/Documents/Dataset/xiaowei_hessian"
