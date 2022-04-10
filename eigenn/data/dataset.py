@@ -97,7 +97,7 @@ class InMemoryDataset(PyGInMemoryDataset):
             # the case a later experiment want to use the dataset statistics
             p = self.dataset_statistics_path
             if p.exists():
-                shutil.copyfile(p, Path.cwd())
+                shutil.copy2(p, Path.cwd())
                 logger.info(
                     f"Found existing `dataset_statistics_path.pt` in {p}. Copying it "
                     f"to {Path.cwd()} to reuse it."
