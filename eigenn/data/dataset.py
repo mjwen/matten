@@ -92,9 +92,15 @@ class InMemoryDataset(PyGInMemoryDataset):
                     "DataModule."
                 )
 
-            # copy dataset statistics to cwd
+            # copy dataset statistics to cwd if existing
             if self.compute_dataset_statistics:
-                shutil.copyfile(self.dataset_statistics_path, Path.cwd())
+                p = self.dataset_statistics_path
+                if p.exists():
+                    shutil.copyfile(self.dataset_statistics_path, Path.cwd())
+                    logger.info(
+                        f"Found existing `dataset_statistics.pt` in {p}. Copying it "
+                        f"to {Path.cwd()} to reuse it."
+                    )
 
         super().__init__(root=root, pre_transform=pre_transform)
 
