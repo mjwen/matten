@@ -87,7 +87,9 @@ class HessianDataset(InMemoryDataset):
                 N = len(conf)
                 hessian = torch.as_tensor(conf.info["hessian"], dtype=torch.float32)
                 hessian = hessian.reshape(N * 3, N * 3)
-                diag, off_diag, off_diag_layout = separate_diagonal_blocks(hessian)
+                diag, off_diag, off_diag_layout = separate_on_off_diagonal_blocks(
+                    hessian
+                )
 
                 if self.output_format == "irreps":
                     diag = converter_diag.from_cartesian(diag)
@@ -458,7 +460,7 @@ def symmetrize_hessian(
     return torch.cat(sym_H)
 
 
-def separate_diagonal_blocks(
+def separate_on_off_diagonal_blocks(
     H: TensorType["N*3", "N*3"],  # noqa: F821
 ) -> Tuple[
     TensorType["N", 3, 3],  # noqa: F821
@@ -496,6 +498,40 @@ def separate_diagonal_blocks(
     )
 
     return diag, offdiag, offdiag_layout
+
+
+def combine_on_off_diagonal_blocks(
+    on_blocks: TensorType["N", 3, 3], off_blocks: TensorType["N*N-N", 3, 3]
+) -> TensorType["N*3", "N*3"]:
+    """
+    Combine on and off diagonal blocks to a full Hessian matrix.
+
+    Args:
+        on_blocks:
+        off_blocks:
+
+    Returns:
+        Hessian matrix
+    """
+
+    N = len(on_blocks)
+    assert N * N - N == len(
+        off_blocks
+    ), f"Sizes of on ({N}) and off ({len(off_blocks)}) diagonal blocks do not match."
+
+    k_on = 0
+    k_off = 0
+    hessian = torch.zeros(N * 3, N * 3)
+    for i in range(N):
+        for j in range(N):
+            if i == j:
+                hessian[i * 3 : i * 3 + 3, j * 3 : j * 3 + 3] = on_blocks[k_on]
+                k_on += 1
+            else:
+                hessian[i * 3 : i * 3 + 3, j * 3 : j * 3 + 3] = off_blocks[k_off]
+                k_off += 1
+
+    return hessian
 
 
 if __name__ == "__main__":

@@ -99,8 +99,8 @@ class InMemoryDataset(PyGInMemoryDataset):
             if p.exists():
                 shutil.copy2(p, Path.cwd())
                 logger.info(
-                    f"Found existing `dataset_statistics_path.pt` in {p}. Copying it "
-                    f"to {Path.cwd()} to reuse it."
+                    f"Found existing dataset statistics in {p}. Copying it "
+                    f"to {Path.cwd()}."
                 )
 
         super().__init__(root=root, pre_transform=pre_transform)
