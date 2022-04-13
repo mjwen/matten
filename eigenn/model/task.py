@@ -4,6 +4,7 @@ Regression or classification tasks that define the loss function and metrics.
 The tasks are helper classes for defining the lighting model.
 """
 import abc
+import warnings
 from enum import Enum
 from typing import Dict
 
@@ -58,7 +59,11 @@ class Task:
         loss_weight: float = 1.0,
         **kwargs,
     ):
-        assert loss_weight > 0, f"`los_weight` should be positive, got {loss_weight}"
+        if loss_weight < 1e-5:
+            warnings.warn(
+                f"Got a loss_weight of `{loss_weight}` (smaller than 1e-5) for task "
+                f"`{name}`. If this is not intended, please change it."
+            )
 
         self._name = name
         self._loss_weight = loss_weight
