@@ -52,7 +52,7 @@ class BaseModel(pl.LightningModule):
     #  tasks in and instantiate it in the model (just as optimizer_hparams).
     def __init__(
         self,
-        tasks: Union[Task, List[Task]] = None,
+        tasks: Union[Task, List[Task], Dict[str, Task]] = None,
         backbone_hparams: Dict[str, Any] = None,
         dataset_hparams: Dict[str, Any] = None,
         optimizer_hparams: Dict[str, Any] = None,
@@ -115,33 +115,26 @@ class BaseModel(pl.LightningModule):
         """
         raise NotImplementedError
 
-    # def init_tasks(
-    #     self,
-    #     task_hparams: Dict[str, Any],
-    #     dataset_hparams: Optional[Dict[str, Any]] = None,
-    # ) -> Union[Task, Sequence[Task]]:
-    #     """
-    #     Define the tasks used to compute loss and metrics.
-    #
-    #     This should return a `Task` instance of a list of `Task` instances.
-    #
-    #     Example:
-    #         from eigenn.model.task import CanonicalClassificationTask
-    #         t = CanonicalClassificationTask(name='my_task', num_classes=10)
-    #         return t
-    #     """
-    #
-    #     raise NotImplementedError
-
-    def init_tasks(self, tasks: Union[Task, List[Task]]) -> Dict[str, Task]:
+    def init_tasks(
+        self, tasks: Union[Task, List[Task], Dict[str, Task]]
+    ) -> Dict[str, Task]:
         """
         Convert tasks to a dict, keyed by task name and valued by task object.
         """
-        if isinstance(tasks, Task):
-            tasks = [tasks]
-        assert isinstance(tasks, Sequence)
 
-        return {t.name: t for t in tasks}
+        if isinstance(tasks, dict):
+            for name, t in tasks.items():
+                assert (
+                    name == t.name
+                ), f"Task name not consistent; got {name} and {t.name}"
+        elif isinstance(tasks, Task):
+            tasks = {tasks.name: tasks}
+        elif isinstance(tasks, list):
+            tasks = {t.name: t for t in tasks}
+        else:
+            raise ValueError(f"Unsupported tasks type {type(tasks)}")
+
+        return tasks
 
     def forward(self, batch, mode: Optional[str] = None, **kwargs) -> Tuple[Dict, Dict]:
         """

@@ -54,11 +54,13 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    - class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
+    hessian_diag:
+      class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_diag
         mode: diag
-    - class_path: eigenn.model_factory.tfn_hessian.ScaledHessianRegressionTask
+    hessian_off_diag:
+      class_path: eigenn.model_factory.tfn_hessian.ScaledHessianRegressionTask
       init_args:
         name: hessian_off_diag
         mode: off_diag
