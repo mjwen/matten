@@ -58,10 +58,12 @@ model:
       init_args:
         name: hessian_diag
         mode: diag
-    - class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
+    - class_path: eigenn.model_factory.tfn_hessian.ScaledHessianRegressionTask
       init_args:
         name: hessian_off_diag
         mode: off_diag
+        loss_weight: 1.0
+        eps: 0.01
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

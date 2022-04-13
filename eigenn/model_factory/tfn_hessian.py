@@ -105,8 +105,7 @@ def get_loss(loss_fn, p, t, natoms, mode):
     """
 
     if mode == "hessian_diag":
-
-        if isinstance(loss_fn, torch.nn.MSELoss):
+        if isinstance(loss_fn, (torch.nn.MSELoss, TargetScaledMSE)):
             # for each molecule, there are n diagonal components;
             # repeat each n times
             scale = torch.sqrt(torch.repeat_interleave(natoms, natoms, dim=0))
@@ -116,8 +115,7 @@ def get_loss(loss_fn, p, t, natoms, mode):
             raise ValueError
 
     elif mode == "hessian_off_diag":
-
-        if isinstance(loss_fn, torch.nn.MSELoss):
+        if isinstance(loss_fn, (torch.nn.MSELoss, TargetScaledMSE)):
             # for each molecule, there are n**2 - n off-diagonal blocks
             scale = torch.sqrt(
                 torch.repeat_interleave(natoms, natoms * natoms - natoms, dim=0)
@@ -158,9 +156,10 @@ class HessianRegressionTask(CanonicalRegressionTask):
         self,
         name: str,
         mode: str,
+        loss_weight: float = 1.0,
         dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
     ):
-        super(HessianRegressionTask, self).__init__(name)
+        super().__init__(name, loss_weight=loss_weight)
 
         self.mode = mode
         self.normalizer = HessianTargetTransform(dataset_statistics_path)
@@ -176,6 +175,46 @@ class HessianRegressionTask(CanonicalRegressionTask):
 
     def transform_pred_metric(self, t: Tensor) -> Tensor:
         return self.normalizer.inverse(t, mode=self.mode)
+
+
+class TargetScaledMSE(torch.nn.Module):
+    """
+    Mean squared loss and scale each term by target value.
+
+    Purpose: to deal with many zero hessian entries.
+
+    Args:
+        esp: Smallest scale value to be multiplied.
+    """
+
+    def __init__(self, eps=0.01):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, pred, target):
+        scale = torch.abs(target)
+        scale[scale < self.eps] = self.eps
+
+        loss = scale * (pred - target) ** 2
+        loss = loss.mean()
+
+        return loss
+
+
+class ScaledHessianRegressionTask(HessianRegressionTask):
+    def __init__(
+        self,
+        name: str,
+        mode: str,
+        loss_weight: float = 1.0,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        eps: float = 0.01,
+    ):
+        super().__init__(name, mode, loss_weight, dataset_statistics_path)
+        self.eps = eps
+
+    def init_loss(self):
+        return TargetScaledMSE(eps=self.eps)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):

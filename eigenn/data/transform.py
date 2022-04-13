@@ -169,7 +169,7 @@ class MeanNormNormalize(Normalize):
             if self.reduce == "mean":
                 field_norm = field_norm.mean(dim=0)  # [mul]
             elif self.reduce == "max":
-                field_norm = field.max(dim=0)  # [mul]
+                field_norm = field_norm.max(dim=0)  # [mul]
             else:
                 raise ValueError("Invalid reduce option {}".format(self.reduce))
 
