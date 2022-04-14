@@ -1,7 +1,7 @@
 """
 Base Lightning model for regression and classification.
 """
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
@@ -136,6 +136,8 @@ class BaseModel(pl.LightningModule):
 
         return tasks
 
+    # TODO, this should be rewritten to only accept graphs, because for a real
+    #  prediction, there is no label available
     def forward(self, batch, mode: Optional[str] = None, **kwargs) -> Tuple[Dict, Dict]:
         """
         Forward pass step for prediction.
@@ -163,6 +165,8 @@ class BaseModel(pl.LightningModule):
         # ========== compute predictions ==========
         if mode is None or mode.lower() == "none":
             preds = self.decode(graphs, **kwargs)
+            preds = self.transform_prediction(preds)
+            labels = self.transform_target(labels)
         elif mode == "backbone":
             preds = self.backbone(graphs, **kwargs)
         else:
@@ -170,6 +174,29 @@ class BaseModel(pl.LightningModule):
             raise ValueError(f"Expect mode to be one of {supported}; got {mode}")
 
         return preds, labels
+
+    def transform_prediction(self, prediction: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Transform the predictions before returning for use.
+
+        This is different from `transform_{pred,target}_{loss,metric}` in task,
+        which is used internally when training the model. This transform is supposed
+        to be used in `self.forward()`, which provides the final prediction of the
+        model.
+
+        Args:
+            prediction: predictions of the decoder
+
+        Returns:
+            Transformed predictions.
+        """
+        return prediction
+
+    def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Similar to `self.transform_prediction()`, but for target.
+        """
+        return target
 
     def preprocess_batch(self, batch) -> Tuple[Any, Dict[str, Tensor]]:
         """

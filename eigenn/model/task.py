@@ -210,14 +210,6 @@ class Task:
     def transform_target_metric(self, t: Tensor) -> Tensor:
         return t
 
-    def transform_prediction(self, t) -> Tensor:
-        """
-        Transform the model prediction before returning to user.
-
-        This is supposed to be called in model.forward().
-        """
-        return t
-
     @property
     def name(self):
         return self._name
