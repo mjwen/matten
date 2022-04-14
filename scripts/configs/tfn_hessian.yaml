@@ -64,12 +64,11 @@ model:
         normalizer_kwargs:
           scale: 1.0
     hessian_off_diag:
-      class_path: eigenn.model_factory.tfn_hessian.ScaledHessianRegressionTask
+      class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_off_diag
         mode: off_diag
         loss_weight: 1.0
-        eps: 0.01
         normalizer_kwargs:
           scale: 1.0
 
