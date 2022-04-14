@@ -62,12 +62,18 @@ class MeanNormNormalize(Normalize):
     is computed separated for each 1e.
 
     Args:
-        irreps:
-        mean: means used for normalization, if None, computed from data
-        norm: norm used for normalization, if None, computed from data
+        irreps: irreps of the tensor to normalize.
+        mean: means used for normalization. If None, need to call
+            `self.compute_statistics()` first to generate it.
+        norm: norm used for normalization, If None, need to call
+            `self.compute_statistics()` first to generate it.
         normalization: {'component', 'norm'}
         reduce: {'mean', 'max'}
         eps: epsilon to avoid diving be zero error
+        scale: scale factor to multiply by norm. Because the data to be normalized
+            will divide the norm, a value smaller than 1 will result in wider data
+            distribution after normalization and a value larger than 1 will result in
+            tighter data distribution.
     """
 
     def __init__(
@@ -78,12 +84,14 @@ class MeanNormNormalize(Normalize):
         normalization: str = "component",
         reduce: str = "mean",
         eps: float = 1e-5,
+        scale: float = 1.0,
     ):
         super().__init__(irreps)
 
         self.normalization = normalization
         self.reduce = reduce
         self.eps = eps
+        self.scale = scale
 
         # Cannot register None as buffer for mean and norm, which means this module
         # does not need them. As a result, we cannot load them via state dict.
@@ -106,7 +114,7 @@ class MeanNormNormalize(Normalize):
         if not self.mean_norm_initialized:
             raise RuntimeError("mean and norm not initialized.")
 
-        return (data - self.mean) / self.norm
+        return (data - self.mean) / (self.norm * self.scale)
 
     def inverse(
         self, data: TensorType["batch", "D"]  # noqa: F821
@@ -114,7 +122,7 @@ class MeanNormNormalize(Normalize):
         if not self.mean_norm_initialized:
             raise RuntimeError("mean and norm not initialized.")
 
-        return data * self.norm + self.mean
+        return data * (self.norm * self.scale) + self.mean
 
     # mean and norm
     def load_state_dict(

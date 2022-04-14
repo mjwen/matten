@@ -44,6 +44,7 @@ class HessianDataset(InMemoryDataset):
         output_formula: str = "ij=ij",  # TODO delete this, not used
         compute_dataset_statistics: Callable = None,
         normalize_target: bool = True,
+        normalizer_kwargs: Dict[str, Any] = None,
     ):
         self.edge_strategy = edge_strategy
         self.output_format = output_format
@@ -53,8 +54,11 @@ class HessianDataset(InMemoryDataset):
 
         # forward transform for targets
         if normalize_target:
+            if normalizer_kwargs is None:
+                normalizer_kwargs = {}
             target_transform = HessianTargetTransform(
-                Path(root).joinpath(processed_dirname, "dataset_statistics.pt")
+                Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
+                **normalizer_kwargs,
             )
         else:
             target_transform = None
@@ -171,13 +175,13 @@ class HessianTargetTransform(nn.Module):
         load when the forward or inverse function is called.
     """
 
-    def __init__(self, dataset_statistics_path: Union[str, Path]):
+    def __init__(self, dataset_statistics_path: Union[str, Path], scale: float = 1.0):
         super().__init__()
         self.dataset_statistics_path = Path(dataset_statistics_path)
         self.dataset_statistics_loaded = False
 
-        self.diag_normalizer = MeanNormNormalize(irreps="0e+2e")
-        self.off_diag_normalizer = MeanNormNormalize(irreps="0e+1e+2e")
+        self.diag_normalizer = MeanNormNormalize(irreps="0e+2e", scale=scale)
+        self.off_diag_normalizer = MeanNormNormalize(irreps="0e+1e+2e", scale=scale)
 
     def forward(self, mol: Molecule) -> Molecule:
         """
@@ -248,6 +252,8 @@ class HessianDataModule(BaseDataModule):
         reuse: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ij=ij",
+        normalize_target: bool = True,
+        normalizer_kwargs: Dict[str, Any] = None,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
@@ -255,6 +261,8 @@ class HessianDataModule(BaseDataModule):
         self.root = root
         self.output_format = output_format
         self.output_formula = output_formula
+        self.normalize_target = normalize_target
+        self.normalizer_kwargs = normalizer_kwargs
 
         super().__init__(
             trainset_filename,
@@ -274,6 +282,8 @@ class HessianDataModule(BaseDataModule):
             output_format=self.output_format,
             output_formula=self.output_formula,
             compute_dataset_statistics=get_dataset_statistics,
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.val_data = HessianDataset(
             self.valset_filename,
@@ -282,6 +292,8 @@ class HessianDataModule(BaseDataModule):
             output_format=self.output_format,
             output_formula=self.output_formula,
             compute_dataset_statistics=None,  # do not compute
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.test_data = HessianDataset(
             self.testset_filename,
@@ -290,6 +302,8 @@ class HessianDataModule(BaseDataModule):
             output_format=self.output_format,
             output_formula=self.output_formula,
             compute_dataset_statistics=None,  # do not compute
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
 
     def get_to_model_info(self) -> Dict[str, Any]:

@@ -180,11 +180,16 @@ class HessianRegressionTask(CanonicalRegressionTask):
         mode: str,
         loss_weight: float = 1.0,
         dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        normalizer_kwargs: Dict[str, Any] = None,
     ):
         super().__init__(name, loss_weight=loss_weight)
 
         self.mode = mode
-        self.normalizer = HessianTargetTransform(dataset_statistics_path)
+        if normalizer_kwargs is None:
+            normalizer_kwargs = {}
+        self.normalizer = HessianTargetTransform(
+            dataset_statistics_path, **normalizer_kwargs
+        )
 
     def transform_target_loss(self, t: Tensor) -> Tensor:
         return t
@@ -199,6 +204,25 @@ class HessianRegressionTask(CanonicalRegressionTask):
         return self.normalizer.inverse(t, mode=self.mode)
 
 
+class ScaledHessianRegressionTask(HessianRegressionTask):
+    def __init__(
+        self,
+        name: str,
+        mode: str,
+        loss_weight: float = 1.0,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        eps: float = 0.01,
+        normalizer_kwargs: Dict[str, Any] = None,
+    ):
+        super().__init__(
+            name, mode, loss_weight, dataset_statistics_path, normalizer_kwargs
+        )
+        self.eps = eps
+
+    def init_loss(self):
+        return TargetScaledMSE(eps=self.eps)
+
+
 class TargetScaledMSE(torch.nn.Module):
     """
     Mean squared loss and scale each term by target value.
@@ -209,7 +233,7 @@ class TargetScaledMSE(torch.nn.Module):
         esp: Smallest scale value to be multiplied.
     """
 
-    def __init__(self, eps=0.01):
+    def __init__(self, eps: float = 0.01):
         super().__init__()
         self.eps = eps
 
@@ -221,22 +245,6 @@ class TargetScaledMSE(torch.nn.Module):
         loss = loss.mean()
 
         return loss
-
-
-class ScaledHessianRegressionTask(HessianRegressionTask):
-    def __init__(
-        self,
-        name: str,
-        mode: str,
-        loss_weight: float = 1.0,
-        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
-        eps: float = 0.01,
-    ):
-        super().__init__(name, mode, loss_weight, dataset_statistics_path)
-        self.eps = eps
-
-    def init_loss(self):
-        return TargetScaledMSE(eps=self.eps)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):

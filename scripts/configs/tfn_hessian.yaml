@@ -11,6 +11,8 @@ data:
     reuse: false
     output_format: irreps
     output_formula: ij=ij
+    normalizer_kwargs:
+      scale: 1.0
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -59,6 +61,8 @@ model:
       init_args:
         name: hessian_diag
         mode: diag
+        normalizer_kwargs:
+          scale: 1.0
     hessian_off_diag:
       class_path: eigenn.model_factory.tfn_hessian.ScaledHessianRegressionTask
       init_args:
@@ -66,6 +70,8 @@ model:
         mode: off_diag
         loss_weight: 1.0
         eps: 0.01
+        normalizer_kwargs:
+          scale: 1.0
 
 trainer:
   max_epochs: 5 # number of maximum training epochs
