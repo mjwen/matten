@@ -56,6 +56,12 @@ class HessianDataset(InMemoryDataset):
         if normalize_target:
             if normalizer_kwargs is None:
                 normalizer_kwargs = {}
+
+            # modify processed_dirname, since normalization will affect stored value
+            kv_str = "_".join([f"{k}-{v}" for k, v in normalizer_kwargs.items()])
+            if kv_str:
+                processed_dirname = processed_dirname + "_" + kv_str
+
             target_transform = HessianTargetTransform(
                 Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
                 **normalizer_kwargs,
