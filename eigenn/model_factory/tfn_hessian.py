@@ -93,7 +93,10 @@ class TFNModel(ModelForPyGData):
 
         loss_individual = {name_diag: loss_diag, name_off: loss_off}
 
-        loss_total = loss_diag + loss_off
+        loss_total = (
+            self.tasks[name_diag].loss_weight * loss_diag
+            + self.tasks[name_off].loss_weight * loss_off
+        )
 
         return loss_individual, loss_total
 
