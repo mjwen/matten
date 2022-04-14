@@ -103,19 +103,21 @@ class TFNModel(ModelForPyGData):
     def transform_prediction(self, preds: Dict[str, Tensor]) -> Dict[str, Tensor]:
         # TODO # Here, we abuse the normalizer in tasks.
         #  But in general, we should probably create the normalizer for its own.
-        task_name = "hessian_diag"
-        normalizer = self.tasks[task_name].normalizer
+
+        normalizer = self.tasks["hessian_diag"].normalizer
 
         task_name_diag = "hessian_diag"
-        h_diag = normalizer.inverse(preds[task_name])
+        h_diag = normalizer.inverse(preds[task_name_diag], mode="diag")
 
         task_name_off_diag = "hessian_off_diag"
-        h_off_diag = normalizer.inverse(preds[task_name])
+        h_off_diag = normalizer.inverse(preds[task_name_off_diag], mode="off_diag")
 
         return {task_name_diag: h_diag, task_name_off_diag: h_off_diag}
 
-    def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
-        return self.transform_prediction(target)
+    # NOTE, do not need this because we can set normalize_target = False of a dataset at
+    # predicting time
+    # def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    #     return self.transform_prediction(target)
 
 
 def get_loss(loss_fn, p, t, natoms, mode):
