@@ -97,6 +97,11 @@ class HessianDataset(InMemoryDataset):
                 N = len(conf)
                 hessian = torch.as_tensor(conf.info["hessian"], dtype=torch.float32)
                 hessian = hessian.reshape(N * 3, N * 3)
+
+                # get eigenvalues
+                eigval, _ = torch.linalg.eigh(hessian)
+
+                # separate on- and off- diagonal components
                 diag, off_diag, off_diag_layout = separate_on_off_diagonal_blocks(
                     hessian
                 )
@@ -113,6 +118,7 @@ class HessianDataset(InMemoryDataset):
                         "hessian_off_diag": off_diag,
                         "hessian_off_diag_layout_raw": off_diag_layout,
                         "hessian_natoms": torch.tensor([N]),
+                        "hessian_eigval": eigval,
                     },
                     strategy=self.edge_strategy,
                     atomic_numbers=conf.get_atomic_numbers(),
@@ -541,7 +547,7 @@ def combine_on_off_diagonal_blocks(
 
     k_on = 0
     k_off = 0
-    hessian = torch.zeros(N * 3, N * 3)
+    hessian = torch.zeros(N * 3, N * 3).to(on_blocks.device)
     for i in range(N):
         for j in range(N):
             if i == j:

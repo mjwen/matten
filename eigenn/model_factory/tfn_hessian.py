@@ -13,12 +13,16 @@ number of params.
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from e3nn.io import CartesianTensor
 from torch import Tensor
 
-from eigenn.dataset.hessian import HessianTargetTransform
+from eigenn.dataset.hessian import (
+    HessianTargetTransform,
+    combine_on_off_diagonal_blocks,
+)
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
@@ -48,6 +52,19 @@ class TFNModel(ModelForPyGData):
             "hessian_off_diag": out["hessian_ij_block"],
         }
 
+        diag = self.tasks["hessian_eigval"].transform_pred_loss(
+            preds["hessian_diag"], mode="diag"
+        )
+        off_diag = self.tasks["hessian_eigval"].transform_pred_loss(
+            preds["hessian_off_diag"], mode="off_diag"
+        )
+
+        ptr = model_input["ptr"]
+        natoms = [j - i for i, j in zip(ptr[:-1], ptr[1:])]
+        eigval = get_eigval_pred(diag, off_diag, natoms)
+
+        preds["hessian_eigval"] = eigval
+
         return preds
 
     def preprocess_batch(self, batch):
@@ -61,7 +78,12 @@ class TFNModel(ModelForPyGData):
         # task labels :w
         labels = {
             name: graphs.y[name]
-            for name in ["hessian_diag", "hessian_off_diag", "hessian_natoms"]
+            for name in [
+                "hessian_diag",
+                "hessian_off_diag",
+                "hessian_natoms",
+                "hessian_eigval",
+            ]
         }
 
         # convert graphs to a dict to use NequIP stuff
@@ -91,11 +113,25 @@ class TFNModel(ModelForPyGData):
             mode=name_off,
         )
 
-        loss_individual = {name_diag: loss_diag, name_off: loss_off}
+        # eigen value loss
+        name_eigval = "hessian_eigval"
+        loss_eigval = get_loss_eigval(
+            self.loss_fns[name_eigval],
+            preds[name_eigval],
+            labels[name_eigval],
+            labels["hessian_natoms"],
+        )
+
+        loss_individual = {
+            name_diag: loss_diag,
+            name_off: loss_off,
+            name_eigval: loss_eigval,
+        }
 
         loss_total = (
             self.tasks[name_diag].loss_weight * loss_diag
             + self.tasks[name_off].loss_weight * loss_off
+            + self.tasks[name_eigval].loss_weight * loss_eigval
         )
 
         return loss_individual, loss_total
@@ -162,6 +198,60 @@ def get_loss(loss_fn, p, t, natoms, mode):
     return loss
 
 
+def get_eigval_pred(p_diag, p_off_diag, natoms: List[int]):
+    """
+    Compute model prediction of eigval.
+
+    Args:
+        p_diag: shape[sum(Ni), 6], where Ni is the number of atoms in mol i
+        p_off_diag: shape[sum(Ni*Ni-Ni), 9]
+
+    Returns:
+        eigval of a set of mols
+    """
+
+    # convert irreps to cartesian
+    p_diag = CartesianTensor("ij=ji").to_cartesian(p_diag)
+    p_off_diag = CartesianTensor("ij=ij").to_cartesian(p_off_diag)
+
+    p_diag_by_mol = torch.split(p_diag, natoms)
+    p_off_diag_by_mol = torch.split(p_off_diag, [n**2 - n for n in natoms])
+
+    eigval = []
+    for diag, off_diag in zip(p_diag_by_mol, p_off_diag_by_mol):
+        H = combine_on_off_diagonal_blocks(diag, off_diag)  # [N*3, N*3]
+
+        v, _ = torch.linalg.eigh(H)
+        eigval.append(v)
+
+    # predicted eigen values
+    eigval = torch.cat(eigval)
+
+    return eigval
+
+
+def get_loss_eigval(loss_fn, pred, target, natoms):
+    """
+    Compute a loss over eigenvalues
+    """
+
+    if isinstance(loss_fn, (torch.nn.MSELoss, TargetScaledMSE)):
+        # for each molecule, there are 3N eigenvalues
+        # NOTE repeat each 3N times, not N times
+        scale = torch.sqrt(torch.repeat_interleave(natoms, 3 * natoms, dim=0))
+    elif isinstance(loss_fn, torch.nn.L1Loss):
+        scale = torch.repeat_interleave(natoms, 3 * natoms, dim=0)
+    else:
+        raise ValueError
+
+    # scale the prediction and target
+    eigval = pred / scale
+    target = target / scale
+    loss = loss_fn(eigval, target)
+
+    return loss
+
+
 class HessianRegressionTask(CanonicalRegressionTask):
     """
     Only inverse transform prediction and target in metric.
@@ -221,6 +311,45 @@ class ScaledHessianRegressionTask(HessianRegressionTask):
 
     def init_loss(self):
         return TargetScaledMSE(eps=self.eps)
+
+
+class HessianEigvalTask(CanonicalRegressionTask):
+    """
+    Metric and tasks for eigen values.
+
+    Note, the target values are the eigen values of the 3N x 3N hessian matrix.
+    We need to transform the prediction back to 3N x 3N and then obtain the eigen
+    values. This is done in model,decode()
+    """
+
+    def __init__(
+        self,
+        name: str,
+        loss_weight: float = 1.0,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        normalizer_kwargs: Dict[str, Any] = None,
+    ):
+        super().__init__(name, loss_weight=loss_weight)
+
+        if normalizer_kwargs is None:
+            normalizer_kwargs = {}
+        self.normalizer = HessianTargetTransform(
+            dataset_statistics_path, **normalizer_kwargs
+        )
+
+    def transform_target_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_pred_loss(self, t: Tensor, mode: str) -> Tensor:
+        return self.normalizer.inverse(t, mode=mode)
+
+    def transform_target_metric(self, t: Tensor) -> Tensor:
+        return t
+
+    # we will use self.transform_pred_loss to transform prediction in decoder,
+    # so we do not need an additional transformation here
+    def transform_pred_metric(self, t: Tensor) -> Tensor:
+        return t
 
 
 class TargetScaledMSE(torch.nn.Module):

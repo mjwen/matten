@@ -71,7 +71,13 @@ model:
         loss_weight: 1.0
         normalizer_kwargs:
           scale: 1.0
-
+    hessian_eigval:
+      class_path: eigenn.model_factory.tfn_hessian.HessianEigvalTask
+      init_args:
+        name: hessian_eigval
+        loss_weight: 1.0
+        normalizer_kwargs:
+          scale: 1.0
 trainer:
   max_epochs: 5 # number of maximum training epochs
   num_nodes: 1
