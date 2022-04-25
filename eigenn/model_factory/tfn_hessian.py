@@ -42,6 +42,18 @@ class TFNModel(ModelForPyGData):
         dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> torch.nn.Module:
         backbone = create_model(backbone_hparams, dataset_hparams)
+
+        # TODO
+        # converter to convert irreps tensor to cartesian tensor
+        # we abuse it to set them here and use in decode.
+        # It seems the .to_cartesian() method is  causing memory leaking problem
+        # (need further conformation): each time it needs to create a new copy of
+        # reduced tensor product to obtain the transformation matrix
+        self.cart_diag = CartesianTensor("ij=ji")
+        self.cart_off_diag = CartesianTensor("ij=ij")
+        self.cart_diag_rtp = self.cart_diag.reduced_tensor_products()
+        self.cart_off_diag_rtp = self.cart_off_diag.reduced_tensor_products()
+
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
@@ -52,6 +64,7 @@ class TFNModel(ModelForPyGData):
             "hessian_off_diag": out["hessian_ij_block"],
         }
 
+        # transform from normalized space to original space for cartesian tensor loss
         diag = self.tasks["hessian_eigval"].transform_pred_loss(
             preds["hessian_diag"], mode="diag"
         )
@@ -61,8 +74,17 @@ class TFNModel(ModelForPyGData):
 
         ptr = model_input["ptr"]
         natoms = [j - i for i, j in zip(ptr[:-1], ptr[1:])]
-        eigval = get_eigval_pred(diag, off_diag, natoms)
 
+        # convert irreps to cartesian tensor
+        cart_diag = self.cart_diag.to_cartesian(
+            diag, self.cart_diag_rtp.to(diag.device)
+        )
+        cart_off_diag = self.cart_off_diag.to_cartesian(
+            off_diag, self.cart_off_diag_rtp.to(off_diag.device)
+        )
+        eigval = get_eigval_pred(cart_diag, cart_off_diag, natoms)
+
+        # the eigen value is obtained in the original cartesian space
         preds["hessian_eigval"] = eigval
 
         return preds
@@ -203,16 +225,12 @@ def get_eigval_pred(p_diag, p_off_diag, natoms: List[int]):
     Compute model prediction of eigval.
 
     Args:
-        p_diag: shape[sum(Ni), 6], where Ni is the number of atoms in mol i
-        p_off_diag: shape[sum(Ni*Ni-Ni), 9]
+        p_diag: shape[sum(Ni), 3, 3], where Ni is the number of atoms in mol i
+        p_off_diag: shape[sum(Ni*Ni-Ni), 3, 3]
 
     Returns:
         eigval of a set of mols
     """
-
-    # convert irreps to cartesian
-    p_diag = CartesianTensor("ij=ji").to_cartesian(p_diag)
-    p_off_diag = CartesianTensor("ij=ij").to_cartesian(p_off_diag)
 
     p_diag_by_mol = torch.split(p_diag, natoms)
     p_off_diag_by_mol = torch.split(p_off_diag, [n**2 - n for n in natoms])

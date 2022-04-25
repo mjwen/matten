@@ -251,7 +251,7 @@ class SaveConfigCallback(LightningSaveConfigCallback):
 
         # TODO save running meta, e.g. git commit
         # save other files to wandb
-        files_to_save = ["submit.sh", "train.py", "job_config.yaml"]
+        files_to_save = ["submit.sh", "train.py", "config_final.yaml"]
         wandb_logger = get_wandb_logger(trainer.logger)
         if wandb_logger is not None:
             save_files_to_wandb(wandb_logger.experiment, files_to_save)
