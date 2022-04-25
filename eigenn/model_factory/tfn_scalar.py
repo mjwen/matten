@@ -1,4 +1,6 @@
 """
+TFN model for predicting graph-level scalar property.
+
 Species embedding using torch.nn.Embedding. As a results, NOTE_ATTRS are learnable and
 it is the same as NODE_FEATURES in the first layer. NOTE, they are the same only at the
 first layer. In the model, NODE_FEATURES will be updated, but NODE_ATTRS are not.
@@ -55,9 +57,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     The actual function to create the model.
     """
 
-    # ===== embedding layers =====
+    # ===== input embedding layers =====
     layers = {
-        # -- Encode --
         "one_hot": (
             SpeciesEmbedding,
             {

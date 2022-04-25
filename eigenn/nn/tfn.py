@@ -38,7 +38,10 @@ class PointConv(ModuleIrreps, torch.nn.Module):
             conv_layer_irreps:
             fc_num_hidden_layers:
             fc_hidden_size:
-            avg_num_neighbors: average number of neighbors of each node
+            avg_num_neighbors: average number of neighbors of each node used to
+                normalize the aggregated message. If not `None`, the provided value
+                will be used to normalize all the node features. If `None`, separate
+                individual values will be used.
         """
         super().__init__()
         self.avg_num_neighbors = avg_num_neighbors
@@ -109,8 +112,12 @@ class PointConv(ModuleIrreps, torch.nn.Module):
         node_feats = self.lin1(node_feats, node_attrs)
         msg = self.tp(node_feats[edge_src], edge_attrs, edge_embedding)
         aggregated_msg = scatter(msg, edge_dst, dim_size=len(node_feats), dim=0)
+
         if self.avg_num_neighbors is not None:
             aggregated_msg = aggregated_msg.div(self.avg_num_neighbors**0.5)
+        else:
+            num_neigh = data[DataKey.NUM_NEIGH].reshape(-1, 1)
+            aggregated_msg = aggregated_msg.div(num_neigh**0.5)
 
         # update
         node_conv_out = self.lin2(aggregated_msg, node_attrs)

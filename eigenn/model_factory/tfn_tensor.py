@@ -1,4 +1,6 @@
 """
+TFN model for predicting graph level tensor property of the same shape.
+
 Species embedding using torch.nn.Embedding. As a results, NOTE_ATTRS are learnable and
 it is the same as NODE_FEATURES in the first layer. NOTE, they are the same only at the
 first layer. In the model, NODE_FEATURES will be updated, but NODE_ATTRS are not.
@@ -39,6 +41,7 @@ class TFNModel(ModelForPyGData):
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
+
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME].reshape(-1)
 

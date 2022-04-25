@@ -38,6 +38,8 @@ EDGE_MESSAGE: Final[str] = "edge_message"
 CELL: Final[str] = "cell"
 # PBC: Final[str] = "pbc"
 
+NUM_NEIGH: Final[str] = "num_neigh"
+
 ATOMIC_NUMBERS: Final[str] = "atomic_numbers"
 SPECIES_INDEX: Final[str] = "species_index"
 PER_ATOM_ENERGY: Final[str] = "atomic_energy"
