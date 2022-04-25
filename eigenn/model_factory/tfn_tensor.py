@@ -175,6 +175,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             },
         )
 
+    # conv without applying activation
     layers["conv_layer_last"] = (
         PointConv,
         {

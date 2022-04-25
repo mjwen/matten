@@ -49,19 +49,19 @@ def main():
         #     ]
         # },
         ##
-        model_class=TFNHessian,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_hessian.yaml").as_posix()
-            ]
-        },
-        ##
-        # model_class=TFNTensor,
+        # model_class=TFNHessian,
         # parser_kwargs={
         #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+        #         CWD.joinpath("configs", "tfn_hessian.yaml").as_posix()
         #     ]
         # },
+        ##
+        model_class=TFNTensor,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=SEGNNModel,
         # parser_kwargs={

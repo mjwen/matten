@@ -40,6 +40,7 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
         self.init_irreps(irreps_in, required_keys_irreps_in=[field])
 
         self.ct = CartesianTensor(formula=formula)
+        self.ct_rtp = self.ct.reduced_tensor_products()
 
         assert self.irreps_in[self.field] == self.ct, (
             f"input irreps of {self.field} is {self.irreps_in[self.field]}, not equal "
@@ -48,7 +49,7 @@ class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         value = data[self.field]
-        cartesian_tensor = self.ct.to_cartesian(value)
+        cartesian_tensor = self.ct.to_cartesian(value, self.ct_rtp.to(value.device))
         data[self.out_field] = cartesian_tensor
 
         return data
