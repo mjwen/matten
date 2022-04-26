@@ -164,5 +164,6 @@ def test_hesssian_equivariance(normalize_target):
     pred_rotated_cart = convert.to_cartesian(pred_rotated)
 
     for h, h_rotated in zip(pred_cart, pred_rotated_cart):
-        h = Q @ h @ Q.T
+        # h = Q @ h @ Q.T
+        h = torch.einsum("im, jn, mn -> ij", Q, Q, h)
         assert torch.allclose(h, h_rotated, rtol=1e-1)
