@@ -78,8 +78,9 @@ class MatbenchTensorDataset(InMemoryDataset):
         # convert to irreps tensor is necessary
         if self.output_format == "irreps":
             converter = CartesianTensor(formula=self.output_formula)
+            rtp = converter.reduced_tensor_products()
             df[self.field_name] = df[self.field_name].apply(
-                lambda x: converter.from_cartesian(x)
+                lambda x: converter.from_cartesian(x, rtp)
             )
 
         property_columns = [self.field_name]
