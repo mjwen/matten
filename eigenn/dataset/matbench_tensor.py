@@ -1,16 +1,18 @@
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from e3nn.io import CartesianTensor
 from pymatgen.core.structure import Structure
+from torchtyping import TensorType
 
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
+from eigenn.data.transform import MeanNormNormalize
 
 
 class MatbenchTensorDataset(InMemoryDataset):
@@ -33,6 +35,13 @@ class MatbenchTensorDataset(InMemoryDataset):
         output_formula: formula specifying symmetry of tensor. No matter what
             output_format is, output_formula should be given in cartesian notation.
             e.g. `ijkl=jikl=klij` for a elastic tensor.
+          compute_dataset_statistics: callable to compute dataset statistics. Do not
+            compute if `None`. Note, this is different from `normalize_target` below.
+            This only determines whether to compute the statistics of the target of a
+            dataset, and will generate a file named `dataset_statistics.pt` is $CWD
+            if a callable is provided. Whether to use dataset statistics to do
+            normalization is determined by `normalize_target`.
+        normalize_target: whether to normalize the target hessian.
     """
 
     def __init__(
@@ -43,8 +52,11 @@ class MatbenchTensorDataset(InMemoryDataset):
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
-        output_format: str = "cartesian",
+        output_format: str = "irreps",
         output_formula: str = "ijkl=jikl=klij",
+        compute_dataset_statistics: Callable = None,
+        normalize_target: bool = True,
+        normalizer_kwargs: Dict[str, Any] = None,
     ):
         self.filename = filename
         self.r_cut = r_cut
@@ -52,11 +64,32 @@ class MatbenchTensorDataset(InMemoryDataset):
         self.output_format = output_format
         self.output_formula = output_formula
 
+        processed_dirname = f"processed_rcut{self.r_cut}"
+
+        # forward transform for targets
+        if normalize_target:
+            if normalizer_kwargs is None:
+                normalizer_kwargs = {}
+
+            # modify processed_dirname, since normalization will affect stored value
+            kv_str = "_".join([f"{k}-{v}" for k, v in normalizer_kwargs.items()])
+            if kv_str:
+                processed_dirname = processed_dirname + "_" + kv_str
+
+            target_transform = TensorTargetTransform(
+                Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
+                **normalizer_kwargs,
+            )
+        else:
+            target_transform = None
+
         super().__init__(
             filenames=[filename],
             root=root,
-            processed_dirname=f"processed_rcut{self.r_cut}",
+            processed_dirname=processed_dirname,
             reuse=reuse,
+            compute_dataset_statistics=compute_dataset_statistics,
+            pre_transform=target_transform,
         )
 
     def get_data(self):
@@ -82,6 +115,10 @@ class MatbenchTensorDataset(InMemoryDataset):
             df[self.field_name] = df[self.field_name].apply(
                 lambda x: converter.from_cartesian(x, rtp)
             )
+        elif self.output_format == "cartesian":
+            pass
+        else:
+            raise ValueError
 
         property_columns = [self.field_name]
 
@@ -117,6 +154,101 @@ class MatbenchTensorDataset(InMemoryDataset):
         return crystals
 
 
+def get_tensor_statistics(data: List[Crystal]) -> Dict[str, Any]:
+    """
+    Compute statistics of datasets.
+    """
+
+    elastic_tensors = []
+    atomic_numbers = set()
+    num_neigh = []
+
+    key = "elastic_tensor_full"
+
+    for struct in data:
+        elastic_tensors.append(struct.y[key])
+        atomic_numbers.update(struct.atomic_numbers.tolist())
+        num_neigh.append(struct.num_neigh)
+
+    elastic_tensors = torch.stack(elastic_tensors)
+    atomic_numbers = tuple(atomic_numbers)
+    average_num_neigh = torch.cat(num_neigh).mean()
+
+    normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e")
+    normalizer.compute_statistics(elastic_tensors)
+
+    statistics = {
+        key: normalizer.state_dict(),
+        "allowed_species": atomic_numbers,
+        "average_num_neigh": average_num_neigh,
+    }
+
+    return statistics
+
+
+class TensorTargetTransform(torch.nn.Module):
+    """
+    Forward and inverse normalization of elastic tensor.
+
+    Forward is intended to be used as `pre_transform` of dataset and inverse is
+    intended to be used before metrics and prediction function to transform the
+    hessian back to the original space.
+
+    Args:
+        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
+        load when the forward or inverse function is called.
+    """
+
+    def __init__(self, dataset_statistics_path: Union[str, Path], scale: float = 1.0):
+        super().__init__()
+        self.dataset_statistics_path = Path(dataset_statistics_path)
+        self.dataset_statistics_loaded = False
+
+        self.normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e", scale=scale)
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update target of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+
+        # Instead of providing mean and norm of normalizer at instantiation, we delay
+        # the loading here because this method will typically be called after dataset
+        # statistics has been generated.
+        key = "elastic_tensor_full"
+
+        self._fill_state_dict(struct.y[key].device)
+
+        target = struct.y[key]  # shape (21,)
+        struct.y[key] = self.normalizer(target)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"]):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        self._fill_state_dict(data.device)
+        data = self.normalizer.inverse(data)
+
+        return data
+
+    def _fill_state_dict(self, device):
+        """
+        Because this is delayed be to called when actual forward or inverse is
+        happening, need to move the tensor to the correct device.
+        """
+        if not self.dataset_statistics_loaded:
+            statistics = torch.load(self.dataset_statistics_path)
+            self.normalizer.load_state_dict(statistics["elastic_tensor_full"])
+            self.to(device)
+
+            self.dataset_statistics_loaded = True
+
+
 class MatbenchTensorDataModule(BaseDataModule):
     """
     Will search for fi`root/<trainset_filename>`.
@@ -134,6 +266,8 @@ class MatbenchTensorDataModule(BaseDataModule):
         reuse: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ijkl=jikl=klij",
+        normalize_target: bool = True,
+        normalizer_kwargs: Dict[str, Any] = None,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
@@ -143,6 +277,8 @@ class MatbenchTensorDataModule(BaseDataModule):
         self.field_name = field_name
         self.output_format = output_format
         self.output_formula = output_formula
+        self.normalize_target = normalize_target
+        self.normalizer_kwargs = normalizer_kwargs
 
         super().__init__(
             trainset_filename,
@@ -163,6 +299,9 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=get_tensor_statistics,
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.val_data = MatbenchTensorDataset(
             self.valset_filename,
@@ -172,6 +311,9 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=None,
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.test_data = MatbenchTensorDataset(
             self.testset_filename,
@@ -181,6 +323,9 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
+            compute_dataset_statistics=None,
+            normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
 
     def get_to_model_info(self) -> Dict[str, Any]:
@@ -203,15 +348,16 @@ class MatbenchTensorDataModule(BaseDataModule):
 if __name__ == "__main__":
 
     dm = MatbenchTensorDataModule(
-        trainset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
-        valset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
-        testset_filename="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/crystal_elasticity.json",
+        trainset_filename="crystal_elasticity_filtered_test.json",
+        valset_filename="crystal_elasticity_filtered_test.json",
+        testset_filename="crystal_elasticity_filtered_test.json",
         r_cut=5.0,
-        field_name="elastic_tensor_cartesian",
-        output_format="cartesian",
+        field_name="elastic_tensor_full",
+        output_format="irreps",
         output_formula="ijkl=jikl=klij",
-        root="/tmp",
+        root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor",
         reuse=False,
+        normalize_target=True,
     )
     dm.prepare_data()
     dm.setup()

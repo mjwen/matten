@@ -29,7 +29,11 @@ class HessianDataset(InMemoryDataset):
         reuse: whether to reuse the preprocessed data.
         edge_strategy: `complete` | `pmg_mol_graph`
         compute_dataset_statistics: callable to compute dataset statistics. Do not
-            compute if `None`.
+            compute if `None`. Note, this is different from `normalize_target` below.
+            This only determines whether to compute the statistics of the target of a
+            dataset, and will generate a file named `dataset_statistics.pt` is $CWD
+            if a callable is provided. Whether to use dataset statistics to do
+            normalization is determined by `normalize_target`.
         normalize_target: whether to normalize the target hessian.
     """
 
@@ -85,7 +89,9 @@ class HessianDataset(InMemoryDataset):
 
         # convert to irreps tensor is necessary
         converter_diag = CartesianTensor(formula="ij=ji")
+        rtp_diag = converter_diag.reduced_tensor_products()
         converter_off_diag = CartesianTensor(formula="ij=ij")
+        rtp_off_diag = converter_off_diag.reduced_tensor_products()
 
         molecules = []
         for i, conf in enumerate(configs):
@@ -107,8 +113,12 @@ class HessianDataset(InMemoryDataset):
                 )
 
                 if self.output_format == "irreps":
-                    diag = converter_diag.from_cartesian(diag)
-                    off_diag = converter_off_diag.from_cartesian(off_diag)
+                    diag = converter_diag.from_cartesian(diag, rtp_diag)
+                    off_diag = converter_off_diag.from_cartesian(off_diag, rtp_off_diag)
+                elif self.output_format == "cartesian":
+                    pass
+                else:
+                    raise ValueError
 
                 m = Molecule.with_edge_strategy(
                     pos=conf.positions,
