@@ -60,6 +60,8 @@ def load_dataset(
         reuse=False,
         output_format=output_format,
         output_formula=output_formula,
+        normalize_target=False,
+        compute_dataset_statistics=False,
     )
     dm.setup()
 

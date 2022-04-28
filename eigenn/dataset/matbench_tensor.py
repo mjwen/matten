@@ -66,6 +66,9 @@ class MatbenchTensorDataset(InMemoryDataset):
 
         processed_dirname = f"processed_rcut{self.r_cut}"
 
+        if normalize_target and output_format == "cartesisan":
+            raise ValueError("Cannot normalize target for cartesian output")
+
         # forward transform for targets
         if normalize_target:
             if normalizer_kwargs is None:
@@ -270,6 +273,7 @@ class MatbenchTensorDataModule(BaseDataModule):
         normalizer_kwargs: Dict[str, Any] = None,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
+        compute_dataset_statistics: bool = True,
         **kwargs,
     ):
         self.r_cut = r_cut
@@ -279,6 +283,8 @@ class MatbenchTensorDataModule(BaseDataModule):
         self.output_formula = output_formula
         self.normalize_target = normalize_target
         self.normalizer_kwargs = normalizer_kwargs
+
+        self.compute_dataset_statistics = compute_dataset_statistics
 
         super().__init__(
             trainset_filename,
@@ -291,6 +297,11 @@ class MatbenchTensorDataModule(BaseDataModule):
         )
 
     def setup(self, stage: Optional[str] = None):
+
+        if self.compute_dataset_statistics:
+            statistics_fn = get_tensor_statistics
+        else:
+            statistics_fn = None
         self.train_data = MatbenchTensorDataset(
             self.trainset_filename,
             self.r_cut,
@@ -299,7 +310,7 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=get_tensor_statistics,
+            compute_dataset_statistics=statistics_fn,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
