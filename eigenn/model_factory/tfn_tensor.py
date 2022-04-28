@@ -14,13 +14,16 @@ number of params.
 
 
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 import torch
 from e3nn.io import CartesianTensor
 from torch import Tensor
 
+from eigenn.dataset.matbench_tensor import TensorTargetTransform
 from eigenn.model.model import ModelForPyGData
+from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
@@ -43,7 +46,7 @@ class TFNModel(ModelForPyGData):
     def decode(self, model_input) -> Dict[str, Tensor]:
 
         out = self.backbone(model_input)
-        out = out[OUT_FIELD_NAME].reshape(-1)
+        out = out[OUT_FIELD_NAME]
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]
@@ -51,6 +54,58 @@ class TFNModel(ModelForPyGData):
         preds = {task_name: out}
 
         return preds
+
+    def transform_prediction(self, preds: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Transform the normalized prediction back.
+        """
+
+        task_name = "elastic_tensor_full"
+
+        normalizer = self.tasks[task_name].normalizer
+
+        out = normalizer.inverse(preds[task_name])
+
+        return {task_name: out}
+
+
+class TensorRegressionTask(CanonicalRegressionTask):
+    """
+    Inverse transform prediction and target in metric.
+
+    Note, in TensorTargetTransform, the target are forward transformed.
+
+    Args:
+        name: name of the task. Values with this key in model prediction dict and
+            target dict will be used for loss and metrics computation.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        loss_weight: float = 1.0,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        normalizer_kwargs: Dict[str, Any] = None,
+    ):
+        super().__init__(name, loss_weight=loss_weight)
+
+        if normalizer_kwargs is None:
+            normalizer_kwargs = {}
+        self.normalizer = TensorTargetTransform(
+            dataset_statistics_path, **normalizer_kwargs
+        )
+
+    def transform_target_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_pred_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_target_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t)
+
+    def transform_pred_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):

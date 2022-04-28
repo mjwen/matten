@@ -132,7 +132,10 @@ class InMemoryDataset(PyGInMemoryDataset):
             p = self.dataset_statistics_path
             torch.save(statistics, p)
             shutil.copy2(p, Path.cwd())
-            logger.info(f"Dataset statistics saved to: {p} and {Path.cwd()}")
+            logger.info(
+                f"Dataset statistics saved to: {p} and "
+                f"{Path.cwd().joinpath(self.dataset_statistics_path.name)}"
+            )
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]

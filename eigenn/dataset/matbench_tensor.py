@@ -116,7 +116,7 @@ class MatbenchTensorDataset(InMemoryDataset):
             converter = CartesianTensor(formula=self.output_formula)
             rtp = converter.reduced_tensor_products()
             df[self.field_name] = df[self.field_name].apply(
-                lambda x: converter.from_cartesian(x, rtp)
+                lambda x: converter.from_cartesian(x, rtp).reshape(1, -1)
             )
         elif self.output_format == "cartesian":
             pass
@@ -173,7 +173,7 @@ def get_tensor_statistics(data: List[Crystal]) -> Dict[str, Any]:
         atomic_numbers.update(struct.atomic_numbers.tolist())
         num_neigh.append(struct.num_neigh)
 
-    elastic_tensors = torch.stack(elastic_tensors)
+    elastic_tensors = torch.cat(elastic_tensors)
     atomic_numbers = tuple(atomic_numbers)
     average_num_neigh = torch.cat(num_neigh).mean()
 

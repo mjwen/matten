@@ -13,6 +13,8 @@ data:
     field_name: elastic_tensor_full
     output_format: irreps # `cartesian` or `irreps`, should be the same as `output_format` of model below
     output_formula: ijkl=jikl=klij # should always be in cartesian formula
+    compute_dataset_statistics: true
+    normalize_target: true
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -47,7 +49,7 @@ model:
 
     conv_layer_irreps: 32x0o+32x0e + 16x1o+16x1e + 8x2o+8x2e + 4x3o+4x3e + 4x4o+4x4e
     nonlinearity_type: gate
-    normalization: none  # {`none`, `batch`, `instance`}
+    normalization: none # {`none`, `batch`, `instance`}
     resnet: true
 
     #
@@ -72,7 +74,7 @@ model:
   # tasks define the loss, metric...
   tasks:
     elastic_tensor_full:
-      class_path: eigenn.model.task.CanonicalRegressionTask
+      class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
 
