@@ -52,13 +52,19 @@ def write_running_metadata(
     - git repo commit, optional
 
     Args:
+        git_repo: path to the git repo, if None, will try to find it automatically.
         filename: name of the file to write
-        git_repo: path to the git repo, if None, do not use this info.
     """
+    if git_repo is None:
+        import eigenn
 
-    d = {"running_dir": Path.cwd().as_posix(), "hostname": get_hostname()}
-    if git_repo is not None:
-        d["git_commit"] = get_git_repo_commit(git_repo)
+        git_repo = Path(eigenn.__file__).parents[1]
+
+    d = {
+        "running_dir": Path.cwd().as_posix(),
+        "hostname": get_hostname(),
+        "git_commit": get_git_repo_commit(git_repo),
+    }
 
     yaml_dump(d, filename)
 

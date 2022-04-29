@@ -24,6 +24,7 @@ from eigenn.utils_wandb import (
     get_wandb_checkpoint_and_identifier_latest,
     get_wandb_logger,
     save_files_to_wandb,
+    write_running_metadata,
 )
 
 
@@ -249,9 +250,19 @@ class SaveConfigCallback(LightningSaveConfigCallback):
         self, trainer: Trainer, pl_module: LightningModule, stage: Optional[str] = None
     ) -> None:
 
-        # TODO save running meta, e.g. git commit
         # save other files to wandb
-        files_to_save = ["submit.sh", "train.py", "config_final.yaml"]
+
+        metadata_filename = "running_metadata.yaml"
+        write_running_metadata(filename=metadata_filename)
+
+        files_to_save = [
+            "submit.sh",
+            "train.py",
+            "config_default.yaml",
+            "config_update.yaml",
+            "config_final.yaml",
+            metadata_filename,
+        ]
         wandb_logger = get_wandb_logger(trainer.logger)
         if wandb_logger is not None:
             save_files_to_wandb(wandb_logger.experiment, files_to_save)
