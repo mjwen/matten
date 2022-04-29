@@ -136,3 +136,4 @@ dmypy.json
 lightning_logs/
 wandb_logs/
 .DS_Store
+dataset_statistics.pt

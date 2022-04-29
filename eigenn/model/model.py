@@ -245,7 +245,7 @@ class BaseModel(pl.LightningModule):
             p = preds[task_name]
             l = labels[task_name]
             p = task.transform_pred_loss(p)
-            l = task.transform_target_metric(l)
+            l = task.transform_target_loss(l)
 
             if task.task_type == TaskType.CLASSIFICATION and task.is_binary():
                 # this will use BCEWithLogitsLoss, which requires label be of float

@@ -66,7 +66,7 @@ class MatbenchTensorDataset(InMemoryDataset):
 
         processed_dirname = f"processed_rcut{self.r_cut}"
 
-        if normalize_target and output_format == "cartesisan":
+        if normalize_target and output_format == "cartesian":
             raise ValueError("Cannot normalize target for cartesian output")
 
         # forward transform for targets
