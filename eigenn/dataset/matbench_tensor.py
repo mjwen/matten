@@ -64,7 +64,7 @@ class MatbenchTensorDataset(InMemoryDataset):
         self.output_format = output_format
         self.output_formula = output_formula
 
-        processed_dirname = f"processed_rcut{self.r_cut}"
+        processed_dirname = f"processed_rcut={self.r_cut}"
 
         if normalize_target and output_format == "cartesian":
             raise ValueError("Cannot normalize target for cartesian output")
@@ -75,12 +75,15 @@ class MatbenchTensorDataset(InMemoryDataset):
                 normalizer_kwargs = {}
 
             # modify processed_dirname, since normalization will affect stored value
-            kv_str = "_".join([f"{k}-{v}" for k, v in normalizer_kwargs.items()])
+            kv_str = "_".join([f"{k}={v}" for k, v in normalizer_kwargs.items()])
             if kv_str:
                 processed_dirname = processed_dirname + "_" + kv_str
 
             target_transform = TensorTargetTransform(
-                Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
+                target_name=self.field_name,
+                dataset_statistics_path=Path(root).joinpath(
+                    processed_dirname, "dataset_statistics.pt"
+                ),
                 **normalizer_kwargs,
             )
         else:
@@ -172,9 +175,9 @@ class TensorTargetTransform(torch.nn.Module):
 
     def __init__(
         self,
+        target_name: str = "elastic_tensor_full",
         dataset_statistics_path: Union[str, Path] = None,
         scale: float = 1.0,
-        target_name: str = "elastic_tensor_full",
     ):
         super().__init__()
         self.dataset_statistics_path = dataset_statistics_path

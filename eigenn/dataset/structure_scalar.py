@@ -45,18 +45,31 @@ class StructureScalarDataset(InMemoryDataset):
         reuse: bool = True,
         compute_dataset_statistics: Callable = None,
         normalize_target: bool = False,
+        normalizer_kwargs: Dict[str, Any] = None,
     ):
         self.filename = filename
         self.r_cut = r_cut
         self.target_names = target_names
 
-        processed_dirname = f"processed_rcut{self.r_cut}"
+        processed_dirname = f"processed_rcut={self.r_cut}"
 
         # forward transform for targets
         if normalize_target:
+
+            if normalizer_kwargs is None:
+                normalizer_kwargs = {}
+
+            # modify processed_dirname, since normalization will affect stored value
+            kv_str = "_".join([f"{k}={v}" for k, v in normalizer_kwargs.items()])
+            if kv_str:
+                processed_dirname = processed_dirname + "_" + kv_str
+
             target_transform = ScalarTargetTransform(
-                Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
                 target_names=self.target_names,
+                dataset_statistics_path=Path(root).joinpath(
+                    processed_dirname, "dataset_statistics.pt"
+                ),
+                **normalizer_kwargs,
             )
         else:
             target_transform = None
@@ -114,39 +127,9 @@ class StructureScalarDataset(InMemoryDataset):
                 crystals.append(c)
 
             except Exception as e:
-                warnings.warn(f"Failed converting structure {irow}: {str(e)}. Skip it.")
+                warnings.warn(f"Failed converting structure {irow}, Skip it. {str(e)}")
 
         return crystals
-
-
-def get_statistics(data: List[Crystal], target_names: List[str]) -> Dict[str, Any]:
-    """
-    Compute statistics of datasets.
-    """
-
-    targets = defaultdict(list)
-    atomic_numbers = set()
-    num_neigh = []
-
-    for struct in data:
-        for key in target_names:
-            targets[key].append(struct.y[key])
-        atomic_numbers.update(struct.atomic_numbers.tolist())
-        num_neigh.append(struct.num_neigh)
-
-    statistics = {
-        "allowed_species": tuple(atomic_numbers),
-        "average_num_neigh": torch.cat(num_neigh).mean(),
-    }
-
-    for key in target_names:
-        t = torch.cat(targets[key])
-        assert t.ndim == 2
-        normalizer = ScalarNormalize(num_features=t.shape[1])
-        normalizer.compute_statistics(t)
-        statistics[key] = normalizer.state_dict()
-
-    return statistics
 
 
 class ScalarTargetTransform(torch.nn.Module):
@@ -161,17 +144,25 @@ class ScalarTargetTransform(torch.nn.Module):
         dataset_statistics_path: path to the dataset statistics file. Will be delayed to
             load when the forward or inverse function is called.
         target_names: names of the target
+        log_targets: whether to log transform the targets. Note, if true, log is only
+            applied in the dataset statistics computation and forward transformation.
+            The after-log one is treated as the true targets. The inverse exp is not
+            performed at the inverse transform.
 
     """
 
     def __init__(
-        self, dataset_statistics_path: Union[str, Path], target_names: List[str]
+        self,
+        target_names: List[str],
+        dataset_statistics_path: Union[str, Path] = None,
+        log_targets: bool = False,
     ):
         super().__init__()
-        self.dataset_statistics_path = Path(dataset_statistics_path)
+        self.dataset_statistics_path = dataset_statistics_path
         self.dataset_statistics_loaded = False
 
         self.target_names = target_names
+        self.log_targets = log_targets
 
         self.normalizers = torch.nn.ModuleDict(
             {name: ScalarNormalize(num_features=1) for name in self.target_names}
@@ -191,6 +182,8 @@ class ScalarTargetTransform(torch.nn.Module):
 
         for name in self.target_names:
             target = struct.y[name]
+            if self.log_targets:
+                target = torch.log(target)
             struct.y[name] = self.normalizers[name](target)
 
         return struct
@@ -219,6 +212,37 @@ class ScalarTargetTransform(torch.nn.Module):
 
             self.dataset_statistics_loaded = True
 
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """
+        Compute statistics of datasets.
+        """
+
+        targets = defaultdict(list)
+        atomic_numbers = set()
+        num_neigh = []
+
+        for struct in data:
+            for key in self.target_names:
+                t = struct.y[key]
+                if self.log_targets:
+                    t = torch.log(t)
+                targets[key].append(t)
+            atomic_numbers.update(struct.atomic_numbers.tolist())
+            num_neigh.append(struct.num_neigh)
+
+        statistics = {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neigh": torch.cat(num_neigh).mean(),
+        }
+
+        for key in self.target_names:
+            t = torch.cat(targets[key])
+            assert t.ndim == 2
+            self.normalizers[key].compute_statistics(t)
+            statistics[key] = self.normalizers[key].state_dict()
+
+        return statistics
+
 
 class StructureScalarDataModule(BaseDataModule):
     """
@@ -237,6 +261,7 @@ class StructureScalarDataModule(BaseDataModule):
         reuse: bool = True,
         compute_dataset_statistics: bool = True,
         normalize_target: bool = True,
+        normalizer_kwargs: Dict[str, Any] = None,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
         **kwargs,
@@ -245,6 +270,7 @@ class StructureScalarDataModule(BaseDataModule):
         self.root = root
         self.target_names = target_names
         self.normalize_target = normalize_target
+        self.normalizer_kwargs = normalizer_kwargs
 
         self.compute_dataset_statistics = compute_dataset_statistics
 
@@ -261,9 +287,14 @@ class StructureScalarDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         if self.compute_dataset_statistics:
-            statistics_fn = functools.partial(
-                get_statistics, target_names=self.target_names
+            if self.normalizer_kwargs is None:
+                kw = {}
+            else:
+                kw = self.normalizer_kwargs
+            normalizer = ScalarTargetTransform(
+                dataset_statistics_path=None, target_names=self.target_names, **kw
             )
+            statistics_fn = normalizer.compute_statistics
         else:
             statistics_fn = None
 
@@ -275,6 +306,7 @@ class StructureScalarDataModule(BaseDataModule):
             reuse=self.reuse,
             compute_dataset_statistics=statistics_fn,
             normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.val_data = StructureScalarDataset(
             self.valset_filename,
@@ -284,6 +316,7 @@ class StructureScalarDataModule(BaseDataModule):
             reuse=self.reuse,
             compute_dataset_statistics=None,
             normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
         self.test_data = StructureScalarDataset(
             self.testset_filename,
@@ -293,6 +326,7 @@ class StructureScalarDataModule(BaseDataModule):
             reuse=self.reuse,
             compute_dataset_statistics=None,
             normalize_target=self.normalize_target,
+            normalizer_kwargs=self.normalizer_kwargs,
         )
 
     def get_to_model_info(self) -> Dict[str, Any]:
@@ -323,6 +357,7 @@ if __name__ == "__main__":
         root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523",
         reuse=False,
         normalize_target=True,
+        normalizer_kwargs={"log_targets": True},
     )
     dm.prepare_data()
     dm.setup()
