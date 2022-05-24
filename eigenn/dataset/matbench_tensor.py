@@ -157,38 +157,6 @@ class MatbenchTensorDataset(InMemoryDataset):
         return crystals
 
 
-def get_tensor_statistics(data: List[Crystal]) -> Dict[str, Any]:
-    """
-    Compute statistics of datasets.
-    """
-
-    elastic_tensors = []
-    atomic_numbers = set()
-    num_neigh = []
-
-    key = "elastic_tensor_full"
-
-    for struct in data:
-        elastic_tensors.append(struct.y[key])
-        atomic_numbers.update(struct.atomic_numbers.tolist())
-        num_neigh.append(struct.num_neigh)
-
-    elastic_tensors = torch.cat(elastic_tensors)
-    atomic_numbers = tuple(atomic_numbers)
-    average_num_neigh = torch.cat(num_neigh).mean()
-
-    normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e")
-    normalizer.compute_statistics(elastic_tensors)
-
-    statistics = {
-        key: normalizer.state_dict(),
-        "allowed_species": atomic_numbers,
-        "average_num_neigh": average_num_neigh,
-    }
-
-    return statistics
-
-
 class TensorTargetTransform(torch.nn.Module):
     """
     Forward and inverse normalization of elastic tensor.
@@ -204,12 +172,12 @@ class TensorTargetTransform(torch.nn.Module):
 
     def __init__(
         self,
-        dataset_statistics_path: Union[str, Path],
+        dataset_statistics_path: Union[str, Path] = None,
         scale: float = 1.0,
         target_name: str = "elastic_tensor_full",
     ):
         super().__init__()
-        self.dataset_statistics_path = Path(dataset_statistics_path)
+        self.dataset_statistics_path = dataset_statistics_path
         self.dataset_statistics_loaded = False
 
         self.target_name = target_name
@@ -251,11 +219,41 @@ class TensorTargetTransform(torch.nn.Module):
         happening, need to move the tensor to the correct device.
         """
         if not self.dataset_statistics_loaded:
+            if self.dataset_statistics_path is None:
+                raise ValueError("Cannot load dataset statistics from file `None`")
             statistics = torch.load(self.dataset_statistics_path)
             self.normalizer.load_state_dict(statistics[self.target_name])
             self.to(device)
 
             self.dataset_statistics_loaded = True
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """
+        Compute statistics of datasets.
+        """
+
+        elastic_tensors = []
+        atomic_numbers = set()
+        num_neigh = []
+
+        for struct in data:
+            elastic_tensors.append(struct.y[self.target_name])
+            atomic_numbers.update(struct.atomic_numbers.tolist())
+            num_neigh.append(struct.num_neigh)
+
+        elastic_tensors = torch.cat(elastic_tensors)
+        atomic_numbers = tuple(atomic_numbers)
+        average_num_neigh = torch.cat(num_neigh).mean()
+
+        self.normalizer.compute_statistics(elastic_tensors)
+
+        statistics = {
+            self.target_name: self.normalizer.state_dict(),
+            "allowed_species": atomic_numbers,
+            "average_num_neigh": average_num_neigh,
+        }
+
+        return statistics
 
 
 class MatbenchTensorDataModule(BaseDataModule):
@@ -275,11 +273,11 @@ class MatbenchTensorDataModule(BaseDataModule):
         reuse: bool = True,
         output_format: str = "cartesian",
         output_formula: str = "ijkl=jikl=klij",
+        compute_dataset_statistics: bool = True,
         normalize_target: bool = True,
         normalizer_kwargs: Dict[str, Any] = None,
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
         restore_state_dict_filename: Optional[Union[str, Path]] = None,
-        compute_dataset_statistics: bool = True,
         **kwargs,
     ):
         self.r_cut = r_cut
@@ -305,9 +303,15 @@ class MatbenchTensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         if self.compute_dataset_statistics:
-            statistics_fn = get_tensor_statistics
+            if self.normalizer_kwargs is None:
+                kw = {}
+            else:
+                kw = self.normalizer_kwargs
+            normalizer = TensorTargetTransform(dataset_statistics_path=None, **kw)
+            statistics_fn = normalizer.compute_statistics
         else:
             statistics_fn = None
+
         self.train_data = MatbenchTensorDataset(
             self.trainset_filename,
             self.r_cut,
@@ -372,9 +376,11 @@ if __name__ == "__main__":
         field_name="elastic_tensor_full",
         output_format="irreps",
         output_formula="ijkl=jikl=klij",
-        root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220511",
+        root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220517",
         reuse=False,
+        compute_dataset_statistics=True,
         normalize_target=True,
+        normalizer_kwargs={"scale": 10},
     )
     dm.prepare_data()
     dm.setup()
