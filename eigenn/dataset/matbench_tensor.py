@@ -366,7 +366,7 @@ if __name__ == "__main__":
         field_name="elastic_tensor_full",
         output_format="irreps",
         output_formula="ijkl=jikl=klij",
-        root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor",
+        root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220511",
         reuse=False,
         normalize_target=True,
     )

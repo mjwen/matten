@@ -4,10 +4,10 @@ log_level: info
 data:
   class_path: eigenn.dataset.matbench_tensor.MatbenchTensorDataModule
   init_args:
-    root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor
-    trainset_filename: crystal_elasticity_n20.json
-    valset_filename: crystal_elasticity_n20.json
-    testset_filename: crystal_elasticity_n20.json
+    root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220511
+    trainset_filename: crystal_elasticity_filtered_cubic_n20.json
+    valset_filename: crystal_elasticity_filtered_cubic_n20.json
+    testset_filename: crystal_elasticity_filtered_cubic_n20.json
     r_cut: 5.0
     reuse: false
     field_name: elastic_tensor_full
