@@ -12,6 +12,7 @@ from typing import Union
 import torch
 import torch.nn as nn
 from e3nn.o3 import Irreps
+from sklearn.preprocessing import StandardScaler
 from torchtyping import TensorType
 
 
@@ -206,7 +207,94 @@ class MeanNormNormalize(Normalize):
             f"and {dim}."
         )
 
-        # Warning, do not delete this line,
+        # Warning, do not delete this line
         self.load_state_dict({"mean": all_mean, "norm": all_norm})
 
         return all_mean, all_norm
+
+
+class ScalarNormalize(nn.Module):
+    """
+    Normalize scalar quantities of shape [num_samples, num_features], each feature
+    is normalized individually.
+
+    Args:
+        num_features: feature dim for the data to be normalized.
+        scale: scale factor to multiply by norm. Because the data to be normalized
+            will divide the norm, a value smaller than 1 will result in wider data
+            distribution after normalization and a value larger than 1 will result in
+            tighter data distribution.
+
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        mean: TensorType = None,
+        norm: TensorType = None,
+        scale: float = 1.0,
+    ):
+        super().__init__()
+
+        self.scale = scale
+
+        # Cannot register None as buffer for mean and norm, which means this module
+        # does not need them. As a result, we cannot load them via state dict.
+        if mean is None or norm is None:
+            self.mean_norm_initialized = False
+        else:
+            self.mean_norm_initialized = True
+
+        if mean is None:
+            mean = torch.zeros(num_features)
+        if norm is None:
+            norm = torch.zeros(num_features)
+
+        self.register_buffer("mean", mean)
+        self.register_buffer("norm", norm)
+
+    def forward(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
+        if not self.mean_norm_initialized:
+            raise RuntimeError("mean and norm not initialized.")
+
+        return (data - self.mean) / (self.norm * self.scale)
+
+    def inverse(
+        self, data: TensorType["batch", "D"]  # noqa: F821
+    ) -> TensorType["batch", "D"]:  # noqa: F821
+        if not self.mean_norm_initialized:
+            raise RuntimeError("mean and norm not initialized.")
+
+        return data * (self.norm * self.scale) + self.mean
+
+    # mean and norm
+    def load_state_dict(
+        self, state_dict: "OrderedDict[str, Tensor]", strict: bool = True
+    ):
+        super().load_state_dict(state_dict, strict)
+        self.mean_norm_initialized = True
+
+    def compute_statistics(self, data: TensorType["batch", "D"]):  # noqa: F821
+        """
+        Compute the mean and norm statistics.
+        """
+
+        assert data.ndim == 2, "Can only deal with tensor [N_samples, N_features]"
+
+        dtype = data.dtype
+        data = data.numpy()
+
+        scaler = StandardScaler()
+        scaler.fit(data)
+        mean = scaler.mean_
+        std = scaler.scale_
+
+        mean = torch.as_tensor(mean, dtype=dtype)
+        std = torch.as_tensor(std, dtype=dtype)
+
+        # Warning, do not delete this line,
+        self.load_state_dict({"mean": mean, "norm": std})
+
+        return mean, std
