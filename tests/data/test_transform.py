@@ -1,7 +1,7 @@
 import torch
 from e3nn.o3 import Irreps
 
-from eigenn.data.transform import MeanNormNormalize
+from eigenn.data.transform import MeanNormNormalize, ScalarNormalize
 
 
 def test_mean_norm_normalize():
@@ -41,4 +41,31 @@ def test_mean_norm_normalize():
     # check forward and backward can get the same
     transformed = mnn(data)
     inversed = mnn.inverse(transformed)
+    assert torch.allclose(data, inversed)
+
+
+def test_scalar_normalize():
+
+    N = 3
+    dim = 4
+    data = torch.arange(N * dim).reshape(N, dim).to(torch.float)
+
+    sn = ScalarNormalize(num_features=dim)
+    mean1, norm1 = sn.compute_statistics(data)
+
+    state_dict = sn.state_dict()
+    mean = state_dict["mean"]
+    norm = state_dict["norm"]
+
+    assert torch.allclose(mean1, mean)
+    assert torch.allclose(norm1, norm)
+    assert mean.shape == torch.Size((dim,))
+    assert norm.shape == torch.Size((dim,))
+
+    assert torch.allclose(mean, torch.mean(data, dim=0))
+    assert torch.allclose(norm, torch.std(data, dim=0, unbiased=False))
+
+    # check forward and backward can get the same
+    transformed = sn(data)
+    inversed = sn.inverse(transformed)
     assert torch.allclose(data, inversed)
