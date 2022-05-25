@@ -2,17 +2,19 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataModule
+  class_path: eigenn.dataset.structure_scalar.StructureScalarDataModule
   init_args:
-    #    root: ../eigenn/dataset/matbench
-    #    trainset_filename: matbench_dielectric_n20.json
-    #    valset_filename: matbench_dielectric_n20.json
-    #    testset_filename: matbench_dielectric_n20.json
-    root: /Users/mjwen/Documents/Dataset/matbench/matbench_jdft2d
-    trainset_filename: matbench_jdft2d_train.json
-    valset_filename: matbench_jdft2d_val.json
-    testset_filename: matbench_jdft2d_test.json
+    root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    trainset_filename: crystal_elasticity_n20.json
+    valset_filename: crystal_elasticity_n20.json
+    testset_filename: crystal_elasticity_n20.json
     r_cut: 5.0
+    reuse: false
+    target_names:
+      - k_voigt
+    compute_dataset_statistics: true
+    normalize_target: true
+    normalizer_kwargs: null
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -31,8 +33,9 @@ model:
     irreps_edge_sh: 0e + 1o + 2e
 
     # radial edge distance embedding
-    num_radial_basis: 8
-    radial_basis_r_cut: 5.0 # should be the same as r_cut in dataset
+    num_radial_basis: 10
+    radial_basis_start: 0.
+    radial_basis_end: 5.
 
     #
     # message passing conv layers
@@ -41,24 +44,29 @@ model:
 
     # radial network
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
-    invariant_neurons: 64 # number of hidden neurons in radial function, smaller is faster
+    invariant_neurons: 32 # number of hidden neurons in radial function, smaller is faster
     average_num_neighbors: null # average number of neighbors, used for normalization . Options: 1. float or int provided here. 2. `auto` to determine it automatically, 3. `null` to not use it, and then individual normalization will be applied to each node
 
     conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
     nonlinearity_type: gate
-    normalization: none  # {`none`, `batch`, `instance`}
+    normalization: none # {`none`, `batch`, `instance`}
+    resnet: true
 
     #
     # output
     #
     conv_to_output_hidden_irreps_out: 16x0e
-    reduce: sum
+
+    # pooling node feats to graph feats
+    reduce: mean
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.CanonicalRegressionTask
-    init_args:
-      name: exfoliation_en
+    k_voigt:
+      class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
+      init_args:
+        name: k_voigt
+        normalizer_kwargs: null
 
 trainer:
   max_epochs: 5 # number of maximum training epochs
@@ -75,7 +83,7 @@ trainer:
         mode: min
         save_top_k: 3
         save_last: true
-        verbose: False
+        verbose: false
     - class_path: pytorch_lightning.callbacks.EarlyStopping
       init_args:
         monitor: val/score
@@ -100,7 +108,7 @@ optimizer:
   class_path: torch.optim.Adam
   init_args:
     lr: 0.001
-    # weight_decay: 0.00001
+    weight_decay: 0.00001
 
 lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
