@@ -32,8 +32,6 @@ from eigenn.nn.nodewise import NodewiseLinear
 from eigenn.nn.readout import IrrepsToIrrepsHessian
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
 
-OUT_FIELD_NAME = "model_output"
-
 
 class TFNModel(ModelForPyGData):
     def init_backbone(

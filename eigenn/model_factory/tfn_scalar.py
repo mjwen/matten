@@ -12,18 +12,19 @@ For large number of species, we'd better use the SpeciesEmbedding one to minimiz
 number of params.
 """
 
-
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 import torch
 from torch import Tensor
 
-from eigenn.data.irreps import DataKey
+from eigenn.dataset.structure_scalar import ScalarTargetTransform
 from eigenn.model.model import ModelForPyGData
+from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
-from eigenn.nn._nequip import RadialBasisEdgeEncoding, SphericalHarmonicEdgeAttrs
-from eigenn.nn.embedding import SpeciesEmbedding
+from eigenn.nn._nequip import SphericalHarmonicEdgeAttrs
+from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
 
@@ -42,7 +43,7 @@ class TFNModel(ModelForPyGData):
     def decode(self, model_input) -> Dict[str, Tensor]:
 
         out = self.backbone(model_input)
-        out = out[OUT_FIELD_NAME].reshape(-1)
+        out = out[OUT_FIELD_NAME]
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]
@@ -50,6 +51,62 @@ class TFNModel(ModelForPyGData):
         preds = {task_name: out}
 
         return preds
+
+        return {task_name: out}
+
+    def transform_prediction(self, preds: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Transform the normalized prediction back.
+        """
+
+        task_name = list(self.tasks.keys())[0]
+
+        normalizer = self.tasks[task_name].normalizer
+
+        out = normalizer.inverse(preds[task_name], task_name)
+
+        return {task_name: out}
+
+
+class ScalarRegressionTask(CanonicalRegressionTask):
+    """
+    Inverse transform prediction and target in metric.
+
+    Note, in ScalarTargetTransform, the target are forward transformed.
+
+    Args:
+        name: name of the task. Values with this key in model prediction dict and
+            target dict will be used for loss and metrics computation.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        loss_weight: float = 1.0,
+        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        normalizer_kwargs: Dict[str, Any] = None,
+    ):
+        super().__init__(name, loss_weight=loss_weight)
+
+        if normalizer_kwargs is None:
+            normalizer_kwargs = {}
+        self.normalizer = ScalarTargetTransform(
+            target_names=[name],
+            dataset_statistics_path=dataset_statistics_path,
+            **normalizer_kwargs,
+        )
+
+    def transform_target_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_pred_loss(self, t: Tensor) -> Tensor:
+        return t
+
+    def transform_target_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t, self.name)
+
+    def transform_pred_metric(self, t: Tensor) -> Tensor:
+        return self.normalizer.inverse(t, self.name)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):
@@ -70,14 +127,22 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             SphericalHarmonicEdgeAttrs,
             {"irreps_edge_sh": hparams["irreps_edge_sh"]},
         ),
+        # "radial_basis": (
+        #     RadialBasisEdgeEncoding,
+        #     {
+        #         "basis_kwargs": {
+        #             "num_basis": hparams["num_radial_basis"],
+        #             "r_max": hparams["radial_basis_r_cut"],
+        #         },
+        #         "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
+        #     },
+        # ),
         "radial_basis": (
-            RadialBasisEdgeEncoding,
+            EdgeLengthEmbedding,
             {
-                "basis_kwargs": {
-                    "num_basis": hparams["num_radial_basis"],
-                    "r_max": hparams["radial_basis_r_cut"],
-                },
-                "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
+                "num_basis": hparams["num_radial_basis"],
+                "start": hparams["radial_basis_start"],
+                "end": hparams["radial_basis_end"],
             },
         ),
         # This embed features is not necessary any more when we change OneHotEmbedding
@@ -166,6 +231,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             },
         )
 
+    # conv without applying activation
     layers["conv_layer_last"] = (
         PointConv,
         {
@@ -176,30 +242,31 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         },
     )
 
-    # .update also maintains insertion order
+    # ===== prediction layers =====
     layers.update(
         {
-            # TODO: the next linear throws out all L > 0, don't create them in the last layer of convnet
+            # TODO: the next linear throws out all L > 0, don't create them in the
+            #  last layer of convnet
             # -- output block --
             "conv_to_output_hidden": (
                 NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
-            "output_hidden_to_scalar": (
+            "output_hidden_to_output": (
                 NodewiseLinear,
-                dict(irreps_out="1x0e", out_field=DataKey.PER_ATOM_ENERGY),
+                {"irreps_out": "1x0e", "out_field": OUT_FIELD_NAME},
             ),
         }
     )
 
-    reduce = hparams["reduce"]
-    layers[f"output_{reduce}"] = (
+    # pooling
+    layers["output_pooling"] = (
         NodewiseReduce,
-        dict(
-            reduce=reduce,
-            field=DataKey.PER_ATOM_ENERGY,
-            out_field=OUT_FIELD_NAME,
-        ),
+        {
+            "field": OUT_FIELD_NAME,
+            "out_field": OUT_FIELD_NAME,
+            "reduce": hparams["reduce"],
+        },
     )
 
     model = create_sequential_module(
@@ -220,7 +287,8 @@ if __name__ == "__main__":
         "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
-        "radial_basis_r_cut": 4,
+        "radial_basis_start": 0.0,
+        "radial_basis_end": 5.0,
         "num_layers": 3,
         "reduce": "sum",
         "invariant_layers": 2,
@@ -228,6 +296,7 @@ if __name__ == "__main__":
         "average_num_neighbors": None,
         "nonlinearity_type": "gate",
         "conv_to_output_hidden_irreps_out": "16x0e",
+        "normalization": "batch",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}

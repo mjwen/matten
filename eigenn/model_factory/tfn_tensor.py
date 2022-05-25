@@ -272,7 +272,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 NodewiseLinear,
                 {"irreps_out": hparams["conv_to_output_hidden_irreps_out"]},
             ),
-            "output_hidden_to_tensor": (
+            "output_hidden_to_output": (
                 NodewiseLinear,
                 {"irreps_out": output_irreps, "out_field": OUT_FIELD_NAME},
             ),
@@ -316,7 +316,8 @@ if __name__ == "__main__":
         "conv_layer_irreps": "32x0o + 32x0e + 16x1o + 16x1e",
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
-        "radial_basis_r_cut": 4,
+        "radial_basis_start": 0.0,
+        "radial_basis_end": 4.0,
         "num_layers": 3,
         "reduce": "sum",
         "invariant_layers": 2,
@@ -324,6 +325,9 @@ if __name__ == "__main__":
         "average_num_neighbors": None,
         "nonlinearity_type": "gate",
         "conv_to_output_hidden_irreps_out": "16x0e",
+        "normalization": "batch",
+        "output_format": "irreps",
+        "output_formula": "2x0e+2x2e+4e",
     }
 
     dataset_hyarmas = {"allowed_species": [6, 1, 8]}
