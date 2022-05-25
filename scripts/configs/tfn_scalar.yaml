@@ -66,6 +66,7 @@ model:
       class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
       init_args:
         name: k_voigt
+        normalize_target: true
         normalizer_kwargs: null
 
 trainer:
