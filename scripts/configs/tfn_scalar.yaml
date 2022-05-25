@@ -12,9 +12,9 @@ data:
     reuse: false
     target_names:
       - k_voigt
+    log_target: true
     compute_dataset_statistics: true
     normalize_target: true
-    normalizer_kwargs: null
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -67,7 +67,6 @@ model:
       init_args:
         name: k_voigt
         normalize_target: true
-        normalizer_kwargs: null
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

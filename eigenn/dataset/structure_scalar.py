@@ -1,4 +1,3 @@
-import functools
 import warnings
 from collections import defaultdict
 from pathlib import Path
@@ -26,6 +25,7 @@ class StructureScalarDataset(InMemoryDataset):
         target_names: name of the properties to be used as target.
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
+        log_target: whether to log transform the targets.
         compute_dataset_statistics: callable to compute dataset statistics. Do not
             compute if `None`. Note, this is different from `normalize_target` below.
             This only determines whether to compute the statistics of the target of a
@@ -43,6 +43,7 @@ class StructureScalarDataset(InMemoryDataset):
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
+        log_target: bool = True,
         compute_dataset_statistics: Callable = None,
         normalize_target: bool = False,
         normalizer_kwargs: Dict[str, Any] = None,
@@ -50,6 +51,7 @@ class StructureScalarDataset(InMemoryDataset):
         self.filename = filename
         self.r_cut = r_cut
         self.target_names = target_names
+        self.log_target = log_target
 
         processed_dirname = f"processed_{'_'.join(target_names)}_rcut={self.r_cut}"
 
@@ -99,6 +101,8 @@ class StructureScalarDataset(InMemoryDataset):
         # convert output to 2d tensor
         for name in self.target_names:
             df[name] = df[name].apply(lambda y: torch.atleast_2d(torch.as_tensor(y)))
+            if self.log_target:
+                df[name] = df[name].apply(lambda y: torch.log(y))
 
         crystals = []
 
@@ -144,10 +148,6 @@ class ScalarTargetTransform(torch.nn.Module):
         dataset_statistics_path: path to the dataset statistics file. Will be delayed to
             load when the forward or inverse function is called.
         target_names: names of the target
-        log_targets: whether to log transform the targets. Note, if true, log is only
-            applied in the dataset statistics computation and forward transformation.
-            The after-log one is treated as the true targets. The inverse exp is not
-            performed at the inverse transform.
 
     """
 
@@ -155,14 +155,12 @@ class ScalarTargetTransform(torch.nn.Module):
         self,
         target_names: List[str],
         dataset_statistics_path: Union[str, Path] = None,
-        log_targets: bool = False,
     ):
         super().__init__()
         self.dataset_statistics_path = dataset_statistics_path
         self.dataset_statistics_loaded = False
 
         self.target_names = target_names
-        self.log_targets = log_targets
 
         self.normalizers = torch.nn.ModuleDict(
             {name: ScalarNormalize(num_features=1) for name in self.target_names}
@@ -182,8 +180,6 @@ class ScalarTargetTransform(torch.nn.Module):
 
         for name in self.target_names:
             target = struct.y[name]
-            if self.log_targets:
-                target = torch.log(target)
             struct.y[name] = self.normalizers[name](target)
 
         return struct
@@ -224,8 +220,6 @@ class ScalarTargetTransform(torch.nn.Module):
         for struct in data:
             for key in self.target_names:
                 t = struct.y[key]
-                if self.log_targets:
-                    t = torch.log(t)
                 targets[key].append(t)
             atomic_numbers.update(struct.atomic_numbers.tolist())
             num_neigh.append(struct.num_neigh)
@@ -259,6 +253,7 @@ class StructureScalarDataModule(BaseDataModule):
         r_cut: float,
         root: Union[str, Path] = ".",
         reuse: bool = True,
+        log_target: bool = True,
         compute_dataset_statistics: bool = True,
         normalize_target: bool = True,
         normalizer_kwargs: Dict[str, Any] = None,
@@ -269,10 +264,10 @@ class StructureScalarDataModule(BaseDataModule):
         self.r_cut = r_cut
         self.root = root
         self.target_names = target_names
+        self.log_target = log_target
+        self.compute_dataset_statistics = compute_dataset_statistics
         self.normalize_target = normalize_target
         self.normalizer_kwargs = normalizer_kwargs
-
-        self.compute_dataset_statistics = compute_dataset_statistics
 
         super().__init__(
             trainset_filename,
@@ -304,6 +299,7 @@ class StructureScalarDataModule(BaseDataModule):
             target_names=self.target_names,
             root=self.root,
             reuse=self.reuse,
+            log_target=self.log_target,
             compute_dataset_statistics=statistics_fn,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
@@ -314,6 +310,7 @@ class StructureScalarDataModule(BaseDataModule):
             target_names=self.target_names,
             root=self.root,
             reuse=self.reuse,
+            log_target=self.log_target,
             compute_dataset_statistics=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
@@ -324,6 +321,7 @@ class StructureScalarDataModule(BaseDataModule):
             target_names=self.target_names,
             root=self.root,
             reuse=self.reuse,
+            log_target=self.log_target,
             compute_dataset_statistics=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
@@ -357,7 +355,6 @@ if __name__ == "__main__":
         root="/Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523",
         reuse=False,
         normalize_target=True,
-        normalizer_kwargs={"log_targets": True},
     )
     dm.prepare_data()
     dm.setup()
