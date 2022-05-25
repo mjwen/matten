@@ -51,7 +51,7 @@ class StructureScalarDataset(InMemoryDataset):
         self.r_cut = r_cut
         self.target_names = target_names
 
-        processed_dirname = f"processed_rcut={self.r_cut}"
+        processed_dirname = f"processed_{'_'.join(target_names)}_rcut={self.r_cut}"
 
         # forward transform for targets
         if normalize_target:
