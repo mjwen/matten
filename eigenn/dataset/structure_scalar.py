@@ -54,8 +54,8 @@ class StructureScalarDataset(InMemoryDataset):
         self.log_target = log_target
 
         processed_dirname = (
-            f"processed_{'_'.join(target_names)}_log_target={log_target}_rcut"
-            f"={self.r_cut}"
+            f"processed_{'_'.join(target_names)}_log_target={log_target}"
+            f"_normalize_target={normalize_target}_rcut={self.r_cut}"
         )
 
         # forward transform for targets
