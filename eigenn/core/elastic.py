@@ -155,7 +155,9 @@ class ElasticTensor(GeometricTensor):
         Args:
             t: 3x3x3x3 tensors
         """
-        assert t.shape == torch.Size([3, 3, 3, 3])
+        assert t.shape == torch.Size(
+            [3, 3, 3, 3]
+        ), f"Expect shape (3,3,3,3), but get {t.shape}"
         super().__init__(t)
 
     @property
