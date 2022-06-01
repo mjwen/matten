@@ -85,15 +85,19 @@ class TensorRegressionTask(CanonicalRegressionTask):
         name: str,
         loss_weight: float = 1.0,
         dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
+        normalize_target: bool = False,
         normalizer_kwargs: Dict[str, Any] = None,
     ):
         super().__init__(name, loss_weight=loss_weight)
 
         if normalizer_kwargs is None:
             normalizer_kwargs = {}
-        self.normalizer = TensorTargetTransform(
-            dataset_statistics_path, **normalizer_kwargs
-        )
+        if normalize_target:
+            self.normalizer = TensorTargetTransform(
+                dataset_statistics_path, **normalizer_kwargs
+            )
+        else:
+            self.normalizer = None
 
     def transform_target_loss(self, t: Tensor) -> Tensor:
         return t
@@ -102,10 +106,16 @@ class TensorRegressionTask(CanonicalRegressionTask):
         return t
 
     def transform_target_metric(self, t: Tensor) -> Tensor:
-        return self.normalizer.inverse(t)
+        if self.normalizer is not None:
+            return self.normalizer.inverse(t)
+        else:
+            return t
 
     def transform_pred_metric(self, t: Tensor) -> Tensor:
-        return self.normalizer.inverse(t)
+        if self.normalizer is not None:
+            return self.normalizer.inverse(t)
+        else:
+            return t
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):

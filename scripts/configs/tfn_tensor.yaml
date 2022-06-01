@@ -14,7 +14,7 @@ data:
     output_format: irreps # `cartesian` or `irreps`, should be the same as `output_format` of model below
     output_formula: ijkl=jikl=klij # should always be in cartesian formula
     compute_dataset_statistics: true
-    normalize_target: true
+    normalize_target: false
     normalizer_kwargs: null
     loader_kwargs:
       batch_size: 10
@@ -78,6 +78,7 @@ model:
       class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
+        normalize_target: false
         normalizer_kwargs: null
 
 trainer:

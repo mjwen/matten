@@ -13,16 +13,13 @@ number of params.
 """
 
 
-from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 import torch
 from torch import Tensor
 
 from eigenn.core.elastic import ElasticTensor
-from eigenn.dataset.matbench_tensor import TensorTargetTransform
 from eigenn.model.model import ModelForPyGData
-from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.tfn_tensor import create_model
 
 OUT_FIELD_NAME = "my_model_output"
@@ -72,45 +69,6 @@ class TFNModel(ModelForPyGData):
         out = normalizer.inverse(preds[task_name])
 
         return {task_name: out}
-
-
-class TensorRegressionTask(CanonicalRegressionTask):
-    """
-    Inverse transform prediction and target in metric.
-
-    Note, in TensorTargetTransform, the target are forward transformed.
-
-    Args:
-        name: name of the task. Values with this key in model prediction dict and
-            target dict will be used for loss and metrics computation.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        loss_weight: float = 1.0,
-        dataset_statistics_path: Union[str, Path] = "dataset_statistics.pt",
-        normalizer_kwargs: Dict[str, Any] = None,
-    ):
-        super().__init__(name, loss_weight=loss_weight)
-
-        if normalizer_kwargs is None:
-            normalizer_kwargs = {}
-        self.normalizer = TensorTargetTransform(
-            dataset_statistics_path, **normalizer_kwargs
-        )
-
-    def transform_target_loss(self, t: Tensor) -> Tensor:
-        return t
-
-    def transform_pred_loss(self, t: Tensor) -> Tensor:
-        return t
-
-    def transform_target_metric(self, t: Tensor) -> Tensor:
-        return self.normalizer.inverse(t)
-
-    def transform_pred_metric(self, t: Tensor) -> Tensor:
-        return self.normalizer.inverse(t)
 
 
 if __name__ == "__main__":
