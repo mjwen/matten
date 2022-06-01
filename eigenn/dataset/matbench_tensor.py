@@ -41,7 +41,7 @@ class MatbenchTensorDataset(InMemoryDataset):
             dataset, and will generate a file named `dataset_statistics.pt` is $CWD
             if a callable is provided. Whether to use dataset statistics to do
             normalization is determined by `normalize_target`.
-        normalize_target: whether to normalize the target hessian.
+        normalize_target: whether to normalize the target.
     """
 
     def __init__(
@@ -64,13 +64,17 @@ class MatbenchTensorDataset(InMemoryDataset):
         self.output_format = output_format
         self.output_formula = output_formula
 
-        processed_dirname = f"processed_rcut={self.r_cut}"
-
         if normalize_target and output_format == "cartesian":
             raise ValueError("Cannot normalize target for cartesian output")
 
+        processed_dirname = (
+            f"processed_tensor_output_format={output_format}"
+            f"_normalize_target={normalize_target}_rcut={self.r_cut}"
+        )
+
         # forward transform for targets
         if normalize_target:
+
             if normalizer_kwargs is None:
                 normalizer_kwargs = {}
 

@@ -101,7 +101,7 @@ class StructureScalarDataset(InMemoryDataset):
         # convert structure
         df["structure"] = df["structure"].apply(lambda s: Structure.from_dict(s))
 
-        # convert output to 2d tensor
+        # convert output to 2D shape
         for name in self.target_names:
             df[name] = df[name].apply(lambda y: torch.atleast_2d(torch.as_tensor(y)))
             if self.log_target:
