@@ -64,7 +64,8 @@ class TFNModel(ModelForPyGData):
 
         normalizer = self.tasks[task_name].normalizer
 
-        out = normalizer.inverse(preds[task_name])
+        if normalizer is not None:
+            out = normalizer.inverse(preds[task_name])
 
         return {task_name: out}
 
