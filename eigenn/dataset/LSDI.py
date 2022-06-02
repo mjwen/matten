@@ -25,6 +25,9 @@ class SiNMRDataset(InMemoryDataset):
         unpack: If True, each structure will have a single shielding tensor (structures
             will be repeated if they contain multiple shielding tensors). If False,
             the structure will have as many shielding tensors as unique sites.
+	symmetric: If True, symmetrizes the shielding tensor such that we have a
+            rank-2 symmetric tensor. If False, uses the raw DFT-calculated shielding
+            tensor which may not be symmetric.
         output_format: format of the target tensor, should be `cartesian` for `irreps`.
         output_formula: formula specifying symmetry of tensor. No matter what
             output_format is, output_formula should be given in cartesian notation.
@@ -38,12 +41,16 @@ class SiNMRDataset(InMemoryDataset):
         *,
         root: Union[str, Path] = ".",
         unpack: bool = True,
+        symmetric: bool = True,
+        PAS: bool = False,
         output_format: str = "cartesian",
         output_formula: str = "ij=ji",
     ):
         self.filename = filename
         self.r_cut = r_cut
         self.unpack = unpack
+        self.symmetric = symmetric
+        self.PAS = PAS
 
         assert output_format in ("cartesian", "irreps")
         self.output_format = output_format
@@ -74,6 +81,21 @@ class SiNMRDataset(InMemoryDataset):
                     }
                     unpacked_data.append(d)
             data = unpacked_data
+        if self.symmetric:
+            for entry in data:
+                for idx in range(len(entry["tensor"])):
+                    tensor = entry["tensor"][idx]
+                    entry["tensor"][idx] = (tensor + tensor.T) / 2
+        if self.PAS:
+            if not self.symmetric:
+                for entry in data:
+                    for idx in range(len(entry["tensor"])):
+                        tensor = entry["tensor"][idx]
+                        entry["tensor"][idx] = (tensor + tensor.T) / 2
+            for entry in data:
+                for idx in range(len(entry["tensor"])):
+                    tensor = entry["tensor"][idx]
+                    entry["tensor"][idx] = np.linalg.eig(tensor)[0]
 
         crystals = []
 
@@ -131,6 +153,8 @@ class SiNMRDataMoldule(BaseDataModule):
         *,
         r_cut: float,
         root: Union[str, Path] = ".",
+        symmetric: bool = True,
+        PAS: bool = False,
         output_format: str = "cartesian",
         output_formula: str = "ij=ji",
         state_dict_filename: Union[str, Path] = "dataset_state_dict.yaml",
@@ -139,6 +163,8 @@ class SiNMRDataMoldule(BaseDataModule):
     ):
         self.r_cut = r_cut
         self.root = root
+        self.symmetric = symmetric
+        self.PAS = PAS
         self.output_format = output_format
         self.output_formula = output_formula
 
@@ -156,6 +182,8 @@ class SiNMRDataMoldule(BaseDataModule):
             self.trainset_filename,
             self.r_cut,
             root=self.root,
+            symmetric = self.symmetric,
+            PAS = self.PAS,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )
@@ -163,6 +191,8 @@ class SiNMRDataMoldule(BaseDataModule):
             self.valset_filename,
             self.r_cut,
             root=self.root,
+            symmetric = self.symmetric,
+            PAS = self.PAS,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )
@@ -170,6 +200,8 @@ class SiNMRDataMoldule(BaseDataModule):
             self.testset_filename,
             self.r_cut,
             root=self.root,
+            symmetric = self.symmetric,
+            PAS = self.PAS,
             output_format=self.output_format,
             output_formula=self.output_formula,
         )

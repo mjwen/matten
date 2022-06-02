@@ -18,7 +18,10 @@ from torchmetrics import (
     Precision,
     Recall,
 )
-
+from torchmetrics.metric import Metric
+from typing import Any, Callable, Dict, Optional, Tuple
+import torch
+from e3nn.io import CartesianTensor
 
 class Task:
     """
@@ -353,6 +356,60 @@ class RegressionTask(Task):
 
         return d
 
+class Cart_L1Loss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, yhat, y):
+        converter = CartesianTensor(formula="ij=ij")
+        l1 = nn.L1Loss()
+        loss = torch.tensor(0, dtype=torch.float64)
+        for A, B in zip(yhat, y):
+            loss = loss + l1(converter.to_cartesian(yhat), converter.to_cartesian(y))
+        return loss
+
+
+class Cartesian_MAE(Metric):
+    is_differentiable = False
+    higher_is_better = False
+    sum_cart_error: Tensor
+    total: Tensor
+
+    def __init__(
+        self,
+        compute_on_step: bool = True,
+        dist_sync_on_step: bool = False,
+        process_group: Optional[Any] = None,
+        dist_sync_fn: Callable = None,
+    ) -> None:
+        super().__init__(
+            compute_on_step=compute_on_step,
+            dist_sync_on_step=dist_sync_on_step,
+            process_group=process_group,
+            dist_sync_fn=dist_sync_fn,
+        )
+
+        self.add_state(
+            "sum_cart_error", default=torch.tensor(0.0), dist_reduce_fx="sum"
+        )
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: Tensor, target: Tensor) -> None:  # type: ignore
+        """Update state with predictions and targets.
+        Args:
+            preds: Predictions from model
+            target: Ground truth values
+        """
+        sum_cart_error = Cart_L1Loss().forward(preds, target)
+        n_obs = target.numel()
+
+        self.sum_cart_error += sum_cart_error
+        self.total += n_obs
+
+    def compute(self) -> Tensor:
+        """Compute mean squared logarithmic error over state."""
+        return self.sum_cart_error / self.total
+
 
 class CanonicalRegressionTask(RegressionTask):
     """
@@ -363,10 +420,12 @@ class CanonicalRegressionTask(RegressionTask):
     """
 
     def init_loss(self):
-        return nn.MSELoss()
+         return nn.L1Loss() 
+         #return nn.MSELoss()
 
     def init_metric(self):
         metric = MeanAbsoluteError(compute_on_step=False)
+        #metric = Cartesian_MAE(compute_on_step=False)
 
         return metric
 
