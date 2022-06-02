@@ -95,7 +95,9 @@ class TensorRegressionTask(CanonicalRegressionTask):
             normalizer_kwargs = {}
         if normalize_target:
             self.normalizer = TensorTargetTransform(
-                dataset_statistics_path, **normalizer_kwargs
+                target_name=name,
+                dataset_statistics_path=dataset_statistics_path,
+                **normalizer_kwargs,
             )
         else:
             self.normalizer = None
