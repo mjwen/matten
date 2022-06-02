@@ -66,8 +66,13 @@ class TFNModel(ModelForPyGData):
 
         if normalizer is not None:
             out = normalizer.inverse(preds[task_name])
+        else:
+            out = preds[task_name]
 
         return {task_name: out}
+
+    def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        return self.transform_prediction(target)
 
 
 class TensorRegressionTask(CanonicalRegressionTask):

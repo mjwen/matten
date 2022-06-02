@@ -175,6 +175,9 @@ class TFNModel(ModelForPyGData):
     # def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
     #     return self.transform_prediction(target)
 
+    def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        return self.transform_prediction(target)
+
 
 def get_loss(loss_fn, p, t, natoms, mode):
     """
