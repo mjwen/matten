@@ -1,5 +1,4 @@
 import warnings
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -7,12 +6,11 @@ import numpy as np
 import pandas as pd
 import torch
 from pymatgen.core.structure import Structure
-from torchtyping import TensorType
 
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
-from eigenn.data.transform import ScalarNormalize
+from eigenn.data.transform import ScalarTargetTransform
 
 
 class StructureScalarDataset(InMemoryDataset):
@@ -137,108 +135,6 @@ class StructureScalarDataset(InMemoryDataset):
                 warnings.warn(f"Failed converting structure {irow}, Skip it. {str(e)}")
 
         return crystals
-
-
-class ScalarTargetTransform(torch.nn.Module):
-    """
-    Forward and inverse normalization.
-
-    Forward is intended to be used as `pre_transform` of dataset and inverse is
-    intended to be used before metrics and prediction function to transform the
-    hessian back to the original space.
-
-    Args:
-        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
-            load when the forward or inverse function is called.
-        target_names: names of the target
-
-    """
-
-    def __init__(
-        self,
-        target_names: List[str],
-        dataset_statistics_path: Union[str, Path] = None,
-    ):
-        super().__init__()
-        self.dataset_statistics_path = dataset_statistics_path
-        self.dataset_statistics_loaded = False
-
-        self.target_names = target_names
-
-        self.normalizers = torch.nn.ModuleDict(
-            {name: ScalarNormalize(num_features=1) for name in self.target_names}
-        )
-
-    def forward(self, struct: Crystal) -> Crystal:
-        """
-        Update target of Crystal.
-
-        Note, should return it even we modify it in place.
-        """
-
-        # Instead of providing mean and norm of normalizer at instantiation, we delay
-        # the loading here because this method will typically be called after dataset
-        # statistics has been generated.
-        self._fill_state_dict(struct.y[self.target_names[0]].device)
-
-        for name in self.target_names:
-            target = struct.y[name]
-            struct.y[name] = self.normalizers[name](target)
-
-        return struct
-
-    def inverse(self, data: TensorType["batch", "D"], target_name: str):
-        """
-        Inverse transform model predictions/targets.
-
-        This is supposed to be called in batch mode.
-        """
-        self._fill_state_dict(data.device)
-        data = self.normalizers[target_name].inverse(data)
-
-        return data
-
-    def _fill_state_dict(self, device):
-        """
-        Because this is delayed be to called when actual forward or inverse is
-        happening, need to move the tensor to the correct device.
-        """
-        if not self.dataset_statistics_loaded:
-            statistics = torch.load(self.dataset_statistics_path)
-            for name in self.target_names:
-                self.normalizers[name].load_state_dict(statistics[name])
-            self.to(device)
-
-            self.dataset_statistics_loaded = True
-
-    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
-        """
-        Compute statistics of datasets.
-        """
-
-        targets = defaultdict(list)
-        atomic_numbers = set()
-        num_neigh = []
-
-        for struct in data:
-            for key in self.target_names:
-                t = struct.y[key]
-                targets[key].append(t)
-            atomic_numbers.update(struct.atomic_numbers.tolist())
-            num_neigh.append(struct.num_neigh)
-
-        statistics = {
-            "allowed_species": tuple(atomic_numbers),
-            "average_num_neigh": torch.cat(num_neigh).mean(),
-        }
-
-        for key in self.target_names:
-            t = torch.cat(targets[key])
-            assert t.ndim == 2
-            self.normalizers[key].compute_statistics(t)
-            statistics[key] = self.normalizers[key].state_dict()
-
-        return statistics
 
 
 class StructureScalarDataModule(BaseDataModule):

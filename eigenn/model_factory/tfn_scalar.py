@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional, Union
 import torch
 from torch import Tensor
 
-from eigenn.dataset.structure_scalar import ScalarTargetTransform
+from eigenn.data.transform import ScalarTargetTransform
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module

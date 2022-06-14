@@ -1,18 +1,17 @@
 import warnings
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from e3nn.io import CartesianTensor
 from pymatgen.core.structure import Structure
-from torchtyping import TensorType
 
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
-from eigenn.data.transform import MeanNormNormalize
+from eigenn.data.transform import TensorTargetTransform
 
 
 class MatbenchTensorDataset(InMemoryDataset):
@@ -162,105 +161,6 @@ class MatbenchTensorDataset(InMemoryDataset):
                 warnings.warn(f"Failed converting structure {irow}: {str(e)}. Skip it.")
 
         return crystals
-
-
-class TensorTargetTransform(torch.nn.Module):
-    """
-    Forward and inverse normalization of elastic tensor.
-
-    Forward is intended to be used as `pre_transform` of dataset and inverse is
-    intended to be used before metrics and prediction function to transform the
-    hessian back to the original space.
-
-    Args:
-        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
-            load when the forward or inverse function is called.
-    """
-
-    def __init__(
-        self,
-        target_name: str = "elastic_tensor_full",
-        dataset_statistics_path: Union[str, Path] = None,
-        scale: float = 1.0,
-    ):
-        super().__init__()
-        self.dataset_statistics_path = dataset_statistics_path
-        self.dataset_statistics_loaded = False
-
-        self.target_name = target_name
-
-        self.normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e", scale=scale)
-
-    def forward(self, struct: Crystal) -> Crystal:
-        """
-        Update target of Crystal.
-
-        Note, should return it even we modify it in place.
-        """
-
-        # Instead of providing mean and norm of normalizer at instantiation, we delay
-        # the loading here because this method will typically be called after dataset
-        # statistics has been generated.
-
-        self._fill_state_dict(struct.y[self.target_name].device)
-
-        target = struct.y[self.target_name]  # shape (21,)
-        struct.y[self.target_name] = self.normalizer(target)
-
-        return struct
-
-    def inverse(self, data: TensorType["batch", "D"]):
-        """
-        Inverse transform model predictions/targets.
-
-        This is supposed to be called in batch mode.
-        """
-        self._fill_state_dict(data.device)
-        data = self.normalizer.inverse(data)
-
-        return data
-
-    def _fill_state_dict(self, device):
-        """
-        Because this is delayed be to called when actual forward or inverse is
-        happening, need to move the tensor to the correct device.
-        """
-        if not self.dataset_statistics_loaded:
-            if self.dataset_statistics_path is None:
-                raise ValueError("Cannot load dataset statistics from file `None`")
-            statistics = torch.load(self.dataset_statistics_path)
-            self.normalizer.load_state_dict(statistics[self.target_name])
-            self.to(device)
-
-            self.dataset_statistics_loaded = True
-
-    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
-        """
-        Compute statistics of datasets.
-        """
-
-        elastic_tensors = []
-        atomic_numbers = set()
-        num_neigh = []
-
-        for struct in data:
-            elastic_tensors.append(struct.y[self.target_name])
-            atomic_numbers.update(struct.atomic_numbers.tolist())
-            num_neigh.append(struct.num_neigh)
-
-        elastic_tensors = torch.cat(elastic_tensors)
-        atomic_numbers = tuple(atomic_numbers)
-        average_num_neigh = torch.cat(num_neigh).mean()
-
-        self.normalizer.compute_statistics(elastic_tensors)
-
-        statistics = {
-            self.target_name: self.normalizer.state_dict(),
-            "allowed_species": atomic_numbers,
-            "average_num_neigh": average_num_neigh,
-        }
-
-        return statistics
 
 
 class MatbenchTensorDataModule(BaseDataModule):

@@ -7,13 +7,11 @@ import pandas as pd
 import torch
 from e3nn.io import CartesianTensor
 from pymatgen.core.structure import Structure
-from torchtyping import TensorType
 
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
-from eigenn.dataset.matbench_tensor import TensorTargetTransform
-from eigenn.dataset.structure_scalar import ScalarTargetTransform
+from eigenn.data.transform import TensorScalarTargetTransform
 
 
 class GeometricTensorDataset(InMemoryDataset):
@@ -84,7 +82,7 @@ class GeometricTensorDataset(InMemoryDataset):
                 t_name = tensor_target_name
             else:
                 t_name = None
-            target_transform = TargetTransform(
+            target_transform = TensorScalarTargetTransform(
                 t_name,
                 normalize_scalar_targets,
                 dataset_statistics_path=Path(root).joinpath(
@@ -176,77 +174,6 @@ class GeometricTensorDataset(InMemoryDataset):
         return crystals
 
 
-class TargetTransform(torch.nn.Module):
-    """
-    A Wrapper for forward and inverse normalization of tensors and scalars.
-    """
-
-    def __init__(
-        self,
-        tensor_target_name: Optional[str] = None,
-        scalar_target_names: Optional[List[str]] = None,
-        dataset_statistics_path: Union[str, Path] = None,
-    ):
-        super().__init__()
-        if tensor_target_name is not None:
-            self.tensor_normalizer = TensorTargetTransform(
-                tensor_target_name, dataset_statistics_path
-            )
-        else:
-            self.tensor_normalizer = None
-
-        if scalar_target_names is not None:
-            self.scalar_normalizers = ScalarTargetTransform(
-                scalar_target_names, dataset_statistics_path
-            )
-        else:
-            self.scalar_normalizers = None
-
-    def forward(self, struct: Crystal) -> Crystal:
-        """
-        Update target of Crystal.
-
-        Note, should return it even we modify it in place.
-        """
-        # these will modify struct in place
-        if self.tensor_normalizer is not None:
-            self.tensor_normalizer(struct)
-        if self.scalar_normalizers is not None:
-            self.scalar_normalizers(struct)
-
-        return struct
-
-    def inverse(self, data: TensorType["batch", "D"], target_name: str):
-        """
-        Inverse transform model predictions/targets.
-
-        This is supposed to be called in batch mode.
-        """
-        if self.tensor_normalizer is not None:
-            data = self.tensor_normalizer.inverse(data)
-        if self.scalar_normalizers is not None:
-            data = self.scalar_normalizers.inverse(data)
-
-        return data
-
-    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
-        """
-        Compute statistics of datasets.
-        """
-        if self.tensor_normalizer is not None:
-            tensor_statistics = self.tensor_normalizer.compute_statistics(data)
-        else:
-            tensor_statistics = {}
-        if self.scalar_normalizers is not None:
-            scalar_statistics = self.scalar_normalizers.compute_statistics(data)
-        else:
-            scalar_statistics = {}
-
-        tensor_statistics.update(scalar_statistics)
-
-        return tensor_statistics
-
-
 class GeometricTensorDataModule(BaseDataModule):
     def __init__(
         self,
@@ -291,7 +218,7 @@ class GeometricTensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         if self.compute_dataset_statistics:
-            normalizer = TargetTransform(
+            normalizer = TensorScalarTargetTransform(
                 tensor_target_name=self.tensor_target_name,
                 scalar_target_names=self.scalar_target_names,
                 dataset_statistics_path=None,

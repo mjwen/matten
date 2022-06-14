@@ -7,13 +7,17 @@ the irreps level.
 """
 from __future__ import annotations
 
-from typing import Union
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
 from e3nn.o3 import Irreps
 from sklearn.preprocessing import StandardScaler
 from torchtyping import TensorType
+
+from eigenn.data.data import Crystal
 
 
 class Normalize(nn.Module):
@@ -298,3 +302,275 @@ class ScalarNormalize(nn.Module):
         self.load_state_dict({"mean": mean, "norm": std})
 
         return mean, std
+
+
+class ScalarTargetTransform(torch.nn.Module):
+    """
+    Forward and inverse normalization.
+
+    Forward is intended to be used as `pre_transform` of dataset and inverse is
+    intended to be used before metrics and prediction function to transform the
+    hessian back to the original space.
+
+    Args:
+        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
+            load when the forward or inverse function is called.
+        target_names: names of the target
+
+    """
+
+    def __init__(
+        self,
+        target_names: List[str],
+        dataset_statistics_path: Union[str, Path] = None,
+    ):
+        super().__init__()
+        self.dataset_statistics_path = dataset_statistics_path
+        self.dataset_statistics_loaded = False
+
+        self.target_names = target_names
+
+        self.normalizers = torch.nn.ModuleDict(
+            {name: ScalarNormalize(num_features=1) for name in self.target_names}
+        )
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update target of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+
+        # Instead of providing mean and norm of normalizer at instantiation, we delay
+        # the loading here because this method will typically be called after dataset
+        # statistics has been generated.
+        self._fill_state_dict(struct.y[self.target_names[0]].device)
+
+        for name in self.target_names:
+            target = struct.y[name]
+            struct.y[name] = self.normalizers[name](target)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"], target_name: str):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        self._fill_state_dict(data.device)
+        data = self.normalizers[target_name].inverse(data)
+
+        return data
+
+    def _fill_state_dict(self, device):
+        """
+        Because this is delayed be to called when actual forward or inverse is
+        happening, need to move the tensor to the correct device.
+        """
+        if not self.dataset_statistics_loaded:
+            statistics = torch.load(self.dataset_statistics_path)
+            for name in self.target_names:
+                self.normalizers[name].load_state_dict(statistics[name])
+            self.to(device)
+
+            self.dataset_statistics_loaded = True
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """
+        Compute statistics of datasets.
+        """
+
+        targets = defaultdict(list)
+        atomic_numbers = set()
+        num_neigh = []
+
+        for struct in data:
+            for key in self.target_names:
+                t = struct.y[key]
+                targets[key].append(t)
+            atomic_numbers.update(struct.atomic_numbers.tolist())
+            num_neigh.append(struct.num_neigh)
+
+        statistics = {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neigh": torch.cat(num_neigh).mean(),
+        }
+
+        for key in self.target_names:
+            t = torch.cat(targets[key])
+            assert t.ndim == 2
+            self.normalizers[key].compute_statistics(t)
+            statistics[key] = self.normalizers[key].state_dict()
+
+        return statistics
+
+
+class TensorTargetTransform(torch.nn.Module):
+    """
+    Forward and inverse normalization of elastic tensor.
+
+    Forward is intended to be used as `pre_transform` of dataset and inverse is
+    intended to be used before metrics and prediction function to transform the
+    hessian back to the original space.
+
+    Args:
+        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
+            load when the forward or inverse function is called.
+    """
+
+    def __init__(
+        self,
+        target_name: str = "elastic_tensor_full",
+        dataset_statistics_path: Union[str, Path] = None,
+        scale: float = 1.0,
+    ):
+        super().__init__()
+        self.dataset_statistics_path = dataset_statistics_path
+        self.dataset_statistics_loaded = False
+
+        self.target_name = target_name
+
+        self.normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e", scale=scale)
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update target of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+
+        # Instead of providing mean and norm of normalizer at instantiation, we delay
+        # the loading here because this method will typically be called after dataset
+        # statistics has been generated.
+
+        self._fill_state_dict(struct.y[self.target_name].device)
+
+        target = struct.y[self.target_name]  # shape (21,)
+        struct.y[self.target_name] = self.normalizer(target)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"]):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        self._fill_state_dict(data.device)
+        data = self.normalizer.inverse(data)
+
+        return data
+
+    def _fill_state_dict(self, device):
+        """
+        Because this is delayed be to called when actual forward or inverse is
+        happening, need to move the tensor to the correct device.
+        """
+        if not self.dataset_statistics_loaded:
+            if self.dataset_statistics_path is None:
+                raise ValueError("Cannot load dataset statistics from file `None`")
+            statistics = torch.load(self.dataset_statistics_path)
+            self.normalizer.load_state_dict(statistics[self.target_name])
+            self.to(device)
+
+            self.dataset_statistics_loaded = True
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """
+        Compute statistics of datasets.
+        """
+
+        elastic_tensors = []
+        atomic_numbers = set()
+        num_neigh = []
+
+        for struct in data:
+            elastic_tensors.append(struct.y[self.target_name])
+            atomic_numbers.update(struct.atomic_numbers.tolist())
+            num_neigh.append(struct.num_neigh)
+
+        elastic_tensors = torch.cat(elastic_tensors)
+        atomic_numbers = tuple(atomic_numbers)
+        average_num_neigh = torch.cat(num_neigh).mean()
+
+        self.normalizer.compute_statistics(elastic_tensors)
+
+        statistics = {
+            self.target_name: self.normalizer.state_dict(),
+            "allowed_species": atomic_numbers,
+            "average_num_neigh": average_num_neigh,
+        }
+
+        return statistics
+
+
+class TensorScalarTargetTransform(torch.nn.Module):
+    """
+    A Wrapper for forward and inverse normalization of tensors and scalars.
+    """
+
+    def __init__(
+        self,
+        tensor_target_name: Optional[str] = None,
+        scalar_target_names: Optional[List[str]] = None,
+        dataset_statistics_path: Union[str, Path] = None,
+    ):
+        super().__init__()
+        if tensor_target_name is not None:
+            self.tensor_normalizer = TensorTargetTransform(
+                tensor_target_name, dataset_statistics_path
+            )
+        else:
+            self.tensor_normalizer = None
+
+        if scalar_target_names is not None:
+            self.scalar_normalizers = ScalarTargetTransform(
+                scalar_target_names, dataset_statistics_path
+            )
+        else:
+            self.scalar_normalizers = None
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update target of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+        # these will modify struct in place
+        if self.tensor_normalizer is not None:
+            self.tensor_normalizer(struct)
+        if self.scalar_normalizers is not None:
+            self.scalar_normalizers(struct)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"], target_name: str):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        if self.tensor_normalizer is not None:
+            data = self.tensor_normalizer.inverse(data)
+        if self.scalar_normalizers is not None:
+            data = self.scalar_normalizers.inverse(data)
+
+        return data
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """
+        Compute statistics of datasets.
+        """
+        if self.tensor_normalizer is not None:
+            tensor_statistics = self.tensor_normalizer.compute_statistics(data)
+        else:
+            tensor_statistics = {}
+        if self.scalar_normalizers is not None:
+            scalar_statistics = self.scalar_normalizers.compute_statistics(data)
+        else:
+            scalar_statistics = {}
+
+        tensor_statistics.update(scalar_statistics)
+
+        return tensor_statistics

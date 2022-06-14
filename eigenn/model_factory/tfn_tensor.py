@@ -21,7 +21,7 @@ import torch
 from e3nn.io import CartesianTensor
 from torch import Tensor
 
-from eigenn.dataset.matbench_tensor import TensorTargetTransform
+from eigenn.data.transform import TensorTargetTransform
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
 from eigenn.model_factory.utils import create_sequential_module
