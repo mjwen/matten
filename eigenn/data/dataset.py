@@ -22,11 +22,15 @@ class InMemoryDataset(PyGInMemoryDataset):
       - get_data()
 
     Args:
-        filenames: filenames of the dataset. This is not the full path to the files,
-            but only the names of the files. The full path will be `<root>/<filenames>`.
-            Will try to find the files in root; if they exist, will use them. If not,
-            will try to download from `url`.
-        root: root to store the raw dataset.
+        filenames: filenames of the dataset. If a full path (e.g. /home/user/...),
+            this is used directly to get the file. If not a full path, but only the
+            file name (e.g. test_data.json), then will try to look for the files at
+            <root>/filenames. Note, the latter approach maybe useful when you data
+            preprocessing step is time-consuming, in which case you can process it
+            once and reuse it.
+            If the files do not exist, will try to download from `url`.
+        root: root to store find the raw data files or to store the processed
+            datasets for later use.
         processed_dirname: the files give by `filenames` will be processed and saved
             to disk for faster loading later on. `processed_dirname` gives the
             directory name to store the processed files. This should be a string not
