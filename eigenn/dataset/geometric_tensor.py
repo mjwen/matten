@@ -127,7 +127,9 @@ class GeometricTensorDataset(InMemoryDataset):
                 lambda x: converter.from_cartesian(x, rtp).reshape(1, -1)
             )
         elif self.tensor_target_format == "cartesian":
-            pass
+            df[self.tensor_target_name] = df[self.tensor_target_name].apply(
+                lambda x: torch.unsqueeze(x, 0)
+            )
         else:
             raise ValueError(f"Unsupported oputput format")
 
@@ -240,6 +242,36 @@ class GeometricTensorDataModule(BaseDataModule):
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=statistics_fn,
+        )
+
+        self.val_data = GeometricTensorDataset(
+            self.valset_filename,
+            r_cut=self.r_cut,
+            tensor_target_name=self.tensor_target_name,
+            tensor_target_format=self.tensor_target_format,
+            tensor_target_formula=self.tensor_target_formula,
+            normalize_tensor_target=self.normalize_tensor_target,
+            scalar_target_names=self.scalar_target_names,
+            log_scalar_targets=self.log_scalar_targets,
+            normalize_scalar_targets=self.normalize_scalar_targets,
+            root=self.root,
+            reuse=self.reuse,
+            compute_dataset_statistics=None,
+        )
+
+        self.test_data = GeometricTensorDataset(
+            self.testset_filename,
+            r_cut=self.r_cut,
+            tensor_target_name=self.tensor_target_name,
+            tensor_target_format=self.tensor_target_format,
+            tensor_target_formula=self.tensor_target_formula,
+            normalize_tensor_target=self.normalize_tensor_target,
+            scalar_target_names=self.scalar_target_names,
+            log_scalar_targets=self.log_scalar_targets,
+            normalize_scalar_targets=self.normalize_scalar_targets,
+            root=self.root,
+            reuse=self.reuse,
+            compute_dataset_statistics=None,
         )
 
     # TODO this needs to be removed

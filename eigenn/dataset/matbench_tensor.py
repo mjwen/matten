@@ -125,7 +125,9 @@ class MatbenchTensorDataset(InMemoryDataset):
                 lambda x: converter.from_cartesian(x, rtp).reshape(1, -1)
             )
         elif self.output_format == "cartesian":
-            pass
+            df[self.field_name] = df[self.field_name].apply(
+                lambda x: torch.unsqueeze(x, 0)
+            )
         else:
             raise ValueError
 

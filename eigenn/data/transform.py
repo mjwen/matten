@@ -197,7 +197,7 @@ class MeanNormNormalize(Normalize):
         dim = data.shape[-1]
         assert (
             ix == dim
-        ), f"`ix` should have reached data.size(-1) ({dim}), but it ended at {ix}"
+        ), f"`ix` should have reached data.size(-1)={dim}, but it ended at {ix}"
 
         all_mean = torch.cat(all_mean)  # [dim]
         all_norm = torch.cat(all_norm)  # [dim]
@@ -571,6 +571,6 @@ class TensorScalarTargetTransform(torch.nn.Module):
         else:
             scalar_statistics = {}
 
-        tensor_statistics.update(scalar_statistics)
+        statistics = {**tensor_statistics, **scalar_statistics}
 
-        return tensor_statistics
+        return statistics
