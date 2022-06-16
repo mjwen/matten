@@ -21,6 +21,7 @@ import torch
 from e3nn.io import CartesianTensor
 from torch import Tensor
 
+from eigenn.core.utils import ToCartesian
 from eigenn.data.transform import TensorTargetTransform
 from eigenn.model.model import ModelForPyGData
 from eigenn.model.task import CanonicalRegressionTask
@@ -28,7 +29,6 @@ from eigenn.model_factory.utils import create_sequential_module
 from eigenn.nn._nequip import SphericalHarmonicEdgeAttrs
 from eigenn.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from eigenn.nn.nodewise import NodewiseLinear, NodewiseReduce
-from eigenn.nn.readout import IrrepsToCartesianTensor
 from eigenn.nn.tfn import PointConv, PointConvWithActivation
 
 OUT_FIELD_NAME = "my_model_output"
@@ -41,12 +41,20 @@ class TFNModel(ModelForPyGData):
         dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> torch.nn.Module:
         backbone = create_model(backbone_hparams, dataset_hparams)
+
+        # convert irreps tensor to cartesian tensor if necessary
+        if backbone_hparams["output_format"] == "cartesian":
+            self.convert_out = ToCartesian(backbone_hparams["output_formula"])
+        else:
+            self.convert_out = lambda x: x
+
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
 
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
+        out = self.convert_out(out)
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]
@@ -261,25 +269,9 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     # ===== prediction layers =====
     #
-    # determining output formula and irreps
+    # determining output irreps
     #
-
-    output_format = hparams["output_format"]
-
-    if output_format == "cartesian":
-        # e.g. ij=ji for a symmetric 2D tensor
-        formula = hparams["output_formula"]
-        output_irreps = CartesianTensor(formula)
-
-    elif output_format == "irreps":
-        # e.g. '0e+2e' for a symmetric 2D tensor
-        output_irreps = hparams["output_formula"]
-
-    else:
-        supported = ["cartesian", "irreps"]
-        raise ValueError(
-            f"Expect `output_format` to be one of {supported}; got {output_format}"
-        )
+    output_irreps = CartesianTensor(hparams["output_formula"])
 
     layers.update(
         {
@@ -296,13 +288,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             ),
         }
     )
-
-    # convert irreps tensor to cartesian tensor if necessary
-    if output_format == "cartesian":
-        layers["output_cartesian_tensor"] = (
-            IrrepsToCartesianTensor,
-            {"formula": formula, "field": OUT_FIELD_NAME},
-        )
 
     # pooling
     layers["output_pooling"] = (
