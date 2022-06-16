@@ -19,6 +19,7 @@ import torch
 from torch import Tensor
 
 from eigenn.core.elastic import ElasticTensor
+from eigenn.core.utils import ToCartesian
 from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.tfn_tensor import create_model
 
@@ -32,6 +33,11 @@ class TFNModel(ModelForPyGData):
         dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> torch.nn.Module:
         backbone = create_model(backbone_hparams, dataset_hparams)
+
+        # convert irreps tensor to cartesian tensor if necessary
+        self.convert_out = ToCartesian(backbone_hparams["output_formula"])
+        self.output_format = backbone_hparams["output_format"]
+
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
@@ -39,8 +45,16 @@ class TFNModel(ModelForPyGData):
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
 
-        tensor_preds = self._decode_tensors(out)
-        scalar_preds = self._decode_scalars(out)
+        if self.output_format == "cartesian":
+            out_tensor = out_tensor_for_scalar = self.convert_out(out)
+        elif self.output_format == "irreps":
+            out_tensor = out
+            out_tensor_for_scalar = self.convert_out(out)
+        else:
+            raise ValueError
+
+        tensor_preds = self._decode_tensors(out_tensor)
+        scalar_preds = self._decode_scalars(out_tensor_for_scalar)
         preds = {**tensor_preds, **scalar_preds}
 
         return preds

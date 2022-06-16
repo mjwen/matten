@@ -10,7 +10,6 @@ data:
     testset_filename: crystal_elasticity_n20.json
     r_cut: 5.0
     tensor_target_name: elastic_tensor_full
-    # tensor_target_format: irreps
     tensor_target_format: cartesian
     tensor_target_formula: ijkl=jikl=klij
     normalize_tensor_target: false
@@ -63,12 +62,16 @@ model:
     #
     conv_to_output_hidden_irreps_out: 16x0e + 8x2e + 2x4e
 
-    # output_format and output_formula should be used together
-    # - When output_format == `cartesian`, output_formula should specific what a
-    #   Cartesian tensor look like, e.g. ij=ji for a symmetric 2nd-order tensor
-    # - When output_format == `irreps`, output_formula should specify the irreps of
-    #   the tensor, e.g. 0e+2e for a symmetric 2nd-order tensor
-    # (see e3nn.io.CartesianTensor)
+    # output_format and output_formula should be used together.
+    # - output_format (can be `irreps` or `cartesian`) determines what the loss
+    #   function (if any) will be on (either on the irreps space or the cartesian
+    #   space). It should always be the same as `output_format` in the dada
+    #   section above.
+    # - output_formula gives what the cartesian formula is when e.g. ij=ji gives a
+    #   symmetric second order tensor. When output_format=`irreps`, this formula will
+    #   be used to convert the output to its corresponding irreps (e.g. 0e+2e for ij=ji)
+    #   to build the loss (if any). It should always be the same as `output_formula`
+    #   in the dada section above.
     output_format: cartesian
     output_formula: ijkl=jikl=klij
 

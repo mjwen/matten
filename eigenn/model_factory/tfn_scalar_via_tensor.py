@@ -19,6 +19,7 @@ import torch
 from torch import Tensor
 
 from eigenn.core.elastic import ElasticTensor
+from eigenn.core.utils import ToCartesian
 from eigenn.model.model import ModelForPyGData
 from eigenn.model_factory.tfn_tensor import create_model
 
@@ -32,12 +33,16 @@ class TFNModel(ModelForPyGData):
         dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> torch.nn.Module:
         backbone = create_model(backbone_hparams, dataset_hparams)
+
+        self.convert_out = ToCartesian(backbone_hparams["output_formula"])
+
         return backbone
 
     def decode(self, model_input) -> Dict[str, Tensor]:
 
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
+        out = self.convert_out(out)
 
         # current we only support one task, so 0 is the name
         task_name = list(self.tasks.keys())[0]  # e.g. k_voigt
