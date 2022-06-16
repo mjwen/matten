@@ -333,5 +333,5 @@ if __name__ == "__main__":
         "output_formula": "2x0e+2x2e+4e",
     }
 
-    dataset_hyarmas = {"allowed_species": [6, 1, 8]}
-    create_model(hparams, dataset_hyarmas)
+    dataset_hparams = {"allowed_species": [6, 1, 8]}
+    create_model(hparams, dataset_hparams)

@@ -36,6 +36,7 @@ class BasicModel(BaseModel):
 
 
 def test_basic_model():
+    seed_everything(35)
     # data
     input = torch.FloatTensor([[0, 0, 1, 2], [1, 0, 1, 2]])
     labels = {TASK_NAME: torch.tensor([0, 1])}

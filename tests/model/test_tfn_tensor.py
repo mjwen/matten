@@ -12,6 +12,7 @@ from e3nn import o3
 from pymatgen.core.operations import SymmOp
 from pymatgen.core.structure import Structure
 
+from eigenn.core.utils import ToCartesian
 from eigenn.dataset.matbench_tensor import MatbenchTensorDataModule
 from eigenn.model_factory.tfn_tensor import create_model
 
@@ -98,7 +99,9 @@ def _rotate_struct(filename):
 def test_model_equivariance():
     pytorch_lightning.seed_everything(35)
 
-    model = get_model()
+    output_format = "cartesian"
+    output_formula = "ijkl=jikl=klij"
+    model = get_model(output_format, output_formula)
 
     filename = TESTFILE_DIR.joinpath("test_files", "elastic_tensor_one.json")
     loader = load_dataset(filename, root="/tmp")
@@ -115,7 +118,11 @@ def test_model_equivariance():
             for batch in loader:
                 graphs = batch.tensor_property_to_dict()
                 out = model(graphs)
-                return out["my_model_output"]  # that of backbone, pay attention
+                out = out["my_model_output"]  # that of backbone, pay attention
+                if output_format == "cartesian":
+                    return ToCartesian(output_formula)(out)
+                else:
+                    return out
 
     # [0] to get that of the first materials
     pred_cart = get_result(model, loader)[0]
