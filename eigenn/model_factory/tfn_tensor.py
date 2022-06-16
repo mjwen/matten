@@ -12,7 +12,6 @@ For large number of species, we'd better use the SpeciesEmbedding one to minimiz
 number of params.
 """
 
-
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -68,7 +67,7 @@ class TFNModel(ModelForPyGData):
         Transform the normalized prediction back.
         """
 
-        task_name = "elastic_tensor_full"
+        task_name = list(self.tasks.keys())[0]
 
         normalizer = self.tasks[task_name].normalizer
 
@@ -320,7 +319,7 @@ if __name__ == "__main__":
         "irreps_edge_sh": "0e + 1o",
         "num_radial_basis": 8,
         "radial_basis_start": 0.0,
-        "radial_basis_end": 4.0,
+        "radial_basis_end": 5.0,
         "num_layers": 3,
         "reduce": "sum",
         "invariant_layers": 2,

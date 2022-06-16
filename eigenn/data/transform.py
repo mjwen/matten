@@ -554,7 +554,7 @@ class TensorScalarTargetTransform(torch.nn.Module):
         if self.tensor_normalizer is not None:
             data = self.tensor_normalizer.inverse(data)
         if self.scalar_normalizers is not None:
-            data = self.scalar_normalizers.inverse(data)
+            data = self.scalar_normalizers.inverse(data, target_name)
 
         return data
 

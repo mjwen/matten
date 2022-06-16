@@ -52,13 +52,11 @@ class TFNModel(ModelForPyGData):
 
         return preds
 
-        return {task_name: out}
-
     def transform_prediction(self, preds: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Transform the normalized prediction back.
         """
-
+        # TODO, assumes we only use one training task
         task_name = list(self.tasks.keys())[0]
 
         normalizer = self.tasks[task_name].normalizer
@@ -285,9 +283,11 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         },
     )
 
-    model = create_sequential_module(
-        modules=OrderedDict(layers), use_kwargs_irreps_in=True
-    )
+    # model = create_sequential_module(
+    #    modules=OrderedDict(layers), use_kwargs_irreps_in=True
+    # )
+
+    model = create_sequential_module(modules=OrderedDict(layers))
 
     return model
 
@@ -315,5 +315,5 @@ if __name__ == "__main__":
         "normalization": "batch",
     }
 
-    dataset_hyarmas = {"allowed_species": [6, 1, 8]}
-    create_model(hparams, dataset_hyarmas)
+    dataset_hparams = {"allowed_species": [6, 1, 8]}
+    create_model(hparams, dataset_hparams)

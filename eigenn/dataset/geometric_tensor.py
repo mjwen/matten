@@ -51,8 +51,8 @@ class GeometricTensorDataset(InMemoryDataset):
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         normalize_tensor_target: bool = False,
-        log_scalar_targets: List[str] = None,
-        normalize_scalar_targets: List[str] = None,
+        log_scalar_targets: List[str] = None,  # should always be None
+        normalize_scalar_targets: List[str] = None,  # this should always be None
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
@@ -65,6 +65,21 @@ class GeometricTensorDataset(InMemoryDataset):
         self.tensor_target_formula = tensor_target_formula
         self.log_scalar_targets = log_scalar_targets
         self.r_cut = r_cut
+
+        if normalize_scalar_targets is not None:
+            raise ValueError(
+                "`normalize_scalar_targets` should always be `None` when tensor "
+                "is trained, since we need to get the derived scalar properties from "
+                "the tensor in its original space. Then the predicted scalar will "
+                "always be in the unscaled space."
+            )
+        if log_scalar_targets is not None:
+            raise ValueError(
+                "`log_scalar_targets` should always be `None` when tensor "
+                "is trained, since we need to get the derived scalar properties from "
+                "the tensor in its original space. Then the predicted scalar will "
+                "always be in the unscaled space."
+            )
 
         processed_dirname = (
             f"processed_"

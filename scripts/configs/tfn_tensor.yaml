@@ -80,7 +80,7 @@ model:
       class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
-        normalize_target: false
+        normalize_target: false # should be the same as data.normalize_tensor_target
         normalizer_kwargs: null
 
 trainer:

@@ -10,16 +10,13 @@ data:
     testset_filename: crystal_elasticity_n20.json
     r_cut: 5.0
     tensor_target_name: elastic_tensor_full
-    tensor_target_format: cartesian
+    tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
     normalize_tensor_target: false
     scalar_target_names:
       - k_voigt
-      - g_voigt
-    log_scalar_targets: null
-    normalize_scalar_targets: null
     reuse: false
-    compute_dataset_statistics: false # need be false when using cartesian tensor
+    compute_dataset_statistics: true # need be false when using cartesian tensor
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -72,7 +69,7 @@ model:
     #   be used to convert the output to its corresponding irreps (e.g. 0e+2e for ij=ji)
     #   to build the loss (if any). It should always be the same as `output_formula`
     #   in the dada section above.
-    output_format: cartesian
+    output_format: irreps
     output_formula: ijkl=jikl=klij
 
     # pooling node feats to graph feats
@@ -84,17 +81,12 @@ model:
       class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
-        normalize_target: false
+        normalize_target: false # should be the same as data.normalize_tensor_target
     k_voigt:
       class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
       init_args:
         name: k_voigt
-        normalize_target: false # should be the same as data.normalize_scalar_targets
-    g_voigt:
-      class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
-      init_args:
-        name: g_voigt
-        normalize_target: false # should be the same as data.normalize_scalar_targets
+        loss_weight: 1.
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

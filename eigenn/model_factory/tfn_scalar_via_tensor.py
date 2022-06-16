@@ -67,12 +67,13 @@ class TFNModel(ModelForPyGData):
         Transform the normalized prediction back.
         """
 
-        task_name = "elastic_tensor_full"
+        task_name = list(self.tasks.keys())[0]  # e.g. k_voigt
 
+        # TODO, we abuse the normalize in tasks, should define its ownd
         normalizer = self.tasks[task_name].normalizer
 
         if normalizer is not None:
-            out = normalizer.inverse(preds[task_name])
+            out = normalizer.inverse(preds[task_name], task_name)
         else:
             out = preds[task_name]
 

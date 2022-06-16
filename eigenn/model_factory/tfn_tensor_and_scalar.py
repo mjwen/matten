@@ -67,6 +67,9 @@ class TFNModel(ModelForPyGData):
         return preds
 
     def _decode_scalars(self, out) -> Dict[str, Tensor]:
+        # scale them
+        out = self.transform_prediction({"elastic_tensor_full": out})
+        out = out["elastic_tensor_full"]
 
         # TODO this assume tensor task will always be the first
         scalar_task_names = list(self.tasks.keys())[1:]
@@ -92,7 +95,6 @@ class TFNModel(ModelForPyGData):
         """
         Transform the normalized prediction back.
         """
-
         task_name = "elastic_tensor_full"
 
         normalizer = self.tasks[task_name].normalizer
