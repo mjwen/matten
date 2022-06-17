@@ -21,7 +21,6 @@ class GeometricTensor:
     """
 
     def __init__(self, t: Tensor, vscale: Tensor = None, check_rank=None):
-
         obj = t
         obj.rank = len(obj.shape)
 
@@ -31,7 +30,7 @@ class GeometricTensor:
             )
 
         vshape = torch.Size([3] * (obj.rank % 2) + [6] * (obj.rank // 2))
-        obj._vscale = torch.ones(vshape)
+        obj._vscale = torch.ones(vshape, dtype=obj.dtype, device=obj.device)
         if vscale is not None:
             obj._vscale = vscale
         if obj._vscale.shape != vshape:
@@ -58,7 +57,9 @@ class GeometricTensor:
             voigt_input: voigt input for a given tensor
         """
         rank = sum(voigt_input.shape) // 3
-        t = cls(torch.zeros([3] * rank))
+        t = cls(
+            torch.zeros([3] * rank, dtype=voigt_input.dtype, device=voigt_input.device)
+        )
         if voigt_input.shape != t._vscale.shape:
             raise ValueError("Invalid shape for voigt matrix")
         voigt_input = voigt_input / t._vscale
@@ -74,7 +75,7 @@ class GeometricTensor:
         Returns the tensor in Voigt notation
         """
 
-        v_matrix = torch.zeros(self._vscale.shape, dtype=self.dtype)
+        v_matrix = torch.zeros(self._vscale.shape, dtype=self.dtype, device=self.device)
         this_voigt_map = self.get_voigt_dict(self.rank)
         for ind, v in this_voigt_map.items():
             v_matrix[v] = self._t[ind]
@@ -83,6 +84,7 @@ class GeometricTensor:
                 "Tensor is not symmetric, information may "
                 "be lost in voigt conversion."
             )
+
         return v_matrix * self._vscale
 
     def is_voigt_symmetric(self, tol=1e-6):
@@ -137,6 +139,10 @@ class GeometricTensor:
     @property
     def rank(self):
         return self._t.rank
+
+    @property
+    def device(self):
+        return self._t.device
 
 
 class ElasticTensor(GeometricTensor):
@@ -257,7 +263,7 @@ class ComplianceTensor(GeometricTensor):
         Args:
             t: input tensor
         """
-        vscale = torch.ones((6, 6))
+        vscale = torch.ones((6, 6), dtype=t.dtype, device=t.device)
         vscale[3:] *= 2
         vscale[:, 3:] *= 2
         super().__init__(t, vscale=vscale)
