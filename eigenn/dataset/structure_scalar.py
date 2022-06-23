@@ -69,9 +69,7 @@ class StructureScalarDataset(InMemoryDataset):
 
             target_transform = ScalarTargetTransform(
                 target_names=self.target_names,
-                dataset_statistics_path=Path(root).joinpath(
-                    processed_dirname, "dataset_statistics.pt"
-                ),
+                dataset_statistics_path="./dataset_statistics.pt",
                 **normalizer_kwargs,
             )
         else:

@@ -67,7 +67,7 @@ class HessianDataset(InMemoryDataset):
                 processed_dirname = processed_dirname + "_" + kv_str
 
             target_transform = HessianTargetTransform(
-                Path(root).joinpath(processed_dirname, "dataset_statistics.pt"),
+                dataset_statistics_path="./dataset_statistics.pt",
                 **normalizer_kwargs,
             )
         else:

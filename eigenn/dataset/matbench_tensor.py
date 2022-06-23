@@ -84,9 +84,7 @@ class MatbenchTensorDataset(InMemoryDataset):
 
             target_transform = TensorTargetTransform(
                 target_name=self.field_name,
-                dataset_statistics_path=Path(root).joinpath(
-                    processed_dirname, "dataset_statistics.pt"
-                ),
+                dataset_statistics_path="./dataset_statistics.pt",
                 **normalizer_kwargs,
             )
         else:

@@ -100,9 +100,7 @@ class GeometricTensorDataset(InMemoryDataset):
             target_transform = TensorScalarTargetTransform(
                 t_name,
                 normalize_scalar_targets,
-                dataset_statistics_path=Path(root).joinpath(
-                    processed_dirname, "dataset_statistics.pt"
-                ),
+                dataset_statistics_path="./dataset_statistics.pt",
             )
         else:
             target_transform = None
