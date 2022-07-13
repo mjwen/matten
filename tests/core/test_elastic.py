@@ -53,3 +53,10 @@ def test_elastic_tensor(tensors):
         g_v = g_prop[k]
         t_v = t_prop[k]
         assert torch.allclose(g_v, torch.as_tensor(t_v, dtype=g.dtype))
+
+
+def test_cache_voigt(tensors):
+    g, t = tensors
+    g_1 = ElasticTensor(g.tensor, cache_voigt=False)
+    g_2 = ElasticTensor(g.tensor, cache_voigt=True)
+    assert torch.allclose(g_1.voigt, g_2.voigt)

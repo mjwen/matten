@@ -150,15 +150,28 @@ class ElasticTensor(GeometricTensor):
     See https://discuss.pytorch.org/t/subclassing-torch-tensor/23754/5
     """
 
-    def __init__(self, t: Tensor):
+    def __init__(self, t: Tensor, cache_voigt: bool = False):
         """
         Args:
             t: 3x3x3x3 tensors
+            cache_voigt: whether to cache voigt for reuse.
         """
         assert t.shape == torch.Size(
             [3, 3, 3, 3]
         ), f"Expect shape (3,3,3,3), but get {t.shape}"
         super().__init__(t)
+
+        self.cache_voigt = cache_voigt
+        self.voigt_cache = None
+
+    @property
+    def voigt(self):
+        if self.cache_voigt:
+            if self.voigt_cache is None:
+                self.voigt_cache = super().voigt
+            return self.voigt_cache
+
+        return super().voigt
 
     @property
     def compliance_tensor(self):
@@ -226,7 +239,18 @@ class ElasticTensor(GeometricTensor):
         Calculates Young's modulus (in SI units) using the
         Voigt-Reuss-Hill averages of bulk and shear moduli
         """
-        return 9.0e9 * self.k_vrh * self.g_vrh / (3.0 * self.k_vrh + self.g_vrh)
+        g_vrh = self.g_vrh
+        k_vrh = self.k_vrh
+        return 9.0e9 * k_vrh * g_vrh / (3.0 * k_vrh + g_vrh)
+
+    @property
+    def homogeneous_poisson(self):
+        """
+        returns the homogeneous poisson ratio
+        """
+        g_vrh = self.g_vrh
+        k_vrh = self.k_vrh
+        return (1.0 - 2.0 / 3.0 * g_vrh / k_vrh) / (2.0 + 2.0 / 3.0 * g_vrh / k_vrh)
 
     @property
     def property_dict(self):
@@ -241,6 +265,7 @@ class ElasticTensor(GeometricTensor):
             "g_reuss",
             "g_vrh",
             "y_mod",
+            "homogeneous_poisson",
         ]
         return {prop: getattr(self, prop) for prop in props}
 
