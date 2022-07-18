@@ -156,23 +156,25 @@ class ElasticTensor(GeometricTensor):
     See https://discuss.pytorch.org/t/subclassing-torch-tensor/23754/5
     """
 
-    def __init__(self, t: Tensor, cache_voigt: bool = False):
+    def __init__(self, t: Tensor, cache_properties: bool = True):
         """
         Args:
             t: 3x3x3x3 tensors
-            cache_voigt: whether to cache voigt for reuse.
+            cache_properties: whether to cache voigt and compliance tensor to
+            reduce computing time.
         """
         assert t.shape == torch.Size(
             [3, 3, 3, 3]
         ), f"Expect shape (3,3,3,3), but get {t.shape}"
         super().__init__(t)
 
-        self.cache_voigt = cache_voigt
+        self.do_cache = cache_properties
         self.voigt_cache = None
+        self.compliance_cache = None
 
     @property
     def voigt(self):
-        if self.cache_voigt:
+        if self.do_cache:
             if self.voigt_cache is None:
                 self.voigt_cache = super().voigt
             return self.voigt_cache
@@ -186,6 +188,12 @@ class ElasticTensor(GeometricTensor):
         which is the matrix inverse of the
         Voigt-notation elastic tensor
         """
+        if self.do_cache:
+            if self.compliance_cache is None:
+                s_voigt = torch.linalg.inv(self.voigt)
+                self.compliance_cache = ComplianceTensor.from_voigt(s_voigt)
+            return self.compliance_cache
+
         s_voigt = torch.linalg.inv(self.voigt)
         return ComplianceTensor.from_voigt(s_voigt)
 
@@ -283,12 +291,26 @@ class ComplianceTensor(GeometricTensor):
     since the compliance tensor has a unique vscale
     """
 
-    def __init__(self, t: Tensor):
+    def __init__(self, t: Tensor, cache_properties: bool = True):
         """
         Args:
             t: input tensor
+            cache_properties: whether to cache voigt and compliance tensor to
+            reduce computing time.
         """
         vscale = torch.ones((6, 6), dtype=t.dtype, device=t.device)
         vscale[3:] *= 2
         vscale[:, 3:] *= 2
         super().__init__(t, vscale=vscale)
+
+        self.do_cache = cache_properties
+        self.voigt_cache = None
+
+    @property
+    def voigt(self):
+        if self.do_cache:
+            if self.voigt_cache is None:
+                self.voigt_cache = super().voigt
+            return self.voigt_cache
+
+        return super().voigt
