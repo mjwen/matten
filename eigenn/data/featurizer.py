@@ -55,7 +55,11 @@ class GlobalFeaturizer(BaseFeaturizer):
             self.featurizers = []
             self.featurizer_column = []
             for name, C in self.DEFAULT_FEATURIZER_CLASS.items():
-                self.featurizers.append(C())
+                if C == ElementProperty:
+                    f = ElementProperty.from_preset(preset_name="magpie")
+                else:
+                    f = C()
+                self.featurizers.append(f)
                 self.featurizer_column.append(name)
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -65,7 +69,7 @@ class GlobalFeaturizer(BaseFeaturizer):
         if "composition_oxid" not in df.columns:
             df = CompositionToOxidComposition().featurize_dataframe(df, "composition")
 
-        for name, c in zip(self.featurizer_names, self.featurizers):
+        for name, c in zip(self.featurizer_column, self.featurizers):
             df = c.featurize_dataframe(df, name)
 
         return df
