@@ -86,3 +86,18 @@ python train[_atomic].py --help
 
 Under the hood, we use Lightning CLI to build the interface, more usage info at
 [here](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_cli.html).
+
+
+## How to install on M1 Mac (building PyG from source)
+
+https://github.com/rusty1s/pytorch_scatter/issues/241#issuecomment-1086887332
+
+$ conda create -n m1 python=3.9
+$ conda activate m1
+$ conda install -y clang_osx-arm64 clangxx_osx-arm64 gfortran_osx-arm64
+$ mamba install -c conda-forge scipy
+$ mamba install -c pytorch pytorch=1.12
+$ MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-dir  install  torch-scatter -f https://data.pyg.org/whl/torch-1.12.1+cpu.html
+$ MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-dir  install  torch-sparse -f https://data.pyg.org/whl/torch-1.12.1+cpu.html
+$ MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-dir  install  torch-geometric
+$ mamba install -c conda-forge pytorch-lightning=1.5.8

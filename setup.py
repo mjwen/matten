@@ -31,6 +31,7 @@ setup(
         "pymatgen",
         "pytorch-lightning",
         "lightning-bolts",
+        "loguru",
         "e3nn",
         "jsonargparse==3.19.2",
     ],
