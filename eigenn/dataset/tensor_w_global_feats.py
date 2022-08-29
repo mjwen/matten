@@ -11,12 +11,17 @@ from pymatgen.core.structure import Structure
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
+from eigenn.data.featurizer import GlobalFeaturizer
 from eigenn.data.transform import TensorScalarTargetTransform
 
 
-class GeometricTensorDataset(InMemoryDataset):
+class TensorDataset(InMemoryDataset):
     """
     A dataset for tensors and derived properties, e.g. elastic tensor.
+
+    This also deals with global features.
+        - Note, the global features is dealt using the infrastructure to deal with
+          scalar target.
 
     Args:
         filename: name of json data file.
@@ -32,6 +37,7 @@ class GeometricTensorDataset(InMemoryDataset):
              Note, log is performed before computing any statistics, as a way to
              transform the target into a different space.
         normalize_scalar_targets: names of the scalar targets to be normalized.
+        global_featurizer: featurizers to compute global features
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
         compute_dataset_statistics: callable to compute dataset statistics. Do not
@@ -53,6 +59,7 @@ class GeometricTensorDataset(InMemoryDataset):
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,  # should always be None
         normalize_scalar_targets: List[str] = None,  # this should always be None
+        global_featurizer: GlobalFeaturizer = GlobalFeaturizer,
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
@@ -60,11 +67,14 @@ class GeometricTensorDataset(InMemoryDataset):
     ):
         self.filename = filename
         self.tensor_target_name = tensor_target_name
-        self.scalar_target_names = scalar_target_names
+        self.scalar_target_names = (
+            [] if scalar_target_names is None else scalar_target_names
+        )
         self.tensor_target_format = tensor_target_format
         self.tensor_target_formula = tensor_target_formula
         self.log_scalar_targets = log_scalar_targets
         self.r_cut = r_cut
+        self.global_featurizer = global_featurizer
 
         if normalize_scalar_targets is not None:
             raise ValueError(
@@ -88,6 +98,7 @@ class GeometricTensorDataset(InMemoryDataset):
             f"normalize_tensor={normalize_tensor_target}."
             f"scalar_name={'-'.join(scalar_target_names)}."
             f"log_scalar={str(log_scalar_targets).replace(' ', '')}."
+            f"global_featurizer={str(global_featurizer).replace(' ', '')}."
             f"normalize_scalar={str(normalize_scalar_targets).replace(' ', '')}"
         )
 
@@ -132,6 +143,14 @@ class GeometricTensorDataset(InMemoryDataset):
             lambda x: torch.as_tensor(x)
         )
 
+        # get global features
+        if self.global_featurizer is not None:
+            fn = self.global_featurizer()
+            df = fn(df)
+            global_feats_names = fn.feature_names
+        else:
+            global_feats_names = []
+
         # convert to irreps tensor is necessary
         if self.tensor_target_format == "irreps":
             converter = CartesianTensor(formula=self.tensor_target_formula)
@@ -146,8 +165,8 @@ class GeometricTensorDataset(InMemoryDataset):
         else:
             raise ValueError(f"Unsupported oputput format")
 
-        # convert scalar output to 2D shape
-        for name in self.scalar_target_names:
+        # convert scalar output (and feats) to 2D shape
+        for name in self.scalar_target_names + global_feats_names:
             df[name] = df[name].apply(lambda y: torch.atleast_2d(torch.as_tensor(y)))
 
         # log scalar targets
@@ -155,7 +174,9 @@ class GeometricTensorDataset(InMemoryDataset):
             for name in self.log_scalar_targets:
                 df[name] = df[name].apply(lambda y: torch.log(y))
 
-        target_columns = [self.tensor_target_name] + self.scalar_target_names
+        target_columns = (
+            [self.tensor_target_name] + self.scalar_target_names + global_feats_names
+        )
 
         crystals = []
 
@@ -189,7 +210,7 @@ class GeometricTensorDataset(InMemoryDataset):
         return crystals
 
 
-class GeometricTensorDataModule(BaseDataModule):
+class TensorDataModule(BaseDataModule):
     def __init__(
         self,
         trainset_filename: str,
@@ -198,12 +219,13 @@ class GeometricTensorDataModule(BaseDataModule):
         *,
         r_cut: float,
         tensor_target_name: str,
-        scalar_target_names: List[str],
+        scalar_target_names: List[str] = None,
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,
         normalize_scalar_targets: List[str] = None,
+        global_featurizer=GlobalFeaturizer,
         root: Union[str, Path] = ".",
         reuse: bool = True,
         compute_dataset_statistics: bool = True,
@@ -214,10 +236,12 @@ class GeometricTensorDataModule(BaseDataModule):
         self.tensor_target_formula = tensor_target_formula
         self.tensor_target_format = tensor_target_format
         self.normalize_tensor_target = normalize_tensor_target
-
-        self.scalar_target_names = scalar_target_names
+        self.scalar_target_names = (
+            [] if scalar_target_names is None else scalar_target_names
+        )
         self.log_scalar_targets = log_scalar_targets
         self.normalize_scalar_targets = normalize_scalar_targets
+        self.global_featurizer = global_featurizer
         self.compute_dataset_statistics = compute_dataset_statistics
         self.r_cut = r_cut
         self.root = root
@@ -233,16 +257,23 @@ class GeometricTensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         if self.compute_dataset_statistics:
+            if self.global_featurizer is not None:
+                fn = self.global_featurizer()
+                global_feature_names = fn.feature_names
+            else:
+                global_feature_names = []
+
+            # Here we abuse scalar_target_names, and use it to normalize features
             normalizer = TensorScalarTargetTransform(
                 tensor_target_name=self.tensor_target_name,
-                scalar_target_names=self.scalar_target_names,
+                scalar_target_names=self.scalar_target_names + global_feature_names,
                 dataset_statistics_path=None,
             )
             statistics_fn = normalizer.compute_statistics
         else:
             statistics_fn = None
 
-        self.train_data = GeometricTensorDataset(
+        self.train_data = TensorDataset(
             self.trainset_filename,
             r_cut=self.r_cut,
             tensor_target_name=self.tensor_target_name,
@@ -252,12 +283,13 @@ class GeometricTensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            global_featurizer=self.global_featurizer,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=statistics_fn,
         )
 
-        self.val_data = GeometricTensorDataset(
+        self.val_data = TensorDataset(
             self.valset_filename,
             r_cut=self.r_cut,
             tensor_target_name=self.tensor_target_name,
@@ -267,12 +299,13 @@ class GeometricTensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            global_featurizer=self.global_featurizer,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
         )
 
-        self.test_data = GeometricTensorDataset(
+        self.test_data = TensorDataset(
             self.testset_filename,
             r_cut=self.r_cut,
             tensor_target_name=self.tensor_target_name,
@@ -282,6 +315,7 @@ class GeometricTensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            global_featurizer=self.global_featurizer,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
@@ -307,15 +341,15 @@ class GeometricTensorDataModule(BaseDataModule):
 
 if __name__ == "__main__":
 
-    dm = GeometricTensorDataModule(
-        trainset_filename="crystal_elasticity_filtered_test.json",
-        valset_filename="crystal_elasticity_filtered_test.json",
-        testset_filename="crystal_elasticity_filtered_test.json",
+    dm = TensorDataModule(
+        trainset_filename="crystal_elasticity_n20.json",
+        valset_filename="crystal_elasticity_n20.json",
+        testset_filename="crystal_elasticity_n20.json",
         r_cut=5.0,
         tensor_target_name="elastic_tensor_full",
         scalar_target_names=["k_voigt", "k_reuss"],
         root="/Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset"
-        "/elastic_tensor/20220523",
+        "/elastic_tensor/20220714",
         reuse=False,
     )
 

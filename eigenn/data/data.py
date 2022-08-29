@@ -106,13 +106,13 @@ class DataPoint(Data):
         if x is not None:
             tensor_x = {}
             for k, v in x.items():
-                v = self._convert_to_tensor(v)
-                if v is None:
+                v_out = self._convert_to_tensor(v)
+                if v_out is None:
                     raise ValueError(
                         f"Only accepts np.ndarray or torch.Tensor. `{k}` of x is of "
                         f"type `{type(v)}`."
                     )
-                tensor_x[k] = v
+                tensor_x[k] = v_out
             self._check_tensor_dict(tensor_x, dict_name="x")
         else:
             tensor_x = None
@@ -120,13 +120,13 @@ class DataPoint(Data):
         if y is not None:
             tensor_y = {}
             for k, v in y.items():
-                v = self._convert_to_tensor(v)
-                if v is None:
+                v_out = self._convert_to_tensor(v)
+                if v_out is None:
                     raise ValueError(
                         f"Only accepts np.ndarray or torch.Tensor. `{k}` of y is of "
                         f"type `{type(v)}`."
                     )
-                tensor_y[k] = v
+                tensor_y[k] = v_out
             self._check_tensor_dict(tensor_y, dict_name="y")
         else:
             tensor_y = None
@@ -134,13 +134,13 @@ class DataPoint(Data):
         # convert kwargs to tensor
         tensor_kwargs = {}
         for k, v in kwargs.items():
-            v = self._convert_to_tensor(v)
-            if v is None:
+            v_out = self._convert_to_tensor(v)
+            if v_out is None:
                 raise ValueError(
                     f"Only accepts np.ndarray or torch.Tensor. kwarg `{k}` is of type "
                     f" `{type(v)}`."
                 )
-            tensor_kwargs[k] = v
+            tensor_kwargs[k] = v_out
         self._check_tensor_dict(tensor_kwargs, dict_name="kwargs")
 
         super().__init__(

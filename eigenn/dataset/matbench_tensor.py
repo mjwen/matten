@@ -11,7 +11,6 @@ from pymatgen.core.structure import Structure
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
-from eigenn.data.featurizer import GlobalFeaturizer
 from eigenn.data.transform import TensorTargetTransform
 
 
@@ -42,7 +41,6 @@ class MatbenchTensorDataset(InMemoryDataset):
             if a callable is provided. Whether to use dataset statistics to do
             normalization is determined by `normalize_target`.
         normalize_target: whether to normalize the target.
-        global_featurizer: featurizer to obtain global features.
     """
 
     def __init__(
@@ -58,14 +56,12 @@ class MatbenchTensorDataset(InMemoryDataset):
         compute_dataset_statistics: Callable = None,
         normalize_target: bool = False,
         normalizer_kwargs: Dict[str, Any] = None,
-        global_featurizer: GlobalFeaturizer = None,
     ):
         self.filename = filename
         self.r_cut = r_cut
         self.field_name = field_name
         self.output_format = output_format
         self.output_formula = output_formula
-        self.global_featurizer = global_featurizer
 
         if normalize_target and output_format == "cartesian":
             raise ValueError("Cannot normalize target for cartesian output")
@@ -118,11 +114,6 @@ class MatbenchTensorDataset(InMemoryDataset):
 
         # convert output to tensor
         df[self.field_name] = df[self.field_name].apply(lambda x: torch.as_tensor(x))
-
-        # obtain global features
-        if self.global_featurizer is not None:
-            gf = self.global_featurizer()
-            df = gf(df)
 
         # convert to irreps tensor is necessary
         if self.output_format == "irreps":
