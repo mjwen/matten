@@ -29,15 +29,8 @@ def test_featurizer(MgO, CaO):
     featurizer = GlobalFeaturizer()
     df = featurizer(df)
 
-    # some of the columns expected to exist
-    expected_columns = [
-        "composition",
-        "composition_oxid",
-        "MagpieData minimum Number",
-        "MagpieData mode SpaceGroupNumber",
-        "density",
-        "vpa",
-        "packing fraction",
-    ]
+    # columns expected to exist
+    expected_columns = ["structure"] + featurizer.feature_names
+
     for ec in expected_columns:
-        assert ec in df.columns
+        assert ec in df.columns, ec

@@ -4,6 +4,7 @@ This module implements node and global featurizers.
 from __future__ import annotations
 
 import abc
+import copy
 from typing import Callable
 
 import pandas as pd
@@ -31,12 +32,12 @@ class BaseFeaturizer:
         """
 
     @property
-    def featurizer_names(self) -> list[str]:
+    def feature_names(self) -> list[str]:
         """
-        Return the names of the featurizers.
+        Return the names of the features.
 
         Returns:
-            A list of featurizer names.
+            A list of feature names.
         """
         return [f.__name__ for f in self.featurizers]
 
@@ -49,7 +50,17 @@ class GlobalFeaturizer(BaseFeaturizer):
         "structure": DensityFeatures,
     }
 
-    def __init__(self, featurizers: list[Callable] = None):
+    # features from the featurizers to use
+    DEFAULT_FEATURE_NAMES = [
+        "MagpieData minimum Number",
+        "MagpieData minimum MendeleevNumber",
+        "density",
+        "vpa",
+    ]
+
+    def __init__(
+        self, featurizers: list[Callable] = None, feature_names: list[str] = None
+    ):
         super().__init__(featurizers)
         if self.featurizers is None:
             self.featurizers = []
@@ -62,7 +73,18 @@ class GlobalFeaturizer(BaseFeaturizer):
                 self.featurizers.append(f)
                 self.featurizer_column.append(name)
 
-    def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
+        if feature_names is None:
+            self._feature_names = self.DEFAULT_FEATURE_NAMES
+        else:
+            self._feature_names = feature_names
+
+    @property
+    def feature_names(self) -> list[str]:
+        return self._feature_names
+
+    def __call__(self, df_in: pd.DataFrame) -> pd.DataFrame:
+        df = copy.copy(df_in)
+
         # add composition info to dataframe
         if "composition" not in df.columns:
             df["composition"] = df["structure"].apply(lambda s: s.composition)
@@ -72,4 +94,9 @@ class GlobalFeaturizer(BaseFeaturizer):
         for name, c in zip(self.featurizer_column, self.featurizers):
             df = c.featurize_dataframe(df, name)
 
-        return df
+        # only return requested features
+        df_out = copy.copy(df_in)
+        for col_name in self.feature_names:
+            df_out[col_name] = df[col_name]
+
+        return df_out

@@ -51,12 +51,12 @@ def main():
         #     ]
         # },
         ##
-        # model_class=TFNTensor,
-        # parser_kwargs={
-        #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
-        #     ]
-        # },
+        model_class=TFNTensor,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=TFNScalarViaTensor,
         # parser_kwargs={
@@ -65,12 +65,12 @@ def main():
         #     ]
         # },
         ##
-        model_class=TFNTensorAndScalar,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_tensor_and_scalar.yaml").as_posix()
-            ]
-        },
+        # model_class=TFNTensorAndScalar,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor_and_scalar.yaml").as_posix()
+        #     ]
+        # },
         ##
         # model_class=TFNHessian,
         # parser_kwargs={
