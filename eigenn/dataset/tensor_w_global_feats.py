@@ -12,7 +12,7 @@ from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
 from eigenn.data.featurizer import GlobalFeaturizer
-from eigenn.data.transform import TensorScalarTargetTransform
+from eigenn.data.transform import FeatureTensorScalarTargetTransform
 
 
 class TensorDataset(InMemoryDataset):
@@ -59,7 +59,7 @@ class TensorDataset(InMemoryDataset):
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,  # should always be None
         normalize_scalar_targets: List[str] = None,  # this should always be None
-        global_featurizer: GlobalFeaturizer = GlobalFeaturizer,
+        global_featurizer: GlobalFeaturizer = None,
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
@@ -108,9 +108,11 @@ class TensorDataset(InMemoryDataset):
                 t_name = tensor_target_name
             else:
                 t_name = None
-            target_transform = TensorScalarTargetTransform(
-                t_name,
-                normalize_scalar_targets,
+            target_transform = FeatureTensorScalarTargetTransform(
+                feature_names=["global_feats"],
+                feature_sizes=[len(self.global_featurizer.feature_names)],
+                tensor_target_name=t_name,
+                scalar_target_names=normalize_scalar_targets,
                 dataset_statistics_path="./dataset_statistics.pt",
             )
         else:
@@ -145,11 +147,11 @@ class TensorDataset(InMemoryDataset):
 
         # get global features
         if self.global_featurizer is not None:
-            fn = self.global_featurizer()
-            df = fn(df)
-            global_feats_names = fn.feature_names
+            df = self.global_featurizer(df)
+            feats = df[self.global_featurizer.feature_names].to_numpy().tolist()
+            df["global_feats"] = feats
         else:
-            global_feats_names = []
+            raise ValueError(f"Unsupported global_featurizer={self.global_featurizer}")
 
         # convert to irreps tensor is necessary
         if self.tensor_target_format == "irreps":
@@ -165,8 +167,8 @@ class TensorDataset(InMemoryDataset):
         else:
             raise ValueError(f"Unsupported oputput format")
 
-        # convert scalar output (and feats) to 2D shape
-        for name in self.scalar_target_names + global_feats_names:
+        # convert scalar output to 2D shape
+        for name in self.scalar_target_names:
             df[name] = df[name].apply(lambda y: torch.atleast_2d(torch.as_tensor(y)))
 
         # log scalar targets
@@ -174,9 +176,7 @@ class TensorDataset(InMemoryDataset):
             for name in self.log_scalar_targets:
                 df[name] = df[name].apply(lambda y: torch.log(y))
 
-        target_columns = (
-            [self.tensor_target_name] + self.scalar_target_names + global_feats_names
-        )
+        target_columns = [self.tensor_target_name] + self.scalar_target_names
 
         crystals = []
 
@@ -193,12 +193,19 @@ class TensorDataset(InMemoryDataset):
                 # get targets
                 y = {name: row[name] for name in target_columns}
 
+                # feats
+                x = {
+                    "global_feats": torch.reshape(  # reshape to be a 2D tensor
+                        torch.as_tensor(row["global_feats"]), (1, -1)
+                    )
+                }
+
                 # other metadata needed by the model?
 
                 c = Crystal.from_pymatgen(
                     struct=struct,
                     r_cut=self.r_cut,
-                    x=None,
+                    x=x,
                     y=y,
                     atomic_numbers=atomic_numbers,
                 )
@@ -225,7 +232,7 @@ class TensorDataModule(BaseDataModule):
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,
         normalize_scalar_targets: List[str] = None,
-        global_featurizer=GlobalFeaturizer,
+        global_featurizer: str = "default",
         root: Union[str, Path] = ".",
         reuse: bool = True,
         compute_dataset_statistics: bool = True,
@@ -257,16 +264,23 @@ class TensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         if self.compute_dataset_statistics:
-            if self.global_featurizer is not None:
-                fn = self.global_featurizer()
-                global_feature_names = fn.feature_names
-            else:
-                global_feature_names = []
 
-            # Here we abuse scalar_target_names, and use it to normalize features
-            normalizer = TensorScalarTargetTransform(
+            # get global features names
+            if self.global_featurizer == "default":
+                gf = GlobalFeaturizer()
+                gf_name = "global_feats"
+                gf_size = len(gf.feature_names)
+            else:
+                raise ValueError(
+                    f"Unsupported global_featurizer={self.global_featurizer}"
+                )
+
+            # NOTE, abuse scalar_target_names -- using it to normalize features as well
+            normalizer = FeatureTensorScalarTargetTransform(
+                feature_names=[gf_name],
+                feature_sizes=[gf_size],
                 tensor_target_name=self.tensor_target_name,
-                scalar_target_names=self.scalar_target_names + global_feature_names,
+                scalar_target_names=self.scalar_target_names,
                 dataset_statistics_path=None,
             )
             statistics_fn = normalizer.compute_statistics
@@ -283,7 +297,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
-            global_featurizer=self.global_featurizer,
+            global_featurizer=gf,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=statistics_fn,
@@ -299,7 +313,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
-            global_featurizer=self.global_featurizer,
+            global_featurizer=gf,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
@@ -315,7 +329,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
-            global_featurizer=self.global_featurizer,
+            global_featurizer=gf,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
