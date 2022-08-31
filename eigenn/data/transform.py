@@ -304,9 +304,106 @@ class ScalarNormalize(nn.Module):
         return mean, std
 
 
+class ScalarFeatureTransform(torch.nn.Module):
+    """
+    Forward and inverse normalization of scalar features in datapoint.x.
+
+    Forward is intended to be used as `pre_transform` of dataset.
+    Inverse is not intended to be called.
+
+    Args:
+        dataset_statistics_path: path to the dataset statistics file. Will be delayed to
+            load when the forward or inverse function is called.
+        feature_names: names of the feature
+        feature_sizes: size of each feature
+
+    """
+
+    def __init__(
+        self,
+        feature_names: List[str],
+        feature_sizes: List[int],
+        dataset_statistics_path: Union[str, Path] = None,
+    ):
+        super().__init__()
+        self.dataset_statistics_path = dataset_statistics_path
+        self.dataset_statistics_loaded = False
+
+        self.feature_names = feature_names
+        self.feature_sizes = feature_sizes
+
+        self.normalizers = torch.nn.ModuleDict(
+            {
+                name: ScalarNormalize(num_features=size)
+                for name, size in zip(self.feature_names, self.feature_sizes)
+            }
+        )
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update feature (i.e. x) of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+
+        # Instead of providing mean and norm of normalizer at instantiation, we delay
+        # the loading here because this method will typically be called after dataset
+        # statistics has been generated.
+        self._fill_state_dict(struct.x[self.feature_names[0]].device)
+
+        for name in self.feature_names:
+            feat = struct.x[name]
+            struct.x[name] = self.normalizers[name](feat)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"], name: str):
+        raise RuntimeError("This is supposed not to be called.")
+
+    def _fill_state_dict(self, device):
+        """
+        Because this is delayed be to called when actual forward or inverse is
+        happening, need to move the tensor to the correct device.
+        """
+        if not self.dataset_statistics_loaded:
+            statistics = torch.load(self.dataset_statistics_path)
+            for name in self.feature_names:
+                self.normalizers[name].load_state_dict(statistics[name])
+            self.to(device)
+
+            self.dataset_statistics_loaded = True
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """Compute statistics of datasets."""
+
+        features = defaultdict(list)
+        atomic_numbers = set()
+        num_neigh = []
+
+        for struct in data:
+            for key in self.feature_names:
+                t = struct.x[key]
+                features[key].append(t)
+            atomic_numbers.update(struct.atomic_numbers.tolist())
+            num_neigh.append(struct.num_neigh)
+
+        statistics = {
+            "allowed_species": tuple(atomic_numbers),
+            "average_num_neigh": torch.cat(num_neigh).mean(),
+        }
+
+        for key in self.feature_names:
+            t = torch.cat(features[key])
+            assert t.ndim == 2
+            self.normalizers[key].compute_statistics(t)
+            statistics[key] = self.normalizers[key].state_dict()
+
+        return statistics
+
+
 class ScalarTargetTransform(torch.nn.Module):
     """
-    Forward and inverse normalization.
+    Forward and inverse normalization of scalar target.
 
     Forward is intended to be used as `pre_transform` of dataset and inverse is
     intended to be used before metrics and prediction function to transform the
@@ -572,5 +669,93 @@ class TensorScalarTargetTransform(torch.nn.Module):
             scalar_statistics = {}
 
         statistics = {**tensor_statistics, **scalar_statistics}
+
+        return statistics
+
+
+class FeatureTensorScalarTargetTransform(torch.nn.Module):
+    """
+    A Wrapper for forward and inverse normalization of feats, as well as tensor and
+    scalar targets.
+    """
+
+    def __init__(
+        self,
+        *,
+        feature_names: Optional[List[str]] = None,
+        feature_sizes: Optional[List[int]] = None,
+        tensor_target_name: Optional[str] = None,
+        scalar_target_names: Optional[List[str]] = None,
+        dataset_statistics_path: Union[str, Path] = None,
+    ):
+        super().__init__()
+
+        if feature_names is not None:
+            if feature_sizes is None:
+                raise ValueError("Expect feats_size to be non-zero")
+            self.feat_normalizer = ScalarFeatureTransform(
+                feature_names=feature_names, feature_sizes=feature_sizes
+            )
+
+        if tensor_target_name is not None:
+            self.tensor_normalizer = TensorTargetTransform(
+                tensor_target_name, dataset_statistics_path
+            )
+        else:
+            self.tensor_normalizer = None
+
+        if scalar_target_names is not None:
+            self.scalar_normalizers = ScalarTargetTransform(
+                scalar_target_names, dataset_statistics_path
+            )
+        else:
+            self.scalar_normalizers = None
+
+    def forward(self, struct: Crystal) -> Crystal:
+        """
+        Update target of Crystal.
+
+        Note, should return it even we modify it in place.
+        """
+        # these will modify struct in place
+        if self.feat_normalizer is not None:
+            self.feat_normalizer(struct)
+        if self.tensor_normalizer is not None:
+            self.tensor_normalizer(struct)
+        if self.scalar_normalizers is not None:
+            self.scalar_normalizers(struct)
+
+        return struct
+
+    def inverse(self, data: TensorType["batch", "D"], target_name: str):
+        """
+        Inverse transform model predictions/targets.
+
+        This is supposed to be called in batch mode.
+        """
+        # NOTE, no need to inverse transform feats
+        if self.tensor_normalizer is not None:
+            data = self.tensor_normalizer.inverse(data)
+        if self.scalar_normalizers is not None:
+            data = self.scalar_normalizers.inverse(data, target_name)
+
+        return data
+
+    def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
+        """Compute statistics of datasets."""
+        if self.feat_normalizer is not None:
+            feat_statistics = self.feat_normalizer.compute_statistics(data)
+        else:
+            feat_statistics = {}
+        if self.tensor_normalizer is not None:
+            tensor_statistics = self.tensor_normalizer.compute_statistics(data)
+        else:
+            tensor_statistics = {}
+        if self.scalar_normalizers is not None:
+            scalar_statistics = self.scalar_normalizers.compute_statistics(data)
+        else:
+            scalar_statistics = {}
+
+        statistics = {**feat_statistics, **tensor_statistics, **scalar_statistics}
 
         return statistics
