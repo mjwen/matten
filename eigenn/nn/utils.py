@@ -439,7 +439,7 @@ class NormalizationLayer(torch.nn.Module):
         return x
 
 
-# TODO there is bug in the below moddule, as it does not distinguish training and
+# TODO there is bug in the below module, as it does not distinguish training and
 #  predicting mode when there is affine transformation.
 # copied for the repo of segnn paper
 # The e3nn InstanceNorm does not work, because it treats each node as an instance.

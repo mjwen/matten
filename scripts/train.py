@@ -23,6 +23,9 @@ from eigenn.model_factory.tfn_scalar import TFNModel
 from eigenn.model_factory.tfn_scalar_via_tensor import TFNModel as TFNScalarViaTensor
 from eigenn.model_factory.tfn_tensor import TFNModel as TFNTensor
 from eigenn.model_factory.tfn_tensor_and_scalar import TFNModel as TFNTensorAndScalar
+from eigenn.model_factory.tfn_tensor_w_global_feats import (
+    TFNModel as TFNTensorWGlobalFeats,
+)
 from eigenn.utils import to_path
 
 CWD = to_path(__file__).parent
@@ -51,12 +54,12 @@ def main():
         #     ]
         # },
         ##
-        model_class=TFNTensor,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
-            ]
-        },
+        # model_class=TFNTensor,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+        #     ]
+        # },
         ##
         # model_class=TFNScalarViaTensor,
         # parser_kwargs={
@@ -71,6 +74,13 @@ def main():
         #         CWD.joinpath("configs", "tfn_tensor_and_scalar.yaml").as_posix()
         #     ]
         # },
+        ##
+        model_class=TFNTensorWGlobalFeats,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor_w_global_feats.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=TFNHessian,
         # parser_kwargs={

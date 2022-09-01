@@ -344,12 +344,15 @@ class TensorDataModule(BaseDataModule):
             atomic_numbers.update(a)
             num_neigh.append(data.num_neigh)
 
+        global_feats_size = data.x["global_feats"].shape[1]
+
         # .item to convert to float so that lightning cli can save it to yaml
         average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
 
         return {
             "allowed_species": tuple(atomic_numbers),
             "average_num_neighbors": average_num_neighbors,
+            "global_feats_size": global_feats_size,
         }
 
 
