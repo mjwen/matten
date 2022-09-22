@@ -89,10 +89,12 @@ class GlobalFeaturizer(BaseFeaturizer):
         if "composition" not in df.columns:
             df["composition"] = df["structure"].apply(lambda s: s.composition)
         if "composition_oxid" not in df.columns:
-            df = CompositionToOxidComposition().featurize_dataframe(df, "composition")
+            df = CompositionToOxidComposition().featurize_dataframe(
+                df, "composition", ignore_errors=True
+            )
 
         for name, c in zip(self.featurizer_column, self.featurizers):
-            df = c.featurize_dataframe(df, name)
+            df = c.featurize_dataframe(df, name, ignore_errors=True)
 
         # only return requested features
         df_out = copy.copy(df_in)

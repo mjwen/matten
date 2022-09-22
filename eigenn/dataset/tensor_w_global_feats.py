@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from e3nn.io import CartesianTensor
+from monty.serialization import loadfn
 from pymatgen.core.structure import Structure
 
 from eigenn.data.data import Crystal
@@ -98,7 +99,7 @@ class TensorDataset(InMemoryDataset):
             f"normalize_tensor={normalize_tensor_target}."
             f"scalar_name={'-'.join(scalar_target_names)}."
             f"log_scalar={str(log_scalar_targets).replace(' ', '')}."
-            f"global_featurizer={str(global_featurizer).replace(' ', '')}."
+            # f"global_featurizer={str(global_featurizer).replace(' ', '')}."
             f"normalize_scalar={str(normalize_scalar_targets).replace(' ', '')}"
         )
 
@@ -266,8 +267,9 @@ class TensorDataModule(BaseDataModule):
         if self.compute_dataset_statistics:
 
             # get global features names
-            if self.global_featurizer == "default":
-                gf = GlobalFeaturizer()
+            if self.global_featurizer.endswith(".yaml"):
+                feature_names = loadfn(self.global_featurizer)
+                gf = GlobalFeaturizer(feature_names=feature_names)
                 gf_name = "global_feats"
                 gf_size = len(gf.feature_names)
             else:
