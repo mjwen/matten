@@ -23,7 +23,7 @@ from eigenn.model_factory.tfn_scalar import TFNModel
 from eigenn.model_factory.tfn_scalar_via_tensor import TFNModel as TFNScalarViaTensor
 from eigenn.model_factory.tfn_tensor import TFNModel as TFNTensor
 from eigenn.model_factory.tfn_tensor_and_scalar import TFNModel as TFNTensorAndScalar
-from eigenn.model_factory.tfn_tensor_w_global_feats import (
+from eigenn.model_factory.tfn_tensor_global_feats import (
     TFNModel as TFNTensorGlobalFeats,
 )
 from eigenn.utils import to_path
