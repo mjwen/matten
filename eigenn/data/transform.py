@@ -696,6 +696,8 @@ class FeatureTensorScalarTargetTransform(torch.nn.Module):
             self.feat_normalizer = ScalarFeatureTransform(
                 feature_names=feature_names, feature_sizes=feature_sizes
             )
+        else:
+            self.feat_normalizer = None
 
         if tensor_target_name is not None:
             self.tensor_normalizer = TensorTargetTransform(
@@ -747,10 +749,12 @@ class FeatureTensorScalarTargetTransform(torch.nn.Module):
             feat_statistics = self.feat_normalizer.compute_statistics(data)
         else:
             feat_statistics = {}
+
         if self.tensor_normalizer is not None:
             tensor_statistics = self.tensor_normalizer.compute_statistics(data)
         else:
             tensor_statistics = {}
+
         if self.scalar_normalizers is not None:
             scalar_statistics = self.scalar_normalizers.compute_statistics(data)
         else:

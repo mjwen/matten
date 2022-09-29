@@ -5,10 +5,10 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import torch
-from e3nn.io import CartesianTensor
 from monty.serialization import loadfn
 from pymatgen.core.structure import Structure
 
+from eigenn.core.utils import CartesianTensorWrapper
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
@@ -178,50 +178,50 @@ class TensorDataset(InMemoryDataset):
         df = pd.read_json(filepath, orient="split")
 
         assert "structure" in df.columns, (
-            f"Unsupported task `{self.filename}`. Eigenn only works with data "
-            "having geometric information (i.e. with `structure` in the matbench "
-            "data). The provided dataset does not have this."
+            f"Unsupported input data from file `{self.filename}`. Geometric "
+            f"information (e.g. pymatgen Structure) is needed, but the dataset does "
+            f"not have it."
         )
 
         # convert structure
         df["structure"] = df["structure"].apply(lambda s: Structure.from_dict(s))
 
-        # convert tensor output to tensor
-        df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-            lambda x: torch.as_tensor(x)
-        )
-
-        # get global features
+        # add global features
         if self.global_featurizer is not None:
             df = self.global_featurizer(df)
             feats = df[self.global_featurizer.feature_names].to_numpy().tolist()
             df["global_feats"] = feats
-        else:
-            raise ValueError(f"Unsupported global_featurizer={self.global_featurizer}")
 
-        # convert to irreps tensor is necessary
+        # convert tensor target to tensor
+        df[self.tensor_target_name] = df[self.tensor_target_name].apply(
+            lambda x: torch.as_tensor(x)
+        )
+
+        # convert to irreps tensor is necessary, assuming all input tensor is Cartesian
         if self.tensor_target_format == "irreps":
-            converter = CartesianTensor(formula=self.tensor_target_formula)
-            rtp = converter.reduced_tensor_products()
+            converter = CartesianTensorWrapper(formula=self.tensor_target_formula)
             df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-                lambda x: converter.from_cartesian(x, rtp).reshape(1, -1)
+                lambda x: converter.from_cartesian(x).reshape(1, -1)
             )
         elif self.tensor_target_format == "cartesian":
             df[self.tensor_target_name] = df[self.tensor_target_name].apply(
                 lambda x: torch.unsqueeze(x, 0)
             )
         else:
-            raise ValueError(f"Unsupported oputput format")
+            raise ValueError(
+                f"Unsupported target tensor format `{self.tensor_target_format}`"
+            )
 
-        # convert scalar output to 2D shape
+        # convert scalar targets to 2D shape
         for name in self.scalar_target_names:
             df[name] = df[name].apply(lambda y: torch.atleast_2d(torch.as_tensor(y)))
 
         # log scalar targets
-        if self.log_scalar_targets is not None:
-            for name in self.log_scalar_targets:
+        for name, do in zip(self.scalar_target_names, self.log_scalar_targets):
+            if do:
                 df[name] = df[name].apply(lambda y: torch.log(y))
 
+        # all_targets, tensor and scalars
         target_columns = [self.tensor_target_name] + self.scalar_target_names
 
         crystals = []
@@ -239,15 +239,18 @@ class TensorDataset(InMemoryDataset):
                 # get targets
                 y = {name: row[name] for name in target_columns}
 
-                # feats
-                gf = torch.as_tensor(row["global_feats"])
-                if torch.isnan(gf).any():
-                    raise ValueError("NaN in global feats")
-                x = {
-                    "global_feats": torch.reshape(gf, (1, -1))  # reshape to a 2D tensor
-                }
-
-                # other metadata needed by the model?
+                if self.global_featurizer:
+                    # feats
+                    gf = torch.as_tensor(row["global_feats"])
+                    if torch.isnan(gf).any():
+                        raise ValueError("NaN in global feats")
+                    x = {
+                        "global_feats": torch.reshape(
+                            gf, (1, -1)
+                        )  # reshape to a 2D tensor
+                    }
+                else:
+                    x = None
 
                 c = Crystal.from_pymatgen(
                     struct=struct,
@@ -261,6 +264,9 @@ class TensorDataset(InMemoryDataset):
             except Exception as e:
                 warnings.warn(f"Failed converting structure {irow}, Skip it. {str(e)}")
 
+        if not crystals:
+            raise RuntimeError("Cannot successfully convert any structures.")
+
         return crystals
 
 
@@ -272,13 +278,13 @@ class TensorDataModule(BaseDataModule):
         testset_filename: str,
         *,
         r_cut: float,
-        tensor_target_name: str,
-        scalar_target_names: List[str] = None,
+        tensor_target_name: str = None,
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         normalize_tensor_target: bool = False,
-        log_scalar_targets: List[str] = None,
-        normalize_scalar_targets: List[str] = None,
+        scalar_target_names: List[str] = None,
+        log_scalar_targets: List[bool] = None,
+        normalize_scalar_targets: List[bool] = None,
         global_featurizer: str = None,
         normalize_global_features: bool = False,
         root: Union[str, Path] = ".",
@@ -286,20 +292,44 @@ class TensorDataModule(BaseDataModule):
         compute_dataset_statistics: bool = True,
         loader_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        """
+
+        Args:
+            trainset_filename:
+            valset_filename:
+            testset_filename:
+            r_cut:
+            tensor_target_name:
+            tensor_target_format:
+            tensor_target_formula:
+            normalize_tensor_target:
+            scalar_target_names:
+            log_scalar_targets:
+            normalize_scalar_targets:
+            global_featurizer: path to a .yaml file containing the names of global
+                features.
+            normalize_global_features:
+            root:
+            reuse:
+            compute_dataset_statistics:
+            loader_kwargs:
+        """
+        self.r_cut = r_cut
 
         self.tensor_target_name = tensor_target_name
         self.tensor_target_formula = tensor_target_formula
         self.tensor_target_format = tensor_target_format
         self.normalize_tensor_target = normalize_tensor_target
-        self.scalar_target_names = (
-            [] if scalar_target_names is None else scalar_target_names
-        )
+
+        self.scalar_target_names = scalar_target_names
         self.log_scalar_targets = log_scalar_targets
         self.normalize_scalar_targets = normalize_scalar_targets
+
         self.global_featurizer = global_featurizer
         self.normalize_global_features = normalize_global_features
+
         self.compute_dataset_statistics = compute_dataset_statistics
-        self.r_cut = r_cut
+
         self.root = root
 
         super().__init__(
@@ -313,20 +343,20 @@ class TensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         # global featurizer
-        if self.global_featurizer.endswith(".yaml"):
+        if self.global_featurizer and self.global_featurizer.endswith(".yaml"):
             feature_names = loadfn(self.global_featurizer)
             gf = GlobalFeaturizer(feature_names=feature_names)
-            gf_name = "global_feats"
-            gf_size = len(gf.feature_names)
+            gf_name = ["global_feats"]
+            gf_size = [len(gf.feature_names)]
         else:
-            raise ValueError(f"Unsupported global_featurizer={self.global_featurizer}")
+            gf = None
+            gf_name = None
+            gf_size = None
 
         if self.compute_dataset_statistics:
-
-            # NOTE, abuse scalar_target_names -- using it to normalize features as well
             normalizer = FeatureTensorScalarTargetTransform(
-                feature_names=[gf_name],
-                feature_sizes=[gf_size],
+                feature_names=gf_name,
+                feature_sizes=gf_size,
                 tensor_target_name=self.tensor_target_name,
                 scalar_target_names=self.scalar_target_names,
                 dataset_statistics_path=None,
@@ -366,7 +396,7 @@ class TensorDataModule(BaseDataModule):
             normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
-            dataset_statistics_fn=None,
+            dataset_statistics_fn=None,  # do not need to compute for valset
         )
 
         self.test_data = TensorDataset(
@@ -383,10 +413,9 @@ class TensorDataModule(BaseDataModule):
             normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
-            dataset_statistics_fn=None,
+            dataset_statistics_fn=None,  # do not need to compute for valset
         )
 
-    # TODO this needs to be removed
     def get_to_model_info(self) -> Dict[str, Any]:
         atomic_numbers = set()
         num_neigh = []
@@ -395,7 +424,10 @@ class TensorDataModule(BaseDataModule):
             atomic_numbers.update(a)
             num_neigh.append(data.num_neigh)
 
-        global_feats_size = data.x["global_feats"].shape[1]
+        if self.global_featurizer:
+            global_feats_size = data.x["global_feats"].shape[1]
+        else:
+            global_feats_size = None
 
         # .item to convert to float so that lightning cli can save it to yaml
         average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
