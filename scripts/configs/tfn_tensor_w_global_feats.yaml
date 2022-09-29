@@ -15,6 +15,7 @@ data:
     normalize_tensor_target: false
     scalar_target_names: []
     global_featurizer: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220714/global_feature_names.yaml
+    normalize_global_features: false
     reuse: false
     compute_dataset_statistics: true # need be false when using cartesian tensor
     loader_kwargs:

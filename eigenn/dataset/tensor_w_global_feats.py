@@ -37,8 +37,10 @@ class TensorDataset(InMemoryDataset):
         log_scalar_targets: names of the scalar targets to be log transformed.
              Note, log is performed before computing any statistics, as a way to
              transform the target into a different space.
-        normalize_scalar_targets: names of the scalar targets to be normalized.
+        normalize_scalar_targets: whether to normalize the scalar targets; one for
+            each target given in `scalar_target_names`. If `None`, not normalize any.
         global_featurizer: featurizers to compute global features
+        normalize_global_feature: whether to normalize the global feature
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
         compute_dataset_statistics: callable to compute dataset statistics. Do not
@@ -59,8 +61,9 @@ class TensorDataset(InMemoryDataset):
         tensor_target_formula: str = "ijkl=jikl=klij",
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,  # should always be None
-        normalize_scalar_targets: List[str] = None,  # this should always be None
+        normalize_scalar_targets: List[bool] = None,  # this should always be None
         global_featurizer: GlobalFeaturizer = None,
+        normalize_global_feature: bool = False,
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
@@ -91,6 +94,10 @@ class TensorDataset(InMemoryDataset):
                 "the tensor in its original space. Then the predicted scalar will "
                 "always be in the unscaled space."
             )
+        if normalize_global_feature and global_featurizer is None:
+            raise ValueError(
+                "`normalize_global_feature=True`, but `global_featurizer=None`"
+            )
 
         processed_dirname = (
             f"processed_"
@@ -104,16 +111,37 @@ class TensorDataset(InMemoryDataset):
         )
 
         # forward transform for targets
-        if normalize_tensor_target or normalize_scalar_targets:
+        if (
+            normalize_tensor_target
+            or normalize_scalar_targets
+            or normalize_global_feature
+        ):
             if normalize_tensor_target:
                 t_name = tensor_target_name
             else:
                 t_name = None
+
+            if normalize_scalar_targets is not None:
+                s_names = [
+                    s
+                    for s, n in zip(scalar_target_names, normalize_scalar_targets)
+                    if n
+                ]
+            else:
+                s_names = None
+
+            if normalize_global_feature:
+                f_names = ["global_feats"]
+                f_sizes = [len(self.global_featurizer.feature_names)]
+            else:
+                f_names = None
+                f_sizes = None
+
             target_transform = FeatureTensorScalarTargetTransform(
-                feature_names=["global_feats"],
-                feature_sizes=[len(self.global_featurizer.feature_names)],
+                feature_names=f_names,
+                feature_sizes=f_sizes,
                 tensor_target_name=t_name,
-                scalar_target_names=normalize_scalar_targets,
+                scalar_target_names=s_names,
                 dataset_statistics_path="./dataset_statistics.pt",
             )
         else:
@@ -195,10 +223,11 @@ class TensorDataset(InMemoryDataset):
                 y = {name: row[name] for name in target_columns}
 
                 # feats
+                gf = torch.as_tensor(row["global_feats"])
+                if torch.isnan(gf).any():
+                    raise ValueError("NaN in global feats")
                 x = {
-                    "global_feats": torch.reshape(  # reshape to be a 2D tensor
-                        torch.as_tensor(row["global_feats"]), (1, -1)
-                    )
+                    "global_feats": torch.reshape(gf, (1, -1))  # reshape to a 2D tensor
                 }
 
                 # other metadata needed by the model?
@@ -233,7 +262,8 @@ class TensorDataModule(BaseDataModule):
         normalize_tensor_target: bool = False,
         log_scalar_targets: List[str] = None,
         normalize_scalar_targets: List[str] = None,
-        global_featurizer: str = "default",
+        global_featurizer: str = None,
+        normalize_global_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,
         compute_dataset_statistics: bool = True,
@@ -250,6 +280,7 @@ class TensorDataModule(BaseDataModule):
         self.log_scalar_targets = log_scalar_targets
         self.normalize_scalar_targets = normalize_scalar_targets
         self.global_featurizer = global_featurizer
+        self.normalize_global_features = normalize_global_features
         self.compute_dataset_statistics = compute_dataset_statistics
         self.r_cut = r_cut
         self.root = root
@@ -264,18 +295,16 @@ class TensorDataModule(BaseDataModule):
 
     def setup(self, stage: Optional[str] = None):
 
-        if self.compute_dataset_statistics:
+        # global featurizer
+        if self.global_featurizer.endswith(".yaml"):
+            feature_names = loadfn(self.global_featurizer)
+            gf = GlobalFeaturizer(feature_names=feature_names)
+            gf_name = "global_feats"
+            gf_size = len(gf.feature_names)
+        else:
+            raise ValueError(f"Unsupported global_featurizer={self.global_featurizer}")
 
-            # get global features names
-            if self.global_featurizer.endswith(".yaml"):
-                feature_names = loadfn(self.global_featurizer)
-                gf = GlobalFeaturizer(feature_names=feature_names)
-                gf_name = "global_feats"
-                gf_size = len(gf.feature_names)
-            else:
-                raise ValueError(
-                    f"Unsupported global_featurizer={self.global_featurizer}"
-                )
+        if self.compute_dataset_statistics:
 
             # NOTE, abuse scalar_target_names -- using it to normalize features as well
             normalizer = FeatureTensorScalarTargetTransform(
@@ -300,6 +329,7 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
+            normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=statistics_fn,
@@ -316,6 +346,7 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
+            normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
@@ -332,6 +363,7 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
+            normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
             compute_dataset_statistics=None,
