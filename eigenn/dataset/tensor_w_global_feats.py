@@ -18,126 +18,143 @@ from eigenn.data.transform import FeatureTensorScalarTargetTransform
 
 class TensorDataset(InMemoryDataset):
     """
-    A dataset for tensors and derived properties, e.g. elastic tensor.
+    A dataset for tensors (e.g. elastic) and derived scalar properties (e.g. bulk
+    modulus).
 
-    This also deals with global features.
-        - Note, the global features is dealt using the infrastructure to deal with
-          scalar target.
+    This also provide the possibility to use global features.
 
     Args:
-        filename: name of json data file.
+        filename: name of input data file.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        tensor_target_name: name of the tensor in the dataset file..
-        scalar_target_names: name of the derived scalar properties to be used as target.
-        tensor_target_format: format of the target tensor: {`cartesian`, `irreps`}.
-        tensor_target_formula: formula specifying symmetry of tensor. No matter what
-            output_format is, output_formula should be given in cartesian notation.
-            e.g. `ijkl=jikl=klij` for a elastic tensor.
-        normalize_tensor_target: whether to normalize the tensor target
-        log_scalar_targets: names of the scalar targets to be log transformed.
-             Note, log is performed before computing any statistics, as a way to
-             transform the target into a different space.
-        normalize_scalar_targets: whether to normalize the scalar targets; one for
-            each target given in `scalar_target_names`. If `None`, not normalize any.
-        global_featurizer: featurizers to compute global features
-        normalize_global_feature: whether to normalize the global feature
+        tensor_target_name: name of the tensor target.
+        tensor_target_format: {`cartesian`, `irreps`}. The target tensor in the
+            data file is provided in cartesian or irreps format.
+        tensor_target_formula: formula specifying symmetry of tensor, e.g.
+            `ijkl=jikl=klij` for a elastic tensor.
+        normalize_tensor_target: whether to normalize the tensor target.
+        scalar_target_names: names of the target scalar properties.
+        log_scalar_targets: whether to log transform the scalar targets; one for each
+            scalar target given in `scalar_target_names`. Note, log is performed before
+            computing any statistics, controlled by `normalize_scalar_targets`.
+            If `None`, no log is performed.
+        normalize_scalar_targets: whether to normalize the scalar targets; one for each
+            scalar target given in `scalar_target_names`. If `None`, no normalize is
+            performed.
+        global_featurizer: featurizer to compute global features.
+        normalize_global_feature: whether to normalize the global feature.
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
-        compute_dataset_statistics: callable to compute dataset statistics. Do not
-            compute if `None`. Note, this is different from `normalize_target` below.
-            This only determines whether to compute the statistics of the target of a
-            dataset, and will generate a file named `dataset_statistics.pt` is $CWD
-            if a callable is provided. Whether to use dataset statistics to do
-            normalization is determined by `normalize_target`.
+        dataset_statistics_fn: callable to compute dataset statistics. If `None`, do not
+            compute statistics. Note this is typically used together with
+            `normalize_tensor_target`, `normalize_scalar_targets`,
+            and `normalize_global_feature`. However, as long as `dataset_statistics_fn`
+            is provided, the statistics will be computed, and a file named
+            `dataset_statistics.pt` is generated in $CWD. Whether to use the computed
+            dataset statistics for normalization is determined by the normalize flags.
     """
 
     def __init__(
         self,
         filename: str,
         r_cut: float,
-        tensor_target_name: str,
-        scalar_target_names: List[str],
+        *,
+        tensor_target_name: str = None,
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         normalize_tensor_target: bool = False,
-        log_scalar_targets: List[str] = None,  # should always be None
-        normalize_scalar_targets: List[bool] = None,  # this should always be None
+        scalar_target_names: List[str] = None,
+        log_scalar_targets: List[bool] = None,
+        normalize_scalar_targets: List[bool] = None,
         global_featurizer: GlobalFeaturizer = None,
         normalize_global_feature: bool = False,
-        *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
     ):
         self.filename = filename
+        self.r_cut = r_cut
+
         self.tensor_target_name = tensor_target_name
+        self.tensor_target_format = tensor_target_format
+        self.tensor_target_formula = tensor_target_formula
+        self.normalize_tensor_target = normalize_tensor_target
+
         self.scalar_target_names = (
             [] if scalar_target_names is None else scalar_target_names
         )
-        self.tensor_target_format = tensor_target_format
-        self.tensor_target_formula = tensor_target_formula
-        self.log_scalar_targets = log_scalar_targets
-        self.r_cut = r_cut
-        self.global_featurizer = global_featurizer
+        self.log_scalar_targets = (
+            [False] * len(self.scalar_target_names)
+            if log_scalar_targets is None
+            else log_scalar_targets
+        )
+        self.normalize_scalar_targets = (
+            [False] * len(self.scalar_target_names)
+            if normalize_scalar_targets is None
+            else normalize_scalar_targets
+        )
 
-        if normalize_scalar_targets is not None:
-            raise ValueError(
-                "`normalize_scalar_targets` should always be `None` when tensor "
-                "is trained, since we need to get the derived scalar properties from "
-                "the tensor in its original space. Then the predicted scalar will "
-                "always be in the unscaled space."
-            )
-        if log_scalar_targets is not None:
-            raise ValueError(
-                "`log_scalar_targets` should always be `None` when tensor "
-                "is trained, since we need to get the derived scalar properties from "
-                "the tensor in its original space. Then the predicted scalar will "
-                "always be in the unscaled space."
-            )
-        if normalize_global_feature and global_featurizer is None:
+        self.global_featurizer = global_featurizer
+        self.normalize_global_feature = normalize_global_feature
+
+        # check compatibility
+        # if normalize_scalar_targets is not None:
+        #     raise ValueError(
+        #         "`normalize_scalar_targets` should always be `None` when tensor "
+        #         "is trained, since we need to get the derived scalar properties from "
+        #         "the tensor in its original space. Then the predicted scalar will "
+        #         "always be in the unscaled space."
+        #     )
+        # if log_scalar_targets is not None:
+        #     raise ValueError(
+        #         "`log_scalar_targets` should always be `None` when tensor "
+        #         "is trained, since we need to get the derived scalar properties from "
+        #         "the tensor in its original space. Then the predicted scalar will "
+        #         "always be in the unscaled space."
+        #     )
+
+        if self.normalize_global_feature and self.global_featurizer is None:
             raise ValueError(
                 "`normalize_global_feature=True`, but `global_featurizer=None`"
             )
 
         processed_dirname = (
             f"processed_"
-            f"tensor_name={tensor_target_name}."
-            f"tensor_format={tensor_target_format}."
-            f"normalize_tensor={normalize_tensor_target}."
-            f"scalar_name={'-'.join(scalar_target_names)}."
-            f"log_scalar={str(log_scalar_targets).replace(' ', '')}."
-            # f"global_featurizer={str(global_featurizer).replace(' ', '')}."
-            f"normalize_scalar={str(normalize_scalar_targets).replace(' ', '')}"
+            f"tensor_name={self.tensor_target_name}-"
+            f"tensor_format={self.tensor_target_format}-"
+            f"normalize_tensor={self.normalize_tensor_target}-"
+            f"scalar_names={'-'.join(self.scalar_target_names)}_"
+            f"log_scalars={str(self.log_scalar_targets).replace(' ', '')}-"
+            f"normalize_scalars={str(self.normalize_scalar_targets).replace(' ', '')}-"
+            f"normalize_global_feat={self.normalize_global_feature}"
         )
 
-        # forward transform for targets
+        # Normalize tensor/scalar targets and global features
         if (
-            normalize_tensor_target
-            or normalize_scalar_targets
-            or normalize_global_feature
+            self.normalize_tensor_target
+            or any(self.normalize_scalar_targets)
+            or self.normalize_global_feature
         ):
             if normalize_tensor_target:
                 t_name = tensor_target_name
             else:
                 t_name = None
 
-            if normalize_scalar_targets is not None:
-                s_names = [
-                    s
-                    for s, n in zip(scalar_target_names, normalize_scalar_targets)
-                    if n
-                ]
-            else:
+            s_names = [
+                s
+                for s, n in zip(self.scalar_target_names, self.normalize_scalar_targets)
+                if n
+            ]
+            if not s_names:
                 s_names = None
 
-            if normalize_global_feature:
+            if self.normalize_global_feature:
                 f_names = ["global_feats"]
                 f_sizes = [len(self.global_featurizer.feature_names)]
             else:
                 f_names = None
                 f_sizes = None
 
-            target_transform = FeatureTensorScalarTargetTransform(
+            pre_transform = FeatureTensorScalarTargetTransform(
                 feature_names=f_names,
                 feature_sizes=f_sizes,
                 tensor_target_name=t_name,
@@ -145,15 +162,15 @@ class TensorDataset(InMemoryDataset):
                 dataset_statistics_path="./dataset_statistics.pt",
             )
         else:
-            target_transform = None
+            pre_transform = None
 
         super().__init__(
             filenames=[filename],
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=compute_dataset_statistics,
-            pre_transform=target_transform,
+            dataset_statistics_fn=dataset_statistics_fn,
+            pre_transform=pre_transform,
         )
 
     def get_data(self):
@@ -332,7 +349,7 @@ class TensorDataModule(BaseDataModule):
             normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=statistics_fn,
+            dataset_statistics_fn=statistics_fn,
         )
 
         self.val_data = TensorDataset(
@@ -349,7 +366,7 @@ class TensorDataModule(BaseDataModule):
             normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
         )
 
         self.test_data = TensorDataset(
@@ -366,7 +383,7 @@ class TensorDataModule(BaseDataModule):
             normalize_global_feature=self.normalize_global_features,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
         )
 
     # TODO this needs to be removed

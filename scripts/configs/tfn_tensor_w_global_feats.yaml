@@ -5,17 +5,21 @@ data:
   class_path: eigenn.dataset.tensor_w_global_feats.TensorDataModule
   init_args:
     root: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
-    r_cut: 5.0
+    #
     tensor_target_name: elastic_tensor_full
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
     normalize_tensor_target: false
+    #
     scalar_target_names: []
+    #
     global_featurizer: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220714/global_feature_names.yaml
     normalize_global_features: false
+    #
     reuse: false
     compute_dataset_statistics: true # need be false when using cartesian tensor
     loader_kwargs:
