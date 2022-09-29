@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.tensor_w_global_feats.TensorDataModule
+  class_path: eigenn.dataset.tensor_global_feats.TensorDataModule
   init_args:
     root: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
     r_cut: 5.0

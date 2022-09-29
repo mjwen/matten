@@ -24,7 +24,7 @@ from eigenn.model_factory.tfn_scalar_via_tensor import TFNModel as TFNScalarViaT
 from eigenn.model_factory.tfn_tensor import TFNModel as TFNTensor
 from eigenn.model_factory.tfn_tensor_and_scalar import TFNModel as TFNTensorAndScalar
 from eigenn.model_factory.tfn_tensor_w_global_feats import (
-    TFNModel as TFNTensorWGlobalFeats,
+    TFNModel as TFNTensorGlobalFeats,
 )
 from eigenn.utils import to_path
 
@@ -75,10 +75,10 @@ def main():
         #     ]
         # },
         ##
-        model_class=TFNTensorWGlobalFeats,
+        model_class=TFNTensorGlobalFeats,
         parser_kwargs={
             "default_config_files": [
-                CWD.joinpath("configs", "tfn_tensor_w_global_feats.yaml").as_posix()
+                CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
             ]
         },
         ##
