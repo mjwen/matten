@@ -24,7 +24,7 @@ class StructureScalarDataset(InMemoryDataset):
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
         log_target: whether to log transform the targets.
-        compute_dataset_statistics: callable to compute dataset statistics. Do not
+        dataset_statistics_fn: callable to compute dataset statistics. Do not
             compute if `None`. Note, this is different from `normalize_target` below.
             This only determines whether to compute the statistics of the target of a
             dataset, and will generate a file named `dataset_statistics.pt` is $CWD
@@ -42,7 +42,7 @@ class StructureScalarDataset(InMemoryDataset):
         root: Union[str, Path] = ".",
         reuse: bool = True,
         log_target: bool = True,
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
         normalize_target: bool = False,
         normalizer_kwargs: Dict[str, Any] = None,
     ):
@@ -80,7 +80,7 @@ class StructureScalarDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=compute_dataset_statistics,
+            compute_dataset_statistics=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 
@@ -197,7 +197,7 @@ class StructureScalarDataModule(BaseDataModule):
             root=self.root,
             reuse=self.reuse,
             log_target=self.log_target,
-            compute_dataset_statistics=statistics_fn,
+            dataset_statistics_fn=statistics_fn,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -208,7 +208,7 @@ class StructureScalarDataModule(BaseDataModule):
             root=self.root,
             reuse=self.reuse,
             log_target=self.log_target,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -219,7 +219,7 @@ class StructureScalarDataModule(BaseDataModule):
             root=self.root,
             reuse=self.reuse,
             log_target=self.log_target,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )

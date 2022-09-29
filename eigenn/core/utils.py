@@ -2,7 +2,6 @@ import torch
 from e3nn.io import CartesianTensor
 
 
-# TODO change all usage of CartesianTensor to this one
 class CartesianTensorWrapper:
     """
     A wrapper of CartesianTensor that keeps a copy of reduced tensor product to

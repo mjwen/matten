@@ -38,7 +38,7 @@ class InMemoryDataset(PyGInMemoryDataset):
             `<root>/<processed_dirname>`
         url: path to download the dataset if not present.
         reuse: whether to reuse the processed file in `processed_dirname` if found.
-        compute_dataset_statistics: a callable to compute dataset statistics. The
+        dataset_statistics_fn: a callable to compute dataset statistics. The
             callable is expected to take a list of `DataPoint` as input and probably
             and return a dict of dataset statistics.
     """
@@ -52,7 +52,7 @@ class InMemoryDataset(PyGInMemoryDataset):
         root: Union[str, Path] = ".",
         processed_dirname: str = "processed",
         url: Optional[str] = None,
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
         pre_transform: Callable = None,
         reuse: bool = True,
     ):
@@ -60,7 +60,7 @@ class InMemoryDataset(PyGInMemoryDataset):
         self.root = root
         self.processed_dirname = processed_dirname
         self.url = url
-        self.compute_dataset_statistics = compute_dataset_statistics
+        self.dataset_statistics_fn = dataset_statistics_fn
 
         # !!! don't delete this block.
         # Otherwise, the inherent children class will ignore the download function here
@@ -80,7 +80,7 @@ class InMemoryDataset(PyGInMemoryDataset):
                     logger.info(f"`reuse=False`, deleting preprocessed data file: {p}")
 
             # delete dataset statistics file
-            if self.compute_dataset_statistics:
+            if self.dataset_statistics_fn:
                 p = self.dataset_statistics_path
                 if p.exists():
                     p.unlink()
@@ -97,7 +97,7 @@ class InMemoryDataset(PyGInMemoryDataset):
                 )
 
             # copy dataset statistics to cwd if existing
-            # note, should copy even compute_dataset_statistics is not needed -- for
+            # note, should copy even dataset_statistics_f is not needed -- for
             # the case a later experiment want to use the dataset statistics
             p = self.dataset_statistics_path
             if p.exists():
@@ -126,8 +126,8 @@ class InMemoryDataset(PyGInMemoryDataset):
         #
         # process dataset statistics file
         #
-        if self.compute_dataset_statistics is not None:
-            statistics = self.compute_dataset_statistics(data_list)
+        if self.dataset_statistics_fn is not None:
+            statistics = self.dataset_statistics_fn(data_list)
             logger.info(f"dataset_statistics: {statistics}")
 
             # save statistics to disk

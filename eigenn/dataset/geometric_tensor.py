@@ -5,9 +5,9 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import torch
-from e3nn.io import CartesianTensor
 from pymatgen.core.structure import Structure
 
+from eigenn.core.utils import CartesianTensorWrapper
 from eigenn.data.data import Crystal
 from eigenn.data.datamodule import BaseDataModule
 from eigenn.data.dataset import InMemoryDataset
@@ -34,7 +34,7 @@ class GeometricTensorDataset(InMemoryDataset):
         normalize_scalar_targets: names of the scalar targets to be normalized.
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
-        compute_dataset_statistics: callable to compute dataset statistics. Do not
+        dataset_statistics_fn: callable to compute dataset statistics. Do not
             compute if `None`. Note, this is different from `normalize_target` below.
             This only determines whether to compute the statistics of the target of a
             dataset, and will generate a file named `dataset_statistics.pt` is $CWD
@@ -56,7 +56,7 @@ class GeometricTensorDataset(InMemoryDataset):
         *,
         root: Union[str, Path] = ".",
         reuse: bool = True,
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
     ):
         self.filename = filename
         self.tensor_target_name = tensor_target_name
@@ -110,7 +110,7 @@ class GeometricTensorDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=compute_dataset_statistics,
+            compute_dataset_statistics=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 
@@ -134,10 +134,9 @@ class GeometricTensorDataset(InMemoryDataset):
 
         # convert to irreps tensor is necessary
         if self.tensor_target_format == "irreps":
-            converter = CartesianTensor(formula=self.tensor_target_formula)
-            rtp = converter.reduced_tensor_products()
+            converter = CartesianTensorWrapper(formula=self.tensor_target_formula)
             df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-                lambda x: converter.from_cartesian(x, rtp).reshape(1, -1)
+                lambda x: converter.from_cartesian(x).reshape(1, -1)
             )
         elif self.tensor_target_format == "cartesian":
             df[self.tensor_target_name] = df[self.tensor_target_name].apply(
@@ -254,7 +253,7 @@ class GeometricTensorDataModule(BaseDataModule):
             normalize_scalar_targets=self.normalize_scalar_targets,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=statistics_fn,
+            dataset_statistics_fn=statistics_fn,
         )
 
         self.val_data = GeometricTensorDataset(
@@ -269,7 +268,7 @@ class GeometricTensorDataModule(BaseDataModule):
             normalize_scalar_targets=self.normalize_scalar_targets,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
         )
 
         self.test_data = GeometricTensorDataset(
@@ -284,7 +283,7 @@ class GeometricTensorDataModule(BaseDataModule):
             normalize_scalar_targets=self.normalize_scalar_targets,
             root=self.root,
             reuse=self.reuse,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
         )
 
     # TODO this needs to be removed

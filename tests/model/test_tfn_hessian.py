@@ -53,7 +53,7 @@ def load_dataset(filename, root, normalize_target: bool):
         filename=filename,
         root=root,
         reuse=False,
-        compute_dataset_statistics=get_dataset_statistics,
+        dataset_statistics_fn=get_dataset_statistics,
         normalize_target=normalize_target,
     )
     loader = DataLoader(dataset=dataset, batch_size=2, shuffle=False)

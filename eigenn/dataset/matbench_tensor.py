@@ -34,7 +34,7 @@ class MatbenchTensorDataset(InMemoryDataset):
         output_formula: formula specifying symmetry of tensor. No matter what
             output_format is, output_formula should be given in cartesian notation.
             e.g. `ijkl=jikl=klij` for a elastic tensor.
-        compute_dataset_statistics: callable to compute dataset statistics. Do not
+        dataset_statistics_fn: callable to compute dataset statistics. Do not
             compute if `None`. Note, this is different from `normalize_target` below.
             This only determines whether to compute the statistics of the target of a
             dataset, and will generate a file named `dataset_statistics.pt` is $CWD
@@ -53,7 +53,7 @@ class MatbenchTensorDataset(InMemoryDataset):
         reuse: bool = True,
         output_format: str = "irreps",
         output_formula: str = "ijkl=jikl=klij",
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
         normalize_target: bool = False,
         normalizer_kwargs: Dict[str, Any] = None,
     ):
@@ -95,7 +95,7 @@ class MatbenchTensorDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=compute_dataset_statistics,
+            compute_dataset_statistics=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 
@@ -227,7 +227,7 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=statistics_fn,
+            dataset_statistics_fn=statistics_fn,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -239,7 +239,7 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -251,7 +251,7 @@ class MatbenchTensorDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=None,
+            dataset_statistics_fn=None,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )

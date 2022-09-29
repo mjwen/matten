@@ -28,7 +28,7 @@ class HessianDataset(InMemoryDataset):
         root:
         reuse: whether to reuse the preprocessed data.
         edge_strategy: `complete` | `pmg_mol_graph`
-        compute_dataset_statistics: callable to compute dataset statistics. Do not
+        dataset_statistics_fn: callable to compute dataset statistics. Do not
             compute if `None`. Note, this is different from `normalize_target` below.
             This only determines whether to compute the statistics of the target of a
             dataset, and will generate a file named `dataset_statistics.pt` is $CWD
@@ -46,7 +46,7 @@ class HessianDataset(InMemoryDataset):
         edge_strategy: str = "pmg_mol_graph",
         output_format: str = "irreps",
         output_formula: str = "ij=ij",  # TODO delete this, not used
-        compute_dataset_statistics: Callable = None,
+        dataset_statistics_fn: Callable = None,
         normalize_target: bool = True,
         normalizer_kwargs: Dict[str, Any] = None,
     ):
@@ -78,7 +78,7 @@ class HessianDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=compute_dataset_statistics,
+            compute_dataset_statistics=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 
@@ -303,7 +303,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=get_dataset_statistics,
+            dataset_statistics_fn=get_dataset_statistics,
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -313,7 +313,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=None,  # do not compute
+            dataset_statistics_fn=None,  # do not compute
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
@@ -323,7 +323,7 @@ class HessianDataModule(BaseDataModule):
             reuse=self.reuse,
             output_format=self.output_format,
             output_formula=self.output_formula,
-            compute_dataset_statistics=None,  # do not compute
+            dataset_statistics_fn=None,  # do not compute
             normalize_target=self.normalize_target,
             normalizer_kwargs=self.normalizer_kwargs,
         )
