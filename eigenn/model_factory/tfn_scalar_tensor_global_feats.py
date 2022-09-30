@@ -1,15 +1,6 @@
 """
-TFN model for predicting graph level tensor property of the same shape.
-
-Species embedding using torch.nn.Embedding. As a results, NOTE_ATTRS are learnable and
-it is the same as NODE_FEATURES in the first layer. NOTE, they are the same only at the
-first layer. In the model, NODE_FEATURES will be updated, but NODE_ATTRS are not.
-
-The original NequIP uses ONE-hot embedding for NODE_ATTRS, and then use a linear layer
-to map it to NODE_FEATURES.
-
-For large number of species, we'd better use the SpeciesEmbedding one to minimize the
-number of params.
+Tensor target
+with global features
 """
 from collections import OrderedDict
 from typing import Any, Dict, Optional
@@ -31,7 +22,7 @@ from eigenn.nn.utils import ScalarMLP
 OUT_FIELD_NAME = "my_model_output"
 
 
-class TFNModel(ModelForPyGData):
+class ScalarTensorGlobalFeatsModel(ModelForPyGData):
     def init_backbone(
         self,
         backbone_hparams: Dict[str, Any],
