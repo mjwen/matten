@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.model.task import CanonicalClassificationTask, CanonicalRegressionTask
+from matten.model.task import CanonicalClassificationTask, CanonicalRegressionTask
 
 
 def test_classification_task():

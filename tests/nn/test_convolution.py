@@ -1,8 +1,8 @@
 from e3nn.o3 import Irreps
 
-from eigenn.data.irreps import DataKey
-from eigenn.nn.point_conv import PointConv
-from eigenn.nn.transformer_conv import TransformerConv
+from matten.data.irreps import DataKey
+from matten.nn.point_conv import PointConv
+from matten.nn.transformer_conv import TransformerConv
 
 
 def test_Conv():

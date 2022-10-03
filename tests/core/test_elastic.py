@@ -4,7 +4,7 @@ from pymatgen.analysis.elasticity.elastic import ComplianceTensor as PMGComplian
 from pymatgen.analysis.elasticity.elastic import ElasticTensor as PMGElasticTensor
 from pymatgen.core.tensors import Tensor
 
-from eigenn.core.elastic import ComplianceTensor, ElasticTensor, GeometricTensor
+from matten.core.elastic import ComplianceTensor, ElasticTensor, GeometricTensor
 
 
 @pytest.fixture(scope="session")

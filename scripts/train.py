@@ -11,19 +11,19 @@ import sys
 import yaml
 from loguru import logger
 
-from eigenn.cli import EigennCLI, SaveConfigCallback
-from eigenn.data.datamodule import BaseDataModule
-from eigenn.model_factory.nequip_energy_model import EnergyModel
-from eigenn.model_factory.segnn_classification import SEGNNClassification
-from eigenn.model_factory.segnn_model import SEGNNModel
-from eigenn.model_factory.segnn_model_paper import SEGNNModel as SEGNNModelPaper
-from eigenn.model_factory.segnn_model_paper_tensor import SEGNNModel as SEGNNModelTensor
-from eigenn.model_factory.tfn_hessian import TFNModel as TFNHessian
-from eigenn.model_factory.tfn_scalar import TFNModel
-from eigenn.model_factory.tfn_scalar_tensor_global_feats import (
+from matten.cli import SaveConfigCallback, mattenCLI
+from matten.data.datamodule import BaseDataModule
+from matten.model_factory.nequip_energy_model import EnergyModel
+from matten.model_factory.segnn_classification import SEGNNClassification
+from matten.model_factory.segnn_model import SEGNNModel
+from matten.model_factory.segnn_model_paper import SEGNNModel as SEGNNModelPaper
+from matten.model_factory.segnn_model_paper_tensor import SEGNNModel as SEGNNModelTensor
+from matten.model_factory.tfn_hessian import TFNModel as TFNHessian
+from matten.model_factory.tfn_scalar import TFNModel
+from matten.model_factory.tfn_scalar_tensor_global_feats import (
     ScalarTensorGlobalFeatsModel,
 )
-from eigenn.utils import to_path
+from matten.utils import to_path
 
 CWD = to_path(__file__).parent
 
@@ -33,7 +33,7 @@ def main():
     logger.info("Start parsing experiment config and instantiating model!")
 
     # create cli
-    cli = EigennCLI(
+    cli = mattenCLI(
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
@@ -142,7 +142,7 @@ def main():
         save_config_callback=SaveConfigCallback,
         save_config_filename="cli_config.yaml",
         save_config_overwrite=True,
-        description="Eigenn training command line tool",
+        description="matten training command line tool",
         run=False,
     )
 

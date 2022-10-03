@@ -2,9 +2,9 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.LSDI.SiNMRDataModule
+  class_path: matten.dataset.LSDI.SiNMRDataModule
   init_args:
-    root: ../eigenn/dataset/LSDI_NMR
+    root: ../matten/dataset/LSDI_NMR
     trainset_filename: LSDI_NMR_tensor.json
     valset_filename: LSDI_NMR_tensor.json
     testset_filename: LSDI_NMR_tensor.json
@@ -66,7 +66,7 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.CanonicalRegressionTask
+    class_path: matten.model.task.CanonicalRegressionTask
     init_args:
       name: tensor_output # name of y in dataset to predict
 
@@ -100,7 +100,7 @@ trainer:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
       save_dir: wandb_logs # should be provided to make cli save config work
-      project: tmp-eigenn
+      project: tmp-matten
 
 optimizer:
   class_path: torch.optim.Adam

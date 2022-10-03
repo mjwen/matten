@@ -2,9 +2,9 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.matbench.MatbenchDataModule
+  class_path: matten.dataset.matbench.MatbenchDataModule
   init_args:
-    root: ../eigenn/dataset/matbench
+    root: ../matten/dataset/matbench
     trainset_filename: matbench_dielectric_n20.json
     valset_filename: matbench_dielectric_n20.json
     testset_filename: matbench_dielectric_n20.json
@@ -54,7 +54,7 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model.task.CanonicalRegressionTask
+    class_path: matten.model.task.CanonicalRegressionTask
     init_args:
       name: n
 
@@ -92,7 +92,7 @@ trainer:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
       save_dir: wandb_logs # should be provided to make cli save config work
-      project: tmp-eigenn
+      project: tmp-matten
 
 optimizer:
   class_path: torch.optim.Adam

@@ -2,7 +2,7 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.hessian.HessianDataModule
+  class_path: matten.dataset.hessian.HessianDataModule
   init_args:
     root: /Users/mjwen/Documents/Dataset/xiaowei_hessian
     trainset_filename: ani1_CHO_0-1000_hessian_small.xyz
@@ -57,14 +57,14 @@ model:
   # tasks define the loss, metric...
   tasks:
     hessian_diag:
-      class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
+      class_path: matten.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_diag
         mode: diag
         normalizer_kwargs:
           scale: 1.0
     hessian_off_diag:
-      class_path: eigenn.model_factory.tfn_hessian.HessianRegressionTask
+      class_path: matten.model_factory.tfn_hessian.HessianRegressionTask
       init_args:
         name: hessian_off_diag
         mode: off_diag
@@ -72,7 +72,7 @@ model:
         normalizer_kwargs:
           scale: 1.0
     hessian_eigval:
-      class_path: eigenn.model_factory.tfn_hessian.HessianEigvalTask
+      class_path: matten.model_factory.tfn_hessian.HessianEigvalTask
       init_args:
         name: hessian_eigval
         loss_weight: 1.0
@@ -112,7 +112,7 @@ trainer:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
       save_dir: wandb_logs # should be provided to make cli save config work
-      project: tmp-eigenn
+      project: tmp-matten
 
 optimizer:
   class_path: torch.optim.Adam

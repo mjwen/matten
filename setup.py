@@ -2,7 +2,7 @@ from pathlib import Path
 
 from setuptools import find_packages, setup
 
-PACKAGE_NANE = "eigenn"
+PACKAGE_NANE = "matten"
 
 
 def get_version():

@@ -1,7 +1,7 @@
 import torch
 
-from eigenn.data.irreps import DataKey
-from eigenn.nn.nodewise import NodewiseSelect
+from matten.data.irreps import DataKey
+from matten.nn.nodewise import NodewiseSelect
 
 
 def test_atomwise_select():

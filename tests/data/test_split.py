@@ -1,6 +1,6 @@
 import pandas as pd
 
-from eigenn.data.split import train_test_split_dataframe
+from matten.data.split import train_test_split_dataframe
 
 
 def create_df():

@@ -2,9 +2,9 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.structure_scalar_tensor.TensorDataModule
+  class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220523
     r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
@@ -81,7 +81,7 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model_factory.task.TensorRegressionTask
+    class_path: matten.model_factory.task.TensorRegressionTask
     init_args:
       name: elastic_tensor_full
       normalize_target: false # should be the same as data.normalize_tensor_target
@@ -120,7 +120,7 @@ trainer:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
       save_dir: wandb_logs # should be provided to make cli save config work
-      project: tmp-eigenn
+      project: tmp-matten
 
 optimizer:
   class_path: torch.optim.Adam

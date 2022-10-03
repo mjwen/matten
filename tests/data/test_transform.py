@@ -1,7 +1,7 @@
 import torch
 from e3nn.o3 import Irreps
 
-from eigenn.data.transform import MeanNormNormalize, ScalarNormalize
+from matten.data.transform import MeanNormNormalize, ScalarNormalize
 
 
 def test_mean_norm_normalize():

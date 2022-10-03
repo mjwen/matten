@@ -16,10 +16,10 @@ import sys
 import yaml
 from loguru import logger
 
-from eigenn.cli import EigennCLI, SaveConfigCallback
-from eigenn.data.datamodule import BaseDataModule
-from eigenn.model_factory.atomic_tensor_model import AtomicTensorModel
-from eigenn.utils import to_path
+from matten.cli import SaveConfigCallback, mattenCLI
+from matten.data.datamodule import BaseDataModule
+from matten.model_factory.atomic_tensor_model import AtomicTensorModel
+from matten.utils import to_path
 
 CWD = to_path(__file__).parent
 
@@ -29,7 +29,7 @@ def main():
     logger.info("Start parsing experiment config and instantiating model!")
 
     # create cli
-    cli = EigennCLI(
+    cli = mattenCLI(
         # subclass_mode_model does not work well with `link_to` defined in cli
         # model_class=BaseModel,
         # subclass_mode_model=True,
@@ -39,7 +39,7 @@ def main():
         save_config_callback=SaveConfigCallback,
         save_config_filename="cli_config.yaml",
         save_config_overwrite=True,
-        description="Eigenn training command line tool",
+        description="matten training command line tool",
         parser_kwargs={
             "default_config_files": [
                 CWD.joinpath("configs", "minimal_atomic.yaml").as_posix()

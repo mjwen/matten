@@ -1,4 +1,4 @@
-name: eigenn
+name: matten
 channels:
   - conda-forge
   - defaults

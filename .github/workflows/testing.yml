@@ -36,7 +36,7 @@ jobs:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
           # activate-environment should be the same name as in environment.yml
-          activate-environment: eigenn
+          activate-environment: matten
           environment-file: environment.yml
 
       - name: Install package

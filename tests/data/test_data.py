@@ -4,7 +4,7 @@ import ase.io
 import numpy as np
 from torch_geometric.data import Batch
 
-from eigenn.data.data import DataPoint, pmg_mol_graph
+from matten.data.data import DataPoint, pmg_mol_graph
 
 TEST_FILE_DIR = Path(__file__).resolve().parents[1].joinpath("test_files")
 

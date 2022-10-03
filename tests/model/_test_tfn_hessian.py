@@ -15,8 +15,8 @@ from ase.io.extxyz import read_extxyz, write_extxyz
 from e3nn import o3
 from e3nn.io import CartesianTensor
 
-from eigenn.dataset.hessian import DataLoader, HessianDataset, get_dataset_statistics
-from eigenn.model_factory.tfn_hessian import create_model
+from matten.dataset.hessian import DataLoader, HessianDataset, get_dataset_statistics
+from matten.model_factory.tfn_hessian import create_model
 
 TESTFILE_DIR = Path(__file__).parents[1]
 

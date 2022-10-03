@@ -1,12 +1,10 @@
-# eigenn
-
-Equivariant Invariant Graph Enabled Neural Network (eigenn)
+# MatTEN (Materials Tensor Equivariant Network)
 
 ## Install
 
 This below installing guide should get you started on Mac, without using GPUs.
 
-- eigenn requires Python 3.9+
+- MatTEN requires Python 3.9+
 
 - [PyTorch](https://pytorch.org)
 
@@ -37,8 +35,8 @@ This below installing guide should get you started on Mac, without using GPUs.
 - This repo
 
   ```bash
-  git clone https://github.com/mjwen/eigenn.git
-  cd eigenn
+  git clone https://github.com/mjwen/matten.git
+  cd matten
   pip install -e .
   ```
 
@@ -64,7 +62,7 @@ python train_atomic.py --config <config file>
 
 If `config` is not provided, the default [minimal_atomic.yaml](./scripts/configs/minimal_atomic.yaml)
 is used.
-The model used in `train_atomic.py` is built at [atomic_tensor_model.py](./eigenn/model_factory/atomic_tensor_model.py)
+The model used in `train_atomic.py` is built at [atomic_tensor_model.py](./matten/model_factory/atomic_tensor_model.py)
 
 ### Train on structure property
 
@@ -76,7 +74,7 @@ python train.py --config <config file>
 
 If `config` is not provided, the default [minimal.yaml](./scripts/configs/minimal.yaml)
 is used.
-The model used in `train.py` is built at [nequip_energy_model.py](./eigenn/model_factory/nequip_energy_model.py)
+The model used in `train.py` is built at [nequip_energy_model.py](./matten/model_factory/nequip_energy_model.py)
 
 To get help
 

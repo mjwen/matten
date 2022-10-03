@@ -1,6 +1,6 @@
 import torch
 
-from eigenn.dataset.hessian import (
+from matten.dataset.hessian import (
     combine_on_off_diagonal_blocks,
     separate_on_off_diagonal_blocks,
     symmetrize_hessian,

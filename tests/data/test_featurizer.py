@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pymatgen.core.structure import Structure
 
-from eigenn.data.featurizer import GlobalFeaturizer
+from matten.data.featurizer import GlobalFeaturizer
 
 
 @pytest.fixture

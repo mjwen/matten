@@ -1,7 +1,7 @@
 import torch
 
-from eigenn.data.irreps import DataKey
-from eigenn.nn.readout import IrrepsToCartesianTensor, IrrepsToHessian
+from matten.data.irreps import DataKey
+from matten.nn.readout import IrrepsToCartesianTensor, IrrepsToHessian
 
 
 def test_irreps_to_cartesian():

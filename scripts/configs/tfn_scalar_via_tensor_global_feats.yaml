@@ -2,9 +2,9 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.structure_scalar_tensor.TensorDataModule
+  class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220523
     r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
@@ -17,7 +17,7 @@ data:
     #
     scalar_target_names: [k_voigt, k_reuss] # should be in `tasks` below
     #
-    global_featurizer: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220714/global_feature_names.yaml
+    global_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/global_feature_names.yaml
     normalize_global_features: false
     #
     reuse: false
@@ -87,11 +87,11 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    - class_path: eigenn.model_factory.task.ScalarRegressionTask
+    - class_path: matten.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_voigt
         loss_weight: 1.
-    - class_path: eigenn.model_factory.task.ScalarRegressionTask
+    - class_path: matten.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_reuss
         loss_weight: 1.
@@ -130,7 +130,7 @@ trainer:
     class_path: pytorch_lightning.loggers.wandb.WandbLogger
     init_args:
       save_dir: wandb_logs # should be provided to make cli save config work
-      project: tmp-eigenn
+      project: tmp-matten
 
 optimizer:
   class_path: torch.optim.Adam

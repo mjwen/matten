@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from pytorch_lightning import seed_everything
 
-from eigenn.model.model import BaseModel
-from eigenn.model.task import CanonicalClassificationTask
+from matten.model.model import BaseModel
+from matten.model.task import CanonicalClassificationTask
 
 seed_everything(seed=35)
 
