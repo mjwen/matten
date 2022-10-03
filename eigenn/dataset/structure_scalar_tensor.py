@@ -26,13 +26,15 @@ class TensorDataset(InMemoryDataset):
     Args:
         filename: name of input data file.
         r_cut: neighbor cutoff distance, in unit Angstrom.
-        tensor_target_name: name of the tensor target.
+        tensor_target_name: name of the tensor target. If `None`, the tensor is not
+            used as a training target.
         tensor_target_format: {`cartesian`, `irreps`}. The target tensor in the
             data file is provided in cartesian or irreps format.
         tensor_target_formula: formula specifying symmetry of tensor, e.g.
             `ijkl=jikl=klij` for a elastic tensor.
         normalize_tensor_target: whether to normalize the tensor target.
-        scalar_target_names: names of the target scalar properties.
+        scalar_target_names: names of the target scalar properties. If `None`, no scalar
+            s used as training target.
         log_scalar_targets: whether to log transform the scalar targets; one for each
             scalar target given in `scalar_target_names`. Note, log is performed before
             computing any statistics, controlled by `normalize_scalar_targets`.
@@ -111,6 +113,12 @@ class TensorDataset(InMemoryDataset):
         #         "the tensor in its original space. Then the predicted scalar will "
         #         "always be in the unscaled space."
         #     )
+
+        if not self.tensor_target_name and not self.scalar_target_names:
+            raise ValueError(
+                "At least one of `tensor_target_name` and `scalar_target_names` "
+                "should be provided."
+            )
 
         if self.normalize_global_feature and self.global_featurizer is None:
             raise ValueError(
@@ -193,24 +201,25 @@ class TensorDataset(InMemoryDataset):
             df["global_feats"] = feats
 
         # convert tensor target to tensor
-        df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-            lambda x: torch.as_tensor(x)
-        )
+        if self.tensor_target_name:
+            df[self.tensor_target_name] = df[self.tensor_target_name].apply(
+                lambda x: torch.as_tensor(x)
+            )
 
-        # convert to irreps tensor is necessary, assuming all input tensor is Cartesian
-        if self.tensor_target_format == "irreps":
-            converter = CartesianTensorWrapper(formula=self.tensor_target_formula)
-            df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-                lambda x: converter.from_cartesian(x).reshape(1, -1)
-            )
-        elif self.tensor_target_format == "cartesian":
-            df[self.tensor_target_name] = df[self.tensor_target_name].apply(
-                lambda x: torch.unsqueeze(x, 0)
-            )
-        else:
-            raise ValueError(
-                f"Unsupported target tensor format `{self.tensor_target_format}`"
-            )
+            if self.tensor_target_format == "irreps":
+                # convert to irreps tensor, assuming all input tensor is Cartesian
+                converter = CartesianTensorWrapper(formula=self.tensor_target_formula)
+                df[self.tensor_target_name] = df[self.tensor_target_name].apply(
+                    lambda x: converter.from_cartesian(x).reshape(1, -1)
+                )
+            elif self.tensor_target_format == "cartesian":
+                df[self.tensor_target_name] = df[self.tensor_target_name].apply(
+                    lambda x: torch.unsqueeze(x, 0)
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported target tensor format `{self.tensor_target_format}`"
+                )
 
         # convert scalar targets to 2D shape
         for name in self.scalar_target_names:
@@ -222,7 +231,10 @@ class TensorDataset(InMemoryDataset):
                 df[name] = df[name].apply(lambda y: torch.log(y))
 
         # all_targets, tensor and scalars
-        target_columns = [self.tensor_target_name] + self.scalar_target_names
+        target_columns = (
+            [] if not self.tensor_target_name else [self.tensor_target_name]
+        )
+        target_columns += self.scalar_target_names
 
         crystals = []
 

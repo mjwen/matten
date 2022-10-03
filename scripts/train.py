@@ -71,25 +71,9 @@ def main():
         # model_class=TFNTensorAndScalar,
         # parser_kwargs={
         #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor_and_scalar.yaml").as_posix()
+        #         CWD.joinpath("configs", "tfn_tensor_scalar.yaml").as_posix()
         #     ]
         # },
-        # ## tensor with global features
-        # model_class=ScalarTensorGlobalFeatsModel,
-        # parser_kwargs={
-        #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
-        #     ]
-        # },
-        ## scalar and tensor with global features
-        model_class=ScalarTensorGlobalFeatsModel,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath(
-                    "configs", "tfn_scalar_tensor_global_feats.yaml"
-                ).as_posix()
-            ]
-        },
         ##
         # model_class=TFNHessian,
         # parser_kwargs={
@@ -127,8 +111,32 @@ def main():
         #         CWD.joinpath("configs", "minimal_classification.yaml").as_posix()
         #     ]
         # },
-        #
-        #
+        ##
+        # model_class=ScalarTensorGlobalFeatsModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath(
+        #             "configs", "tfn_scalar_via_tensor_global_feats.yaml"
+        #         ).as_posix()
+        #     ]
+        # },
+        ##
+        # model_class=ScalarTensorGlobalFeatsModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
+        #     ]
+        # },
+        ##
+        model_class=ScalarTensorGlobalFeatsModel,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath(
+                    "configs", "tfn_tensor_scalar_global_feats.yaml"
+                ).as_posix()
+            ]
+        },
+        ##
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,

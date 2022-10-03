@@ -20,6 +20,7 @@ from eigenn.nn.tfn import PointConv, PointConvWithActivation
 from eigenn.nn.utils import ScalarMLP
 
 OUT_FIELD_NAME = "my_model_output"
+TENSOR_TASK_NAME = "elastic_tensor_full"
 
 
 class ScalarTensorGlobalFeatsModel(ModelForPyGData):
@@ -80,8 +81,13 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         else:
             raise ValueError
 
-        tensor_preds = self._decode_tensors(out_tensor)
+        if TENSOR_TASK_NAME in self.tasks:
+            tensor_preds = {TENSOR_TASK_NAME: out_tensor}
+        else:
+            tensor_preds = dict()
+
         scalar_preds = self._decode_scalars(out_tensor_for_scalar)
+
         preds = {**tensor_preds, **scalar_preds}
 
         return preds
@@ -129,20 +135,15 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
 
         return out
 
-    def _decode_tensors(self, out) -> Dict[str, Tensor]:
-        # TODO this assume tensor task will always be the first
-        task_name = list(self.tasks.keys())[0]
-        preds = {task_name: out}
-
-        return preds
-
     def _decode_scalars(self, out) -> Dict[str, Tensor]:
-        # scale them
-        out = self.transform_prediction({"elastic_tensor_full": out})
-        out = out["elastic_tensor_full"]
+        if TENSOR_TASK_NAME in self.tasks:
+            out = self.transform_prediction({TENSOR_TASK_NAME: out})
+            out = out[TENSOR_TASK_NAME]
 
-        # TODO this assume tensor task will always be the first
-        scalar_task_names = list(self.tasks.keys())[1:]
+            # TODO this assume tensor task will always be the first
+            scalar_task_names = list(self.tasks.keys())[1:]
+        else:
+            scalar_task_names = list(self.tasks.keys())
 
         preds = {}
         for name in scalar_task_names:
@@ -161,11 +162,12 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
 
         return preds
 
-    def transform_prediction(self, preds: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def transform_prediction(
+        self, preds: Dict[str, Tensor], task_name: str = "elastic_tensor_full"
+    ) -> Dict[str, Tensor]:
         """
         Transform the normalized prediction back.
         """
-        task_name = "elastic_tensor_full"
 
         normalizer = self.tasks[task_name].normalizer
 
@@ -176,8 +178,10 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
 
         return {task_name: out}
 
-    def transform_target(self, target: Dict[str, Tensor]) -> Dict[str, Tensor]:
-        return self.transform_prediction(target)
+    def transform_target(
+        self, target: Dict[str, Tensor], task_name: str = "elastic_tensor_full"
+    ) -> Dict[str, Tensor]:
+        return self.transform_prediction(target, task_name)
 
 
 def create_model(hparams: Dict[str, Any], dataset_hparams):

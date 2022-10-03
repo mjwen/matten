@@ -87,15 +87,15 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    - class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
+    - class_path: eigenn.model_factory.task.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
         normalize_target: false # should be the same as data.normalize_tensor_target
-    - class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
+    - class_path: eigenn.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_voigt
         loss_weight: 1.
-    - class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
+    - class_path: eigenn.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_reuss
         loss_weight: 1.

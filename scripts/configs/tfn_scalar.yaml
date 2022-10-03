@@ -63,7 +63,7 @@ model:
   # tasks define the loss, metric...
   tasks:
     k_voigt:
-      class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
+      class_path: eigenn.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_voigt
         normalize_target: true

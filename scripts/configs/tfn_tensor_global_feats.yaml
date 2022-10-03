@@ -10,7 +10,7 @@ data:
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
     #
-    tensor_target_name: elastic_tensor_full  # should be in `tasks` below
+    tensor_target_name: elastic_tensor_full # should be in `tasks` below
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
     normalize_tensor_target: false
@@ -87,7 +87,7 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    class_path: eigenn.model_factory.tfn_tensor.TensorRegressionTask
+    class_path: eigenn.model_factory.task.TensorRegressionTask
     init_args:
       name: elastic_tensor_full
       normalize_target: false # should be the same as data.normalize_tensor_target

@@ -5,10 +5,10 @@ data:
   class_path: eigenn.dataset.structure_scalar.StructureScalarDataModule
   init_args:
     root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
-    r_cut: 5.0
     reuse: false
     target_names:
       - k_voigt
@@ -46,7 +46,6 @@ model:
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
     invariant_neurons: 32 # number of hidden neurons in radial function, smaller is faster
     average_num_neighbors: null # average number of neighbors, used for normalization . Options: 1. float or int provided here. 2. `auto` to determine it automatically, 3. `null` to not use it, and then individual normalization will be applied to each node
-
     conv_layer_irreps: 32x0o+32x0e + 16x1o+16x1e + 8x2o+8x2e + 4x3o+4x3e + 4x4o+4x4e
     nonlinearity_type: gate
     normalization: none # {`none`, `batch`, `instance`}
@@ -76,7 +75,7 @@ model:
   # tasks define the loss, metric...
   tasks:
     k_voigt:
-      class_path: eigenn.model_factory.tfn_scalar.ScalarRegressionTask
+      class_path: eigenn.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_voigt
         normalize_target: false
