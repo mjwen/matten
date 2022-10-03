@@ -2,21 +2,24 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: eigenn.dataset.geometric_tensor.GeometricTensorDataModule
+  class_path: eigenn.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen/Applications/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    root: /Users/mjwen.admin/Packages/eigenn_analysis/eigenn_analysis/dataset/elastic_tensor/20220523
+    r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
-    r_cut: 5.0
-    tensor_target_name: elastic_tensor_full
+    #
+    tensor_target_name: elastic_tensor_full # should be in `tasks` below
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
     normalize_tensor_target: false
-    scalar_target_names:
-      - k_voigt
+    #
+    scalar_target_names: [k_voigt, k_reuss] # should be in `tasks` below
+    #
+    global_featurizer: null
     reuse: false
-    compute_dataset_statistics: true # need be false when using cartesian tensor
+    compute_dataset_statistics: true
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -47,8 +50,7 @@ model:
     # radial network
     invariant_layers: 2 # number of radial layers, we found it important to keep this small, 1 or 2
     invariant_neurons: 32 # number of hidden neurons in radial function, smaller is faster
-    average_num_neighbors: null # average number of neighbors, used for normalization . Options: 1. float or int provided here. 2. `auto` to determine it automatically, 3. `null` to not use it, and then individual normalization will be applied to each node
-
+    average_num_neighbors: null # average number of neighbors, used for normalization . Options: 1. float or int provided here. 2. `auto` to determine it automatically, by setting it to average of dataset 3. `null` to not use it, and then individual normalization will be applied to each node
     conv_layer_irreps: 32x0o+32x0e + 16x1o+16x1e + 8x2o+8x2e + 4x3o+4x3e + 4x4o+4x4e
     nonlinearity_type: gate
     normalization: none # {`none`, `batch`, `instance`}
@@ -56,8 +58,8 @@ model:
 
     #
     # output
-    #
-    conv_to_output_hidden_irreps_out: 16x0e + 8x2e + 2x4e
+    # 2x2e and 4e need to be fixed, and only multiplicity of 0e can change: where we
+    conv_to_output_hidden_irreps_out: 16x0e + 2x2e + 4e
 
     # output_format and output_formula should be used together.
     # - output_format (can be `irreps` or `cartesian`) determines what the loss
@@ -77,15 +79,17 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    elastic_tensor_full:
-      class_path: eigenn.model_factory.task.TensorRegressionTask
+    - class_path: eigenn.model_factory.task.TensorRegressionTask
       init_args:
         name: elastic_tensor_full
         normalize_target: false # should be the same as data.normalize_tensor_target
-    k_voigt:
-      class_path: eigenn.model_factory.task.ScalarRegressionTask
+    - class_path: eigenn.model_factory.task.ScalarRegressionTask
       init_args:
         name: k_voigt
+        loss_weight: 1.
+    - class_path: eigenn.model_factory.task.ScalarRegressionTask
+      init_args:
+        name: k_reuss
         loss_weight: 1.
 
 trainer:

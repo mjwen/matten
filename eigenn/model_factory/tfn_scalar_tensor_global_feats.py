@@ -45,22 +45,27 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
                 break
         assert zero_e_size is not None
 
-        self.linear_global_feats = ScalarMLP(
-            in_size=dataset_hparams["global_feats_size"],
-            hidden_sizes=backbone_hparams["linear_global_feats_hidden_sizes"],
-            batch_norm=True,
-            out_size=zero_e_size,
-        )
+        self.global_feats_size = dataset_hparams["global_feats_size"]
+        if self.global_feats_size is not None:
 
-        global_feats_mix_mode = backbone_hparams["global_feats_mix_mode"]
-        if global_feats_mix_mode == "concat":
-            in_size = 2 * zero_e_size
-        elif global_feats_mix_mode == "add":
-            in_size = zero_e_size
+            self.linear_global_feats = ScalarMLP(
+                in_size=self.global_feats_size,
+                hidden_sizes=backbone_hparams["linear_global_feats_hidden_sizes"],
+                batch_norm=True,
+                out_size=zero_e_size,
+            )
+
+            self.global_feats_mix_mode = backbone_hparams["global_feats_mix_mode"]
+            if self.global_feats_mix_mode == "concat":
+                in_size = 2 * zero_e_size
+            elif self.global_feats_mix_mode == "add":
+                in_size = zero_e_size
+            else:
+                raise ValueError
         else:
-            raise ValueError
-
-        self.linear_combined = ScalarMLP(
+            in_size = zero_e_size
+        # TODO hardcoded, 2x0e+2x2e+4e for elastic; here, we hardcode to transform 2e
+        self.linear_0e = ScalarMLP(
             in_size=in_size, hidden_sizes=[in_size], batch_norm=True, out_size=2
         )
 
@@ -71,7 +76,11 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
 
-        out = self.mix_global_feats(model_input, out, mode="concat")
+        if self.global_feats_size is not None:
+            mode = self.global_feats_mix_mode
+        else:
+            mode = "no_global_feats"  # not mix
+        out = self.mix_global_feats(model_input, out, mode=mode)
 
         if self.output_format == "cartesian":
             out_tensor = out_tensor_for_scalar = self.convert_out(out)
@@ -98,37 +107,43 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         output,
         irreps="2x0e+2x2e+4e",  # TODO this needs to be input
         mode: str = "concat",
-    ):
+    ) -> torch.Tensor:
         """
         Add global feats to 0e scalars and then do linear transformations before
         adding them back.
 
         mode:
             How to combine the global features and 0e features.
-                concat: concatenate global feats to 0e and then linearly map them back
-                    to required size of 0e.
-                add: add global feats to 0e feats (this requires they be of the same
+            concat: concatenate global feats to 0e and then linearly map them back
+                to required size of 0e.
+            add: add global feats to 0e feats (this requires they be of the same
                 length).
+            no_global_feats: not mix at all, simply resize 0e.
         """
-        # resize global feats
-        global_feats = model_input["global_feats"]
-        global_feats = self.linear_global_feats(global_feats)
 
         # split 0e and other
         # ax0e + 2x2e + 4e
         values_0e = output[:, :-19]
         values_high_order = output[:, -19:]
 
-        # combine global and 0e feats
-        if mode == "concat":
-            combined = torch.hstack((global_feats, values_0e))
-        elif mode == "add":
-            combined = global_feats + values_0e
+        if mode in ["concat", "add"]:
+            # resize global feats
+            global_feats = model_input["global_feats"]
+            global_feats = self.linear_global_feats(global_feats)
+            if mode == "concat":
+                combined = torch.hstack((global_feats, values_0e))
+            elif mode == "add":
+                combined = global_feats + values_0e
+            else:
+                raise ValueError(f"not supported mode {mode}")
+        elif mode == "no_global_feats":
+            # do not use global feats, just resize
+            combined = values_0e
         else:
             raise ValueError(f"not supported mode {mode}")
 
         # scale to the same size of original 0e
-        combined = self.linear_combined(combined)
+        combined = self.linear_0e(combined)
 
         # add scaled feats back to high order irreps
         out = torch.hstack((combined, values_high_order))

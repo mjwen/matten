@@ -110,7 +110,7 @@ class GeometricTensorDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=dataset_statistics_fn,
+            dataset_statistics_fn=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 

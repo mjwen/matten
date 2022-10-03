@@ -21,7 +21,7 @@ data:
     normalize_global_features: false
     #
     reuse: false
-    compute_dataset_statistics: true # need be false when using cartesian tensor
+    compute_dataset_statistics: true
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -60,8 +60,7 @@ model:
 
     #
     # output
-    # 2x2e and 4e need to be fixed, and only multiplicity of 0e can change: where we
-    # combine global features
+    # 2x2e and 4e need to be fixed, and only multiplicity of 0e can change: where we combine global features
     conv_to_output_hidden_irreps_out: 16x0e + 2x2e + 4e
 
     # output_format and output_formula should be used together.
@@ -82,7 +81,6 @@ model:
 
     # combing global and 0e feat (this needs to be a list)
     linear_global_feats_hidden_sizes: [2]
-
     global_feats_mix_mode: concat
 
   # tasks define the loss, metric...

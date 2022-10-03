@@ -21,7 +21,7 @@ data:
     normalize_global_features: false
     #
     reuse: false
-    compute_dataset_statistics: true # need be false when using cartesian tensor
+    compute_dataset_statistics: true
     loader_kwargs:
       batch_size: 10
       shuffle: true
