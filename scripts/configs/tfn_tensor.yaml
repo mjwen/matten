@@ -81,10 +81,10 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    class_path: matten.model_factory.task.TensorRegressionTask
-    init_args:
-      name: elastic_tensor_full
-      normalize_target: false # should be the same as data.normalize_tensor_target
+    - class_path: matten.model_factory.task.TensorRegressionTask
+      init_args:
+        name: elastic_tensor_full
+        normalize_target: false # should be the same as data.normalize_tensor_target
 
 trainer:
   max_epochs: 5 # number of maximum training epochs
