@@ -23,9 +23,6 @@ from eigenn.model_factory.tfn_scalar import TFNModel
 from eigenn.model_factory.tfn_scalar_tensor_global_feats import (
     ScalarTensorGlobalFeatsModel,
 )
-from eigenn.model_factory.tfn_scalar_via_tensor import TFNModel as TFNScalarViaTensor
-from eigenn.model_factory.tfn_tensor import TFNModel as TFNTensor
-from eigenn.model_factory.tfn_tensor_and_scalar import TFNModel as TFNTensorAndScalar
 from eigenn.utils import to_path
 
 CWD = to_path(__file__).parent
@@ -45,13 +42,6 @@ def main():
         # model_class=EnergyModel,
         # parser_kwargs={
         #     "default_config_files": [CWD.joinpath("configs", "minimal.yaml").as_posix()]
-        # },
-        ##
-        # model_class=TFNModel,
-        # parser_kwargs={
-        #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_scalar.yaml").as_posix()
-        #     ]
         # },
         ##
         # model_class=TFNHessian,
@@ -92,12 +82,19 @@ def main():
         # },
         #
         #
-        model_class=ScalarTensorGlobalFeatsModel,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_scalar_via_tensor.yaml").as_posix()
-            ]
-        },
+        ## model_class=TFNModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_scalar.yaml").as_posix()
+        #     ]
+        # },
+        ##
+        # model_class=ScalarTensorGlobalFeatsModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_scalar_via_tensor.yaml").as_posix()
+        #     ]
+        # },
         ##
         # model_class=ScalarTensorGlobalFeatsModel,
         # parser_kwargs={
@@ -122,12 +119,12 @@ def main():
         #     ]
         # },
         ##
-        # model_class=ScalarTensorGlobalFeatsModel,
-        # parser_kwargs={
-        #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
-        #     ]
-        # },
+        model_class=ScalarTensorGlobalFeatsModel,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=ScalarTensorGlobalFeatsModel,
         # parser_kwargs={

@@ -13,8 +13,8 @@ from pymatgen.core.operations import SymmOp
 from pymatgen.core.structure import Structure
 
 from eigenn.core.utils import ToCartesian
-from eigenn.dataset.matbench_tensor import MatbenchTensorDataModule
-from eigenn.model_factory.tfn_tensor import create_model
+from eigenn.dataset.structure_scalar_tensor import TensorDataModule
+from eigenn.model_factory.tfn_scalar_tensor_global_feats import create_model
 
 TESTFILE_DIR = Path(__file__).parents[1]
 
@@ -35,7 +35,7 @@ def get_model(output_format="cartesian", output_formula="ijkl=jikl=klij"):
         "nonlinearity_type": "gate",
         "normalization": None,
         "resnet": True,
-        "conv_to_output_hidden_irreps_out": "16x0e + 8x2e + 2x4e",
+        "conv_to_output_hidden_irreps_out": "2x0e + 2x2e + 4e",  # elastic tensor
         "output_format": output_format,
         "output_formula": output_formula,
         "reduce": "mean",
@@ -51,17 +51,16 @@ def get_model(output_format="cartesian", output_formula="ijkl=jikl=klij"):
 def load_dataset(
     filename, root, output_format="cartesian", output_formula="ijkl=jikl=klij"
 ):
-    dm = MatbenchTensorDataModule(
+    dm = TensorDataModule(
         trainset_filename=filename,
         valset_filename=filename,
         testset_filename=filename,
-        field_name="elastic_tensor_full",
         r_cut=5.0,
+        tensor_target_name="elastic_tensor_full",
         root=root,
         reuse=False,
-        output_format=output_format,
-        output_formula=output_formula,
-        normalize_target=False,
+        tensor_target_format=output_format,
+        tensor_target_formula=output_formula,
         compute_dataset_statistics=False,
     )
     dm.setup()
@@ -118,7 +117,7 @@ def test_model_equivariance():
             for batch in loader:
                 graphs = batch.tensor_property_to_dict()
                 out = model(graphs)
-                out = out["my_model_output"]  # that of backbone, pay attention
+                out = out["my_model_output"]  # this is only the
                 if output_format == "cartesian":
                     return ToCartesian(output_formula)(out)
                 else:
