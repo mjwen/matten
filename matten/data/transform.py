@@ -694,21 +694,23 @@ class FeatureTensorScalarTargetTransform(torch.nn.Module):
             if feature_sizes is None:
                 raise ValueError("Expect feats_size to be non-zero")
             self.feat_normalizer = ScalarFeatureTransform(
-                feature_names=feature_names, feature_sizes=feature_sizes
+                feature_names=feature_names,
+                feature_sizes=feature_sizes,
+                dataset_statistics_path=dataset_statistics_path,
             )
         else:
             self.feat_normalizer = None
 
         if tensor_target_name is not None:
             self.tensor_normalizer = TensorTargetTransform(
-                tensor_target_name, dataset_statistics_path
+                tensor_target_name, dataset_statistics_path=dataset_statistics_path
             )
         else:
             self.tensor_normalizer = None
 
         if scalar_target_names is not None:
             self.scalar_normalizers = ScalarTargetTransform(
-                scalar_target_names, dataset_statistics_path
+                scalar_target_names, dataset_statistics_path=dataset_statistics_path
             )
         else:
             self.scalar_normalizers = None
