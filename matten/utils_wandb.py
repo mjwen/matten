@@ -155,6 +155,27 @@ def get_wandb_logger(loggers: Union[List[LightningLoggerBase], LightningLoggerBa
     return None
 
 
+def get_wandb_identifier(save_dir: Union[str, Path], run_directory: str = "latest-run"):
+    """
+    Get the identifier of a wandb run.
+
+    Args:
+        save_dir: name of the directory to save wandb log, e.g. /path/to/wandb_log/
+        run_directory: the directory for the run that stores files, logs, and run info,
+
+    Returns:
+        identifier: identifier of the wandb run
+    """
+
+    save_dir = to_path(save_dir)
+    run_dir = save_dir.joinpath("wandb", run_directory).resolve()
+    if run_dir.exists():
+        identifier = str(run_dir).split("-")[-1]
+        return identifier
+    else:
+        return None
+
+
 def get_wandb_checkpoint_and_identifier_latest(
     save_dir: Union[str, Path], run_directory: str = "latest-run"
 ) -> Tuple[Union[str, None], Union[str, None]]:
@@ -169,14 +190,9 @@ def get_wandb_checkpoint_and_identifier_latest(
         ckpt_path: path to the latest run
         identifier: identifier of the wandb run
     """
-    save_dir = to_path(save_dir)
+    identifier = get_wandb_identifier(save_dir, run_directory)
 
-    latest_run = save_dir.joinpath("wandb", run_directory).resolve()
-
-    if latest_run.exists():
-        # identifier of latest_run
-        identifier = str(latest_run).split("-")[-1]
-
+    if identifier:
         # checkpoint path of latest_run
         ckpt_dir = get_wandb_checkpoint_path(identifier, save_dir)
         if ckpt_dir is not None:
