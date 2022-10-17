@@ -119,10 +119,17 @@ def main():
         #     ]
         # },
         ##
+        # model_class=ScalarTensorGlobalFeatsModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
+        #     ]
+        # },
+        ##
         model_class=ScalarTensorGlobalFeatsModel,
         parser_kwargs={
             "default_config_files": [
-                CWD.joinpath("configs", "tfn_tensor_global_feats.yaml").as_posix()
+                CWD.joinpath("configs", "tfn_tensor_atom_global_feats.yaml").as_posix()
             ]
         },
         ##
