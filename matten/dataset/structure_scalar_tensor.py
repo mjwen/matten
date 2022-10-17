@@ -12,7 +12,7 @@ from matten.core.utils import CartesianTensorWrapper
 from matten.data.data import Crystal
 from matten.data.datamodule import BaseDataModule
 from matten.data.dataset import InMemoryDataset
-from matten.data.featurizer import GlobalFeaturizer
+from matten.data.featurizer import GlobalFeaturizer, MagpieAtomFeaturizer
 from matten.data.transform import FeatureTensorScalarTargetTransform
 
 
@@ -43,13 +43,15 @@ class TensorDataset(InMemoryDataset):
             scalar target given in `scalar_target_names`. If `None`, no normalize is
             performed.
         global_featurizer: featurizer to compute global features.
-        normalize_global_feature: whether to normalize the global feature.
+        normalize_global_features: whether to normalize the global feature.
+        atom_featuruzer:  featurizer to compute atom features.
+        normalize_atom_features: whether to normalize the atom feature.
         root: root directory that stores the input and processed data.
         reuse: whether to reuse the preprocessed data.
         dataset_statistics_fn: callable to compute dataset statistics. If `None`, do not
             compute statistics. Note this is typically used together with
             `normalize_tensor_target`, `normalize_scalar_targets`,
-            and `normalize_global_feature`. However, as long as `dataset_statistics_fn`
+            and `normalize_global_features`. However, as long as `dataset_statistics_fn`
             is provided, the statistics will be computed, and a file named
             `dataset_statistics.pt` is generated in $CWD. Whether to use the computed
             dataset statistics for normalization is determined by the normalize flags.
@@ -68,7 +70,9 @@ class TensorDataset(InMemoryDataset):
         log_scalar_targets: List[bool] = None,
         normalize_scalar_targets: List[bool] = None,
         global_featurizer: GlobalFeaturizer = None,
-        normalize_global_feature: bool = False,
+        normalize_global_features: bool = False,
+        atom_featurizer: MagpieAtomFeaturizer = None,
+        normalize_atom_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,
         dataset_statistics_fn: Callable = None,
@@ -96,7 +100,9 @@ class TensorDataset(InMemoryDataset):
         )
 
         self.global_featurizer = global_featurizer
-        self.normalize_global_feature = normalize_global_feature
+        self.normalize_global_features = normalize_global_features
+        self.atom_featurizer = atom_featurizer
+        self.normalize_atom_features = normalize_atom_features
 
         # check compatibility
         # if normalize_scalar_targets is not None:
@@ -120,9 +126,14 @@ class TensorDataset(InMemoryDataset):
                 "should be provided."
             )
 
-        if self.normalize_global_feature and self.global_featurizer is None:
+        if self.normalize_global_features and self.global_featurizer is None:
             raise ValueError(
-                "`normalize_global_feature=True`, but `global_featurizer=None`"
+                "`normalize_global_features=True`, but `global_featurizer=None`"
+            )
+
+        if self.normalize_atom_features and self.atom_featurizer is None:
+            raise ValueError(
+                "`normalize_atom_features=True`, but `atom_featurizer=None`"
             )
 
         processed_dirname = (
@@ -133,14 +144,16 @@ class TensorDataset(InMemoryDataset):
             f"scalar_names={'-'.join(self.scalar_target_names)}_"
             f"log_scalars={str(self.log_scalar_targets).replace(' ', '')}-"
             f"normalize_scalars={str(self.normalize_scalar_targets).replace(' ', '')}-"
-            f"normalize_global_feat={self.normalize_global_feature}"
+            f"normalize_global_feats={self.normalize_global_features}-"
+            f"normalize_atom_feats={self.normalize_atom_features}"
         )
 
+        # TODO, add atom normalizer
         # Normalize tensor/scalar targets and global features
         if (
             self.normalize_tensor_target
             or any(self.normalize_scalar_targets)
-            or self.normalize_global_feature
+            or self.normalize_global_features
         ):
             if normalize_tensor_target:
                 t_name = tensor_target_name
@@ -155,7 +168,7 @@ class TensorDataset(InMemoryDataset):
             if not s_names:
                 s_names = None
 
-            if self.normalize_global_feature:
+            if self.normalize_global_features:
                 f_names = ["global_feats"]
                 f_sizes = [len(self.global_featurizer.feature_names)]
             else:
@@ -199,6 +212,10 @@ class TensorDataset(InMemoryDataset):
             df = self.global_featurizer(df)
             feats = df[self.global_featurizer.feature_names].to_numpy().tolist()
             df["global_feats"] = feats
+
+        # add atom features
+        if self.atom_featurizer is not None:
+            df = self.atom_featurizer(df)  # this will add `atom_feats` to the df
 
         # convert tensor target to tensor
         if self.tensor_target_name:
@@ -251,6 +268,7 @@ class TensorDataset(InMemoryDataset):
                 # get targets
                 y = {name: row[name] for name in target_columns}
 
+                x = None
                 if self.global_featurizer:
                     # feats
                     gf = torch.as_tensor(row["global_feats"])
@@ -261,8 +279,15 @@ class TensorDataset(InMemoryDataset):
                             gf, (1, -1)
                         )  # reshape to a 2D tensor
                     }
-                else:
-                    x = None
+
+                if self.atom_featurizer:
+                    af = torch.as_tensor(row["atom_feats"]).reshape(len(struct), -1)
+                    if torch.isnan(af).any():
+                        raise ValueError("NaN in atom feats")
+                    if x is None:
+                        x = {"atom_feats": af}
+                    else:
+                        x["atom_feats"] = af
 
                 c = Crystal.from_pymatgen(
                     struct=struct,
@@ -299,6 +324,8 @@ class TensorDataModule(BaseDataModule):
         normalize_scalar_targets: List[bool] = None,
         global_featurizer: str = None,
         normalize_global_features: bool = False,
+        atom_featurizer: str = None,
+        normalize_atom_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,
         compute_dataset_statistics: bool = True,
@@ -321,6 +348,7 @@ class TensorDataModule(BaseDataModule):
             global_featurizer: path to a .yaml file containing the names of global
                 features.
             normalize_global_features:
+            atom_featurizer: path to a .yaml file containing the names of atom features.
             root:
             reuse:
             compute_dataset_statistics:
@@ -339,6 +367,8 @@ class TensorDataModule(BaseDataModule):
 
         self.global_featurizer = global_featurizer
         self.normalize_global_features = normalize_global_features
+        self.atom_featurizer = atom_featurizer
+        self.normalize_atom_features = normalize_atom_features
 
         self.compute_dataset_statistics = compute_dataset_statistics
 
@@ -355,8 +385,16 @@ class TensorDataModule(BaseDataModule):
     def setup(self, stage: Optional[str] = None):
 
         # global featurizer
-        if self.global_featurizer and self.global_featurizer.endswith(".yaml"):
-            feature_names = loadfn(self.global_featurizer)
+        if self.global_featurizer:
+            if isinstance(self.global_featurizer, list):
+                feature_names = self.global_featurizer
+            elif isinstance(
+                self.global_featurizer, (str, Path)
+            ) and self.global_featurizer.endswith(".yaml"):
+                feature_names = loadfn(self.global_featurizer)
+            else:
+                raise ValueError
+
             gf = GlobalFeaturizer(feature_names=feature_names)
             gf_name = ["global_feats"]
             gf_size = [len(gf.feature_names)]
@@ -364,6 +402,25 @@ class TensorDataModule(BaseDataModule):
             gf = None
             gf_name = None
             gf_size = None
+
+        # atom featuruzer
+        if self.atom_featurizer:
+            if isinstance(self.atom_featurizer, list):
+                atom_feat_names = self.atom_featurizer
+            elif isinstance(
+                self.atom_featurizer, (str, Path)
+            ) and self.atom_featurizer.endswith(".yaml"):
+                atom_feat_names = loadfn(self.atom_featurizer)
+            else:
+                raise ValueError
+
+            af = MagpieAtomFeaturizer(feature_names=atom_feat_names)
+            af_name = ["atom_feats"]
+            af_size = [len(af.feature_names)]
+        else:
+            af = None
+            af_name = None
+            af_size = None
 
         if self.compute_dataset_statistics:
             normalizer = FeatureTensorScalarTargetTransform(
@@ -388,7 +445,9 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
-            normalize_global_feature=self.normalize_global_features,
+            normalize_global_features=self.normalize_global_features,
+            atom_featurizer=af,
+            normalize_atom_features=self.normalize_atom_features,
             root=self.root,
             reuse=self.reuse,
             dataset_statistics_fn=statistics_fn,
@@ -405,7 +464,9 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
-            normalize_global_feature=self.normalize_global_features,
+            normalize_global_features=self.normalize_global_features,
+            atom_featurizer=af,
+            normalize_atom_features=self.normalize_atom_features,
             root=self.root,
             reuse=self.reuse,
             dataset_statistics_fn=None,  # do not need to compute for valset
@@ -422,7 +483,9 @@ class TensorDataModule(BaseDataModule):
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
             global_featurizer=gf,
-            normalize_global_feature=self.normalize_global_features,
+            normalize_global_features=self.normalize_global_features,
+            atom_featurizer=af,
+            normalize_atom_features=self.normalize_atom_features,
             root=self.root,
             reuse=self.reuse,
             dataset_statistics_fn=None,  # do not need to compute for valset
@@ -441,6 +504,11 @@ class TensorDataModule(BaseDataModule):
         else:
             global_feats_size = None
 
+        if self.atom_featurizer:
+            atom_feats_size = data.x["atom_feats"].shape[1]
+        else:
+            atom_feats_size = None
+
         # .item to convert to float so that lightning cli can save it to yaml
         average_num_neighbors = torch.mean(torch.cat(num_neigh)).item()
 
@@ -448,6 +516,7 @@ class TensorDataModule(BaseDataModule):
             "allowed_species": tuple(atomic_numbers),
             "average_num_neighbors": average_num_neighbors,
             "global_feats_size": global_feats_size,
+            "atom_feats_size": atom_feats_size,
         }
 
 
@@ -460,6 +529,11 @@ if __name__ == "__main__":
         r_cut=5.0,
         tensor_target_name="elastic_tensor_full",
         scalar_target_names=["k_voigt", "k_reuss"],
+        global_featurizer=[
+            "MagpieData minimum MendeleevNumber",
+            "MagpieData maximum MeltingT",
+        ],
+        atom_featurizer=["AtomicVolume", "AtomicWeight"],
         root="/Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset"
         "/elastic_tensor/20220714",
         reuse=False,
