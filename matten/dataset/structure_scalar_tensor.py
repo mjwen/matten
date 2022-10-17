@@ -148,12 +148,12 @@ class TensorDataset(InMemoryDataset):
             f"normalize_atom_feats={self.normalize_atom_features}"
         )
 
-        # TODO, add atom normalizer
         # Normalize tensor/scalar targets and global features
         if (
             self.normalize_tensor_target
             or any(self.normalize_scalar_targets)
             or self.normalize_global_features
+            or self.normalize_atom_features
         ):
             if normalize_tensor_target:
                 t_name = tensor_target_name
@@ -174,6 +174,16 @@ class TensorDataset(InMemoryDataset):
             else:
                 f_names = None
                 f_sizes = None
+
+            if self.normalize_atom_features:
+                af_names = ["atom_feats"]
+                af_sizes = [len(self.atom_featurizer.feature_names)]
+                if self.normalize_global_features:
+                    f_names += af_names
+                    f_sizes += af_sizes
+                else:
+                    f_names = af_names
+                    f_sizes = af_sizes
 
             pre_transform = FeatureTensorScalarTargetTransform(
                 feature_names=f_names,
@@ -422,10 +432,23 @@ class TensorDataModule(BaseDataModule):
             af_name = None
             af_size = None
 
+        if gf and af:
+            f_name = gf_name + af_name
+            f_size = gf_size + af_size
+        elif gf:
+            f_name = gf_name
+            f_size = gf_size
+        elif af:
+            f_name = af_name
+            f_size = af_size
+        else:
+            f_name = None
+            f_size = None
+
         if self.compute_dataset_statistics:
             normalizer = FeatureTensorScalarTargetTransform(
-                feature_names=gf_name,
-                feature_sizes=gf_size,
+                feature_names=f_name,
+                feature_sizes=f_size,
                 tensor_target_name=self.tensor_target_name,
                 scalar_target_names=self.scalar_target_names,
                 dataset_statistics_path=None,
@@ -533,7 +556,9 @@ if __name__ == "__main__":
             "MagpieData minimum MendeleevNumber",
             "MagpieData maximum MeltingT",
         ],
+        normalize_global_features=True,
         atom_featurizer=["AtomicVolume", "AtomicWeight"],
+        normalize_atom_features=True,
         root="/Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset"
         "/elastic_tensor/20220714",
         reuse=False,

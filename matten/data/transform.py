@@ -308,6 +308,10 @@ class ScalarFeatureTransform(torch.nn.Module):
     """
     Forward and inverse normalization of scalar features in datapoint.x.
 
+    As long as each feature in datapoint.x is a 2D array, this should work for both
+    atom features (different number of rows, one for each atom) and global feature
+    (only one for the crystal).
+
     Forward is intended to be used as `pre_transform` of dataset.
     Inverse is not intended to be called.
 
@@ -374,7 +378,18 @@ class ScalarFeatureTransform(torch.nn.Module):
             self.dataset_statistics_loaded = True
 
     def compute_statistics(self, data: List[Crystal]) -> Dict[str, Any]:
-        """Compute statistics of datasets."""
+        """Compute statistics of datasets.
+
+        This requires each feature in Crystal.x is a 2D array. The features
+        from different crystals are concatenated into a single 2D array, and the
+        statistics are individually for each column.
+
+        Args:
+            data: list of Crystal objects.
+
+        Returns:
+            A dictionary of statistics.
+        """
 
         features = defaultdict(list)
         atomic_numbers = set()
