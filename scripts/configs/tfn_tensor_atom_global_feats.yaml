@@ -19,9 +19,7 @@ data:
     #
     global_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/global_feature_names.yaml
     normalize_global_features: false
-    atom_featurizer:
-      - AtomicVolume
-      - AtomicWeight
+    atom_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/atom_feature_names.yaml
     normalize_atom_features: true
     #
     reuse: false
@@ -39,6 +37,9 @@ model:
     # atom species embedding
     species_embedding_dim: 32
     # species_embedding_irreps_out: 16x0e # not needed when using SpeciesEmbedding
+
+    # whether to use predefined atom feats
+    use_atom_feats: true
 
     # spherical harmonics embedding of edge direction
     irreps_edge_sh: 0e + 1o + 2e + 3o + 4e

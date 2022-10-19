@@ -22,11 +22,16 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
             the index of the atom species (from 0 to num_species-1).
         allowed_species: allowed atomic number of the species. This serves the same
             purpose as `num_species`, and is exclusive with it. The difference is that
-            allowed_species allows non-consecutive integers as input and it will be
+            allowed_species allows non-consecutive integers as input, and it will be
             mapped to consecutive species_index internally. If this is used,
             the `data` for forward should contain DAtaKey.ATOMIC_NUMBERS.
         out_fields: the generated embedding will be assigned to the output data dict
             with keys in out_fields
+        use_atom_feats: whether to use atom features as species embedding in addition
+            to embedding of atom number. If `True`, this requires data keyed by
+            `atom_feats` in the data dict.
+        atom_feats_dim: the dimension of atom features. If `use_atom_feats` is
+            `True`, this needs to be provided.
     """
 
     def __init__(
@@ -36,11 +41,14 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
         num_species: int = None,
         allowed_species: List[int] = None,
         out_fields: Tuple[str] = (DataKey.NODE_ATTRS, DataKey.NODE_FEATURES),
+        use_atom_feats: bool = False,
+        atom_feats_dim: int = None,
     ):
         super().__init__()
 
         self.embedding_dim = embedding_dim
         self.out_fields = out_fields
+        self.use_atom_feats = use_atom_feats
 
         if allowed_species is not None and num_species is not None:
             raise ValueError("allowed_species and num_species cannot both be provided.")
@@ -49,8 +57,18 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
             self.atomic_number_to_index = _AtomicNumberToIndex(allowed_species)
             num_species = self.atomic_number_to_index.num_species
 
-        # species as a scalar with even parity (0, 1), with multiplicity embedding_dim
-        irreps_out = {k: Irreps([(embedding_dim, (0, 1))]) for k in self.out_fields}
+        if self.use_atom_feats:
+            if atom_feats_dim is None:
+                raise ValueError(
+                    "`atom_feats_dim` must be provided if `use_atom_feats` is True."
+                )
+            else:
+                out_dim = embedding_dim + atom_feats_dim
+        else:
+            out_dim = embedding_dim
+
+        # species as a scalar with even parity, with multiplicity out_dim
+        irreps_out = {k: Irreps(f"{out_dim}x0e") for k in self.out_fields}
         self.init_irreps(irreps_in, irreps_out)
 
         # learnable embedding layer
@@ -69,6 +87,11 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
             )
 
         embed = self.embedding(type_numbers)
+
+        # add atom feats (name hard coded)
+        if self.use_atom_feats:
+            embed = torch.hstack((embed, data["atom_feats"]))
+
         for k in self.out_fields:
             data[k] = embed
 
