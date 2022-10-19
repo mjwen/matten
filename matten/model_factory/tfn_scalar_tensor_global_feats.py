@@ -121,6 +121,7 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
             no_global_feats: not mix at all, simply resize 0e.
         """
 
+        # NOTE hard coded to elastic tensor
         # split 0e and other
         # ax0e + 2x2e + 4e
         values_0e = output[:, :-19]
