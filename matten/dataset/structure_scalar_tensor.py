@@ -12,7 +12,7 @@ from matten.core.utils import CartesianTensorWrapper
 from matten.data.data import Crystal
 from matten.data.datamodule import BaseDataModule
 from matten.data.dataset import InMemoryDataset
-from matten.data.featurizer import GlobalFeaturizer, MagpieAtomFeaturizer
+from matten.data.featurizer import GlobalFeaturizer, PrecomputedAtomFeaturizer
 from matten.data.transform import FeatureTensorScalarTargetTransform
 
 
@@ -71,7 +71,7 @@ class TensorDataset(InMemoryDataset):
         normalize_scalar_targets: List[bool] = None,
         global_featurizer: GlobalFeaturizer = None,
         normalize_global_features: bool = False,
-        atom_featurizer: MagpieAtomFeaturizer = None,
+        atom_featurizer: PrecomputedAtomFeaturizer = None,
         normalize_atom_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,
@@ -176,14 +176,15 @@ class TensorDataset(InMemoryDataset):
                 f_sizes = None
 
             if self.normalize_atom_features:
-                af_names = ["atom_feats"]
-                af_sizes = [len(self.atom_featurizer.feature_names)]
-                if self.normalize_global_features:
-                    f_names += af_names
-                    f_sizes += af_sizes
-                else:
-                    f_names = af_names
-                    f_sizes = af_sizes
+                raise ValueError("normalization not allowed")
+                # af_names = ["atom_feats"]
+                # af_sizes = [len(self.atom_featurizer.feature_names)]
+                # if self.normalize_global_features:
+                #     f_names += af_names
+                #     f_sizes += af_sizes
+                # else:
+                #     f_names = af_names
+                #     f_sizes = af_sizes
 
             pre_transform = FeatureTensorScalarTargetTransform(
                 feature_names=f_names,
@@ -428,16 +429,14 @@ class TensorDataModule(BaseDataModule):
 
         # atom featuruzer
         if self.atom_featurizer:
-            if isinstance(self.atom_featurizer, list):
-                atom_feat_names = self.atom_featurizer
-            elif isinstance(
+            if isinstance(
                 self.atom_featurizer, (str, Path)
             ) and self.atom_featurizer.endswith(".yaml"):
-                atom_feat_names = loadfn(self.atom_featurizer)
+                atom_feats = loadfn(self.atom_featurizer)
             else:
                 raise ValueError
 
-            af = MagpieAtomFeaturizer(feature_names=atom_feat_names)
+            af = PrecomputedAtomFeaturizer(features=atom_feats)
             af_name = ["atom_feats"]
             af_size = [len(af.feature_names)]
         else:

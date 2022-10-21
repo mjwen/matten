@@ -151,3 +151,25 @@ class MagpieAtomFeaturizer(BaseFeaturizer):
         df_in["atom_feats"] = df_in["structure"].apply(featurize_a_structure)
 
         return df_in
+
+
+class PrecomputedAtomFeaturizer(BaseFeaturizer):
+    """
+    Args:
+        features: precomputed features, a dict mapping atom_number to its features.
+    """
+
+    def __init__(self, features: dict[int, list]):
+        self.features = features
+
+    @property
+    def feature_names(self) -> list[str]:
+        return ["noname" for _ in self.features[1]]
+
+    def __call__(self, df_in: pd.DataFrame) -> pd.DataFrame:
+
+        df_in["atom_feats"] = df_in["structure"].apply(
+            lambda struct: [self.features[atom.specie.number] for atom in struct]
+        )
+
+        return df_in

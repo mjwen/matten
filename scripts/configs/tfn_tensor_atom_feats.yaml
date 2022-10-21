@@ -19,8 +19,8 @@ data:
     #
     global_featurizer: null
     normalize_global_features: false
-    atom_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/atom_feature_names.yaml
-    normalize_atom_features: true
+    atom_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/magpie_normalized_atom_feats.yaml
+    normalize_atom_features: false
     #
     reuse: false
     compute_dataset_statistics: true
