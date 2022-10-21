@@ -195,6 +195,8 @@ class TensorDataset(InMemoryDataset):
         else:
             pre_transform = None
 
+        self._failed_entries = []
+
         super().__init__(
             filenames=[filename],
             root=root,
@@ -266,7 +268,7 @@ class TensorDataset(InMemoryDataset):
         crystals = []
 
         # convert to crystal data point
-        for irow, row in df.iterrows():
+        for i, (irow, row) in enumerate(df.iterrows()):
 
             try:
                 # get structure
@@ -309,12 +311,23 @@ class TensorDataset(InMemoryDataset):
                 crystals.append(c)
 
             except Exception as e:
-                warnings.warn(f"Failed converting structure {irow}, Skip it. {str(e)}")
+                warnings.warn(
+                    f"Failed converting structure {i} of index {irow}, "
+                    f"Skip it. {str(e)}"
+                )
+                self._failed_entries.append(i)
 
         if not crystals:
             raise RuntimeError("Cannot successfully convert any structures.")
 
         return crystals
+
+    @property
+    def failed_entries(self):
+        """
+        Row index of the failed structures.
+        """
+        return self._failed_entries
 
 
 class TensorDataModule(BaseDataModule):
