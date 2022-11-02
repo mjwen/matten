@@ -2,19 +2,22 @@ seed_everything: 35
 log_level: info
 
 data:
-  class_path: matten.dataset.structure_scalar.StructureScalarDataModule
+  class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen/Applications/matten_analysis/matten_analysis/dataset/elastic_tensor/20220523
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20221030
+    r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
     testset_filename: crystal_elasticity_n20.json
-    r_cut: 5.0
+    #
+    tensor_target_name: null
+    #
+    scalar_target_names: [minLC_val] # should be in `tasks` below
+    #
+    global_featurizer: null
+    #
     reuse: false
-    target_names:
-      - k_voigt
-    log_target: true
-    compute_dataset_statistics: true
-    normalize_target: true
+    compute_dataset_statistics: true # need be false when using cartesian tensor
     loader_kwargs:
       batch_size: 10
       shuffle: true
@@ -62,11 +65,10 @@ model:
 
   # tasks define the loss, metric...
   tasks:
-    k_voigt:
-      class_path: matten.model_factory.task.ScalarRegressionTask
+    - class_path: matten.model_factory.task.ScalarRegressionTask
       init_args:
-        name: k_voigt
-        normalize_target: true
+        name: minLC_val
+        normalize_target: false
 
 trainer:
   max_epochs: 5 # number of maximum training epochs

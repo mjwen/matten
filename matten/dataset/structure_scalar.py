@@ -13,6 +13,7 @@ from matten.data.dataset import InMemoryDataset
 from matten.data.transform import ScalarTargetTransform
 
 
+# TODO, this is superceded by the new dataset in structure_scalar_tensor.py
 class StructureScalarDataset(InMemoryDataset):
     """
     A dataset that is intended for mapping a pymatgen structure to scalar properties.
@@ -80,7 +81,7 @@ class StructureScalarDataset(InMemoryDataset):
             root=root,
             processed_dirname=processed_dirname,
             reuse=reuse,
-            compute_dataset_statistics=dataset_statistics_fn,
+            dataset_statistics_fn=dataset_statistics_fn,
             pre_transform=target_transform,
         )
 
