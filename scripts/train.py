@@ -82,12 +82,20 @@ def main():
         # },
         #
         #
-        ## model_class=TFNModel,
+        ##
+        # model_class=TFNModel,
         # parser_kwargs={
         #     "default_config_files": [
         #         CWD.joinpath("configs", "tfn_scalar.yaml").as_posix()
         #     ]
         # },
+        ##
+        model_class=TFNModel,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_scalar_atom_feats.yaml").as_posix()
+            ]
+        },
         ##
         # model_class=ScalarTensorGlobalFeatsModel,
         # parser_kwargs={
@@ -126,12 +134,12 @@ def main():
         #     ]
         # },
         ##
-        model_class=ScalarTensorGlobalFeatsModel,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_tensor_atom_feats.yaml").as_posix()
-            ]
-        },
+        # model_class=ScalarTensorGlobalFeatsModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor_atom_feats.yaml").as_posix()
+        #     ]
+        # },
         ##
         # model_class=ScalarTensorGlobalFeatsModel,
         # parser_kwargs={

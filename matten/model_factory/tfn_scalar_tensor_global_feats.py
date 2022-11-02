@@ -2,6 +2,7 @@
 Tensor target
 with global features
 """
+
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 

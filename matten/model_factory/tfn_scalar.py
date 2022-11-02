@@ -73,6 +73,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
     """
     The actual function to create the model.
     """
+    use_atom_feats = hparams.get("use_atom_feats", False)
+    atom_feats_dim = dataset_hparams.get("atom_feats_size", None)
 
     # ===== input embedding layers =====
     layers = {
@@ -81,6 +83,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             {
                 "embedding_dim": hparams["species_embedding_dim"],
                 "allowed_species": dataset_hparams["allowed_species"],
+                "use_atom_feats": use_atom_feats,
+                "atom_feats_dim": atom_feats_dim,
             },
         ),
         "spharm_edges": (
@@ -110,7 +114,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
         # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
         # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
-        # To be less error prone, we use SpeciesEmbedding.
+        # To be less error-prone, we use SpeciesEmbedding.
         #
         # NOTE, there is some subtle difference:
         # - In OneHotEmbedding+AtowiseLinear, NODE_ATTRS is set to the one-hot
