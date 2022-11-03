@@ -520,7 +520,7 @@ class ScalarTargetTransform(torch.nn.Module):
 
 class TensorTargetTransform(torch.nn.Module):
     """
-    Forward and inverse normalization of elastic tensor.
+    Forward and inverse normalization of tensors.
 
     Forward is intended to be used as `pre_transform` of dataset and inverse is
     intended to be used before metrics and prediction function to transform the
@@ -536,6 +536,7 @@ class TensorTargetTransform(torch.nn.Module):
         target_name: str = "elastic_tensor_full",
         dataset_statistics_path: Union[str, Path] = None,
         scale: float = 1.0,
+        irreps: str = "2x0e+2x2e+4e",
     ):
         super().__init__()
         self.dataset_statistics_path = dataset_statistics_path
@@ -543,7 +544,7 @@ class TensorTargetTransform(torch.nn.Module):
 
         self.target_name = target_name
 
-        self.normalizer = MeanNormNormalize(irreps="2x0e+2x2e+4e", scale=scale)
+        self.normalizer = MeanNormNormalize(irreps=irreps, scale=scale)
 
     def forward(self, struct: Crystal) -> Crystal:
         """
@@ -624,14 +625,16 @@ class TensorScalarTargetTransform(torch.nn.Module):
 
     def __init__(
         self,
+        *,
         tensor_target_name: Optional[str] = None,
+        tensor_irreps: str = None,
         scalar_target_names: Optional[List[str]] = None,
         dataset_statistics_path: Union[str, Path] = None,
     ):
         super().__init__()
         if tensor_target_name is not None:
             self.tensor_normalizer = TensorTargetTransform(
-                tensor_target_name, dataset_statistics_path
+                tensor_target_name, dataset_statistics_path, irreps=tensor_irreps
             )
         else:
             self.tensor_normalizer = None
@@ -700,6 +703,7 @@ class FeatureTensorScalarTargetTransform(torch.nn.Module):
         feature_names: Optional[List[str]] = None,
         feature_sizes: Optional[List[int]] = None,
         tensor_target_name: Optional[str] = None,
+        tensor_irreps: str = None,
         scalar_target_names: Optional[List[str]] = None,
         dataset_statistics_path: Union[str, Path] = None,
     ):
@@ -717,8 +721,14 @@ class FeatureTensorScalarTargetTransform(torch.nn.Module):
             self.feat_normalizer = None
 
         if tensor_target_name is not None:
+            assert tensor_irreps is not None, (
+                "`tensor_irreps` needs to be provided when `tensor_target_name` is "
+                " is used to normalized tensors"
+            )
             self.tensor_normalizer = TensorTargetTransform(
-                tensor_target_name, dataset_statistics_path=dataset_statistics_path
+                tensor_target_name,
+                dataset_statistics_path=dataset_statistics_path,
+                irreps=tensor_irreps,
             )
         else:
             self.tensor_normalizer = None
