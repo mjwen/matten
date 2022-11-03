@@ -33,9 +33,9 @@ class TFNModel(ModelForPyGData):
         self,
         backbone_hparams: Dict[str, Any],
         dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> torch.nn.Module:
+    ) -> tuple[torch.nn.Module, dict]:
         backbone = create_model(backbone_hparams, dataset_hparams)
-        return backbone
+        return backbone, None
 
     def decode(self, model_input) -> Dict[str, Tensor]:
 

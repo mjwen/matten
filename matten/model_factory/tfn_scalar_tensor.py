@@ -34,7 +34,7 @@ class ScalarTensorModel(ModelForPyGData):
         self,
         backbone_hparams: Dict[str, Any],
         dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> torch.nn.Module:
+    ) -> tuple[torch.nn.Module, dict]:
 
         backbone = create_model(backbone_hparams, dataset_hparams)
 
@@ -47,7 +47,9 @@ class ScalarTensorModel(ModelForPyGData):
         else:
             irreps_out = CartesianTensor(formula=formula)
         irreps_in = backbone_hparams["conv_to_output_hidden_irreps_out"]
-        self.out_layer = Linear(irreps_in=irreps_in, irreps_out=irreps_out)
+        extra_layers_dict = {
+            "out_layer": Linear(irreps_in=irreps_in, irreps_out=irreps_out)
+        }
 
         if backbone_hparams["output_format"] == "cartesian":
             if formula == "scalar":
@@ -57,7 +59,7 @@ class ScalarTensorModel(ModelForPyGData):
         else:
             self.to_cartesian = None
 
-        return backbone
+        return backbone, extra_layers_dict
 
     def decode(self, model_input) -> Dict[str, Tensor]:
 
@@ -65,7 +67,7 @@ class ScalarTensorModel(ModelForPyGData):
         out = out[OUT_FIELD_NAME]
 
         # convert backbone to final irreps shape
-        out = self.out_layer(out)
+        out = self.extra_layers_dict["out_layer"](out)
 
         if self.to_cartesian is not None:
             out = self.to_cartesian(out)

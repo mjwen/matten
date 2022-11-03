@@ -52,7 +52,7 @@ class TFNModel(ModelForPyGData):
         self.cart_diag_rtp = self.cart_diag.reduced_tensor_products()
         self.cart_off_diag_rtp = self.cart_off_diag.reduced_tensor_products()
 
-        return backbone
+        return backbone, None
 
     def decode(self, model_input) -> Dict[str, Tensor]:
         out = self.backbone(model_input)

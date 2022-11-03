@@ -28,7 +28,7 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         self,
         backbone_hparams: Dict[str, Any],
         dataset_hparams: Optional[Dict[str, Any]] = None,
-    ) -> torch.nn.Module:
+    ) -> tuple[torch.nn.Module, dict]:
         backbone = create_model(backbone_hparams, dataset_hparams)
 
         # convert irreps tensor to cartesian tensor if necessary
@@ -45,10 +45,11 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
                 break
         assert zero_e_size is not None
 
+        extra_layers_dict = {}
         self.global_feats_size = dataset_hparams["global_feats_size"]
         if self.global_feats_size is not None:
 
-            self.linear_global_feats = ScalarMLP(
+            extra_layers_dict["linear_global_feats"] = ScalarMLP(
                 in_size=self.global_feats_size,
                 hidden_sizes=backbone_hparams["linear_global_feats_hidden_sizes"],
                 batch_norm=True,
@@ -65,11 +66,12 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         else:
             in_size = zero_e_size
         # TODO hardcoded, 2x0e+2x2e+4e for elastic; here, we hardcode to transform 2e
-        self.linear_0e = ScalarMLP(
+
+        extra_layers_dict["linear_0e"] = ScalarMLP(
             in_size=in_size, hidden_sizes=[in_size], batch_norm=True, out_size=2
         )
 
-        return backbone
+        return backbone, extra_layers_dict
 
     def decode(self, model_input) -> Dict[str, Tensor]:
 
@@ -130,7 +132,7 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
         if mode in ["concat", "add"]:
             # resize global feats
             global_feats = model_input["global_feats"]
-            global_feats = self.linear_global_feats(global_feats)
+            global_feats = self.extra_layers_dict["linear_global_feats"](global_feats)
             if mode == "concat":
                 combined = torch.hstack((global_feats, values_0e))
             elif mode == "add":
@@ -144,7 +146,7 @@ class ScalarTensorGlobalFeatsModel(ModelForPyGData):
             raise ValueError(f"not supported mode {mode}")
 
         # scale to the same size of original 0e
-        combined = self.linear_0e(combined)
+        combined = self.extra_layers_dict["linear_0e"](combined)
 
         # add scaled feats back to high order irreps
         out = torch.hstack((combined, values_high_order))

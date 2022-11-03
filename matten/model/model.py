@@ -68,7 +68,11 @@ class BaseModel(pl.LightningModule):
         self.lr_scheduler_hparams = lr_scheduler_hparams
 
         # backbone model
-        self.backbone = self.init_backbone(backbone_hparams, dataset_hparams)
+        self.backbone, extra_layers_dict = self.init_backbone(
+            backbone_hparams, dataset_hparams
+        )
+        if extra_layers_dict is not None:
+            self.extra_layers_dict = nn.ModuleDict(extra_layers_dict)
 
         # tasks
         self.tasks = self.init_tasks(tasks)
