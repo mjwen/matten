@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import torch
+from e3nn.io import CartesianTensor
 from monty.serialization import loadfn
 from pymatgen.core.structure import Structure
 
@@ -157,8 +158,10 @@ class TensorDataset(InMemoryDataset):
         ):
             if normalize_tensor_target:
                 t_name = tensor_target_name
+                t_irreps = str(CartesianTensor(self.tensor_target_formula))
             else:
                 t_name = None
+                t_irreps = None
 
             s_names = [
                 s
@@ -190,6 +193,7 @@ class TensorDataset(InMemoryDataset):
                 feature_names=f_names,
                 feature_sizes=f_sizes,
                 tensor_target_name=t_name,
+                tensor_irreps=t_irreps,
                 scalar_target_names=s_names,
                 dataset_statistics_path="./dataset_statistics.pt",
             )
@@ -237,7 +241,7 @@ class TensorDataset(InMemoryDataset):
             )
 
             if self.tensor_target_format == "irreps":
-                # convert to irreps tensor, assuming all input tensor is Cartesian
+                # TODO, convert to irreps tensor, assuming all input tensor is Cartesian
                 converter = CartesianTensorWrapper(formula=self.tensor_target_formula)
                 df[self.tensor_target_name] = df[self.tensor_target_name].apply(
                     lambda x: converter.from_cartesian(x).reshape(1, -1)
@@ -457,11 +461,19 @@ class TensorDataModule(BaseDataModule):
             f_name = None
             f_size = None
 
+        if self.normalize_tensor_target:
+            ttn = self.tensor_target_name
+            tensor_irreps = str(CartesianTensor(self.tensor_target_formula))
+        else:
+            ttn = None
+            tensor_irreps = None
+
         if self.compute_dataset_statistics:
             normalizer = FeatureTensorScalarTargetTransform(
                 feature_names=f_name,
                 feature_sizes=f_size,
-                tensor_target_name=self.tensor_target_name,
+                tensor_target_name=ttn,
+                tensor_irreps=tensor_irreps,
                 scalar_target_names=self.scalar_target_names,
                 dataset_statistics_path=None,
             )

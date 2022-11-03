@@ -1,6 +1,5 @@
 """
-Tensor target
-with global features
+Scalar and/or tensor target with global features, and harded coded for elastic tensor.
 """
 
 from collections import OrderedDict

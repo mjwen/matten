@@ -20,6 +20,7 @@ from matten.model_factory.segnn_model_paper import SEGNNModel as SEGNNModelPaper
 from matten.model_factory.segnn_model_paper_tensor import SEGNNModel as SEGNNModelTensor
 from matten.model_factory.tfn_hessian import TFNModel as TFNHessian
 from matten.model_factory.tfn_scalar import TFNModel
+from matten.model_factory.tfn_scalar_tensor import ScalarTensorModel
 from matten.model_factory.tfn_scalar_tensor_global_feats import (
     ScalarTensorGlobalFeatsModel,
 )
@@ -90,12 +91,12 @@ def main():
         #     ]
         # },
         ##
-        model_class=TFNModel,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_scalar_atom_feats.yaml").as_posix()
-            ]
-        },
+        # model_class=TFNModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_scalar_atom_feats.yaml").as_posix()
+        #     ]
+        # },
         ##
         # model_class=ScalarTensorGlobalFeatsModel,
         # parser_kwargs={
@@ -157,6 +158,24 @@ def main():
         #     ]
         # },
         #
+        #
+        ###
+        # special properties
+        ###
+        ##
+        # model_class=ScalarTensorModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_minLC_scalar_atom_feats.yaml").as_posix()
+        #     ]
+        # },
+        ##
+        model_class=ScalarTensorModel,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_minLC_vector_atom_feats.yaml").as_posix()
+            ]
+        },
         #
         #
         datamodule_class=BaseDataModule,
