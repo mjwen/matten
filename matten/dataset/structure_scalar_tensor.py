@@ -33,6 +33,7 @@ class TensorDataset(InMemoryDataset):
             data file is provided in cartesian or irreps format.
         tensor_target_formula: formula specifying symmetry of tensor, e.g.
             `ijkl=jikl=klij` for a elastic tensor.
+        tensor_target_scale: multipler to be multiplied to the tensor target.
         normalize_tensor_target: whether to normalize the tensor target.
         scalar_target_names: names of the target scalar properties. If `None`, no scalar
             s used as training target.
@@ -66,6 +67,7 @@ class TensorDataset(InMemoryDataset):
         tensor_target_name: str = None,
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
+        tensor_target_scale: float = 1.0,
         normalize_tensor_target: bool = False,
         scalar_target_names: List[str] = None,
         log_scalar_targets: List[bool] = None,
@@ -84,6 +86,7 @@ class TensorDataset(InMemoryDataset):
         self.tensor_target_name = tensor_target_name
         self.tensor_target_format = tensor_target_format
         self.tensor_target_formula = tensor_target_formula
+        self.tensor_target_scale = tensor_target_scale
         self.normalize_tensor_target = normalize_tensor_target
 
         self.scalar_target_names = (
@@ -284,6 +287,10 @@ class TensorDataset(InMemoryDataset):
 
                 # get targets
                 y = {name: row[name] for name in target_columns}
+                if self.tensor_target_name:
+                    y[self.tensor_target_name] = (
+                        y[self.tensor_target_name] * self.tensor_target_scale
+                    )
 
                 x = None
                 if self.global_featurizer:
@@ -346,6 +353,7 @@ class TensorDataModule(BaseDataModule):
         tensor_target_name: str = None,
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
+        tensor_target_scale: float = 1.0,
         normalize_tensor_target: bool = False,
         scalar_target_names: List[str] = None,
         log_scalar_targets: List[bool] = None,
@@ -387,6 +395,7 @@ class TensorDataModule(BaseDataModule):
         self.tensor_target_name = tensor_target_name
         self.tensor_target_formula = tensor_target_formula
         self.tensor_target_format = tensor_target_format
+        self.tensor_target_scale = tensor_target_scale
         self.normalize_tensor_target = normalize_tensor_target
 
         self.scalar_target_names = scalar_target_names
@@ -487,6 +496,7 @@ class TensorDataModule(BaseDataModule):
             tensor_target_name=self.tensor_target_name,
             tensor_target_format=self.tensor_target_format,
             tensor_target_formula=self.tensor_target_formula,
+            tensor_target_scale=self.tensor_target_scale,
             normalize_tensor_target=self.normalize_tensor_target,
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
@@ -506,6 +516,7 @@ class TensorDataModule(BaseDataModule):
             tensor_target_name=self.tensor_target_name,
             tensor_target_format=self.tensor_target_format,
             tensor_target_formula=self.tensor_target_formula,
+            tensor_target_scale=self.tensor_target_scale,
             normalize_tensor_target=self.normalize_tensor_target,
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
@@ -525,6 +536,7 @@ class TensorDataModule(BaseDataModule):
             tensor_target_name=self.tensor_target_name,
             tensor_target_format=self.tensor_target_format,
             tensor_target_formula=self.tensor_target_formula,
+            tensor_target_scale=self.tensor_target_scale,
             normalize_tensor_target=self.normalize_tensor_target,
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,

@@ -142,7 +142,13 @@ class BaseModel(pl.LightningModule):
 
     # TODO, this should be rewritten to only accept graphs, because for a real
     #  prediction, there is no label available
-    def forward(self, batch, mode: Optional[str] = None, **kwargs) -> Tuple[Dict, Dict]:
+    def forward(
+        self,
+        batch,
+        mode: Optional[str] = None,
+        task_name: str = "elastic_tensor_full",
+        **kwargs,
+    ) -> Tuple[Dict, Dict]:
         """
         Forward pass step for prediction.
 
@@ -169,8 +175,8 @@ class BaseModel(pl.LightningModule):
         # ========== compute predictions ==========
         if mode is None or mode.lower() == "none":
             preds = self.decode(graphs, **kwargs)
-            preds = self.transform_prediction(preds)
-            labels = self.transform_target(labels)
+            preds = self.transform_prediction(preds, task_name=task_name)
+            labels = self.transform_target(labels, task_name=task_name)
         elif mode == "backbone":
             preds = self.backbone(graphs, **kwargs)
         else:

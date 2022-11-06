@@ -13,6 +13,7 @@ data:
     tensor_target_name: elastic_tensor_full # should be in `tasks` below
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
+    tensor_target_scale: 1.0
     normalize_tensor_target: false
     #
     scalar_target_names: [] # should be in `tasks` below
