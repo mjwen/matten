@@ -170,14 +170,20 @@ def main():
         #     ]
         # },
         ##
+        # model_class=ScalarTensorModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_minLC_vector_atom_feats.yaml").as_posix()
+        #     ]
+        # },
+        #
+        ### elastic /compliance tensor
         model_class=ScalarTensorModel,
         parser_kwargs={
             "default_config_files": [
-                CWD.joinpath("configs", "tfn_minLC_vector_atom_feats.yaml").as_posix()
+                CWD.joinpath("configs", "tfn_tensor_atom_feats.yaml").as_posix()
             ]
         },
-        #
-        #
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
         save_config_callback=SaveConfigCallback,
