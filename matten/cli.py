@@ -6,7 +6,7 @@ https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import pl_bolts
 import torch
@@ -37,7 +37,7 @@ class mattenCLI(LightningCLI):
         #  `<path_to_ckpt>` -- directly given the path to the checkpoint
         parser.add_argument(
             "--restore",
-            type=bool,
+            type=Union[bool, str],
             default=False,
             help="Path to checkpoint to restore the training. If `True`, will try to "
             "automatically find the checkpoint in wandb logs. Will not try to restore "
@@ -201,7 +201,9 @@ class mattenCLI(LightningCLI):
             checkpoint = to_path(restore)
             wandb_id = None
             if not checkpoint.exists():
-                raise ValueError(f"Restore checkpoint does not exist: {restore}")
+                raise ValueError(
+                    f"Provided restore checkpoint does not exist: {restore}"
+                )
 
         else:
             checkpoint = None
@@ -219,7 +221,7 @@ class mattenCLI(LightningCLI):
         if any((checkpoint, wandb_id, dataset_state_dict)):
             logger.info(
                 f"Restoring training with checkpoint: {checkpoint}, wandb identifier: "
-                f"{wandb_id}, and datasaet state dict: {dataset_state_dict}."
+                f"{wandb_id}, and dataset state dict: {dataset_state_dict}."
             )
 
         return checkpoint, wandb_id, dataset_state_dict

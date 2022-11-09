@@ -1,5 +1,6 @@
 seed_everything: 35
 log_level: info
+restore: false
 
 data:
   class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
@@ -14,10 +15,10 @@ data:
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
     tensor_target_weight: null
-#    tensor_target_weight:
-#      minLC_less_than_0:
-#        'yes': 10.
-#        'no': 1.
+    #    tensor_target_weight:
+    #      minLC_less_than_0:
+    #        'yes': 10.
+    #        'no': 1.
     normalize_tensor_target: false
     #
     scalar_target_names: [] # should be in `tasks` below
@@ -141,6 +142,6 @@ optimizer:
 lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
   init_args:
-    warmup_epochs: 10
-    max_epochs: 20 # this should be set to trainer.max_epochs
+    warmup_epochs: 5
+    max_epochs: 5 # this should be set to trainer.max_epochs
     eta_min: 0.0
