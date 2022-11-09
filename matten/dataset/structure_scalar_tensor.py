@@ -44,6 +44,13 @@ class TensorDataset(InMemoryDataset):
         normalize_scalar_targets: whether to normalize the scalar targets; one for each
             scalar target given in `scalar_target_names`. If `None`, no normalize is
             performed.
+        tensor_target_weight:  weight of the targets, {column_name: {value: weight}}.
+            `column_name` is the column in the df to look for 1/0 value and weight.
+            So, when the value of `column_name` matches `value`, it will have the
+            corresponding `weight`. For example, given {'minLC_less_than_0': {1:
+            10.0, 0:1.0}}, then for data points with minLC less than 0, it will have
+            a weight of 10, and for those with minLC larger than 0, it will have a
+            weight of 1. By default `None` means all data points has a weight of 1.
         global_featurizer: featurizer to compute global features.
         normalize_global_features: whether to normalize the global feature.
         atom_featuruzer:  featurizer to compute atom features.
@@ -72,6 +79,7 @@ class TensorDataset(InMemoryDataset):
         scalar_target_names: List[str] = None,
         log_scalar_targets: List[bool] = None,
         normalize_scalar_targets: List[bool] = None,
+        tensor_target_weight: dict[str, dict[Union[str, int], float]] = None,
         global_featurizer: GlobalFeaturizer = None,
         normalize_global_features: bool = False,
         atom_featurizer: PrecomputedAtomFeaturizer = None,
@@ -88,6 +96,8 @@ class TensorDataset(InMemoryDataset):
         self.tensor_target_formula = tensor_target_formula
         self.tensor_target_scale = tensor_target_scale
         self.normalize_tensor_target = normalize_tensor_target
+
+        self.tensor_target_weight = tensor_target_weight
 
         self.scalar_target_names = (
             [] if scalar_target_names is None else scalar_target_names
@@ -313,6 +323,20 @@ class TensorDataset(InMemoryDataset):
                     else:
                         x["atom_feats"] = af
 
+                # target weight
+                if self.tensor_target_weight:
+                    seen = False
+                    for column_name, d in self.tensor_target_weight.items():
+                        if seen:
+                            raise ValueError(
+                                "now, can only deal with one target " "weight"
+                            )
+                        seen = True
+
+                        # TODO hard-coded to make it 2D
+                        w = d[row[column_name]]
+                        x["target_weight"] = torch.as_tensor([[w]])
+
                 c = Crystal.from_pymatgen(
                     struct=struct,
                     r_cut=self.r_cut,
@@ -355,6 +379,7 @@ class TensorDataModule(BaseDataModule):
         tensor_target_formula: str = "ijkl=jikl=klij",
         tensor_target_scale: float = 1.0,
         normalize_tensor_target: bool = False,
+        tensor_target_weight: dict[str, dict[Union[str, int], float]] = None,
         scalar_target_names: List[str] = None,
         log_scalar_targets: List[bool] = None,
         normalize_scalar_targets: List[bool] = None,
@@ -397,6 +422,7 @@ class TensorDataModule(BaseDataModule):
         self.tensor_target_format = tensor_target_format
         self.tensor_target_scale = tensor_target_scale
         self.normalize_tensor_target = normalize_tensor_target
+        self.tensor_target_weight = tensor_target_weight
 
         self.scalar_target_names = scalar_target_names
         self.log_scalar_targets = log_scalar_targets
@@ -501,6 +527,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            tensor_target_weight=self.tensor_target_weight,
             global_featurizer=gf,
             normalize_global_features=self.normalize_global_features,
             atom_featurizer=af,
@@ -521,6 +548,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            tensor_target_weight=self.tensor_target_weight,
             global_featurizer=gf,
             normalize_global_features=self.normalize_global_features,
             atom_featurizer=af,
@@ -541,6 +569,7 @@ class TensorDataModule(BaseDataModule):
             scalar_target_names=self.scalar_target_names,
             log_scalar_targets=self.log_scalar_targets,
             normalize_scalar_targets=self.normalize_scalar_targets,
+            tensor_target_weight=self.tensor_target_weight,
             global_featurizer=gf,
             normalize_global_features=self.normalize_global_features,
             atom_featurizer=af,

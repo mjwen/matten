@@ -235,7 +235,10 @@ class BaseModel(pl.LightningModule):
 
     # TODO move compute_loss, update_metric, compute_metric to task class
     def compute_loss(
-        self, preds: Dict[str, Tensor], labels: Dict[str, Tensor]
+        self,
+        preds: Dict[str, Tensor],
+        labels: Dict[str, Tensor],
+        weight: Tensor = None,
     ) -> Tuple[Dict[str, Tensor], Tensor]:
         """
         Compute the loss for each task.
@@ -243,6 +246,7 @@ class BaseModel(pl.LightningModule):
         Args:
             preds: {task_name, prediction} prediction for each task
             labels: {task_name, label} labels for each task
+            weight: weight factor to be multiplied by predictions and labels
 
         Returns:
             individual_loss: {task_name: loss} loss of individual task
@@ -256,6 +260,9 @@ class BaseModel(pl.LightningModule):
             l = labels[task_name]
             p = task.transform_pred_loss(p)
             l = task.transform_target_loss(l)
+            if weight is not None:
+                p = p * weight
+                l = l * weight
 
             if task.task_type == TaskType.CLASSIFICATION and task.is_binary():
                 # this will use BCEWithLogitsLoss, which requires label be of float
@@ -335,7 +342,10 @@ class BaseModel(pl.LightningModule):
         preds = self.decode(graphs)
 
         # ========== compute losses ==========
-        individual_loss, total_loss = self.compute_loss(preds, labels)
+        target_weight = graphs.get("target_weight", None)
+        individual_loss, total_loss = self.compute_loss(
+            preds, labels, weight=target_weight
+        )
 
         self.log_dict(
             {

@@ -4,7 +4,7 @@ log_level: info
 data:
   class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20221105
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20221107
     r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
@@ -13,11 +13,14 @@ data:
     tensor_target_name: elastic_tensor_full # should be in `tasks` below
     tensor_target_format: irreps
     tensor_target_formula: ijkl=jikl=klij
-    tensor_target_scale: 1.0
+    tensor_target_weight: null
+#    tensor_target_weight:
+#      minLC_less_than_0:
+#        1: 10.
+#        0: 1.
     normalize_tensor_target: false
     #
     scalar_target_names: [] # should be in `tasks` below
-    #
     global_featurizer: null
     atom_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/magpie_normalized_atom_feats.yaml
     normalize_atom_features: false
