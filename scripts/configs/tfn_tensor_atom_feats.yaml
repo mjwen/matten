@@ -16,8 +16,8 @@ data:
     tensor_target_weight: null
 #    tensor_target_weight:
 #      minLC_less_than_0:
-#        1: 10.
-#        0: 1.
+#        'yes': 10.
+#        'no': 1.
     normalize_tensor_target: false
     #
     scalar_target_names: [] # should be in `tasks` below
