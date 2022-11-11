@@ -44,6 +44,20 @@ class mattenCLI(LightningCLI):
             "if `None` or `False`. This can also be the path to the checkpoint to "
             "restore.",
         )
+
+        # Note the difference between finetune and restore. In restore, everything is
+        # reloaded, including the model params and training progress, e.g. the
+        # optimizer info. However, in finetune, only the model params are reloaded,
+        # we can provide conf to tune the model.
+        parser.add_argument(
+            "--finetune",
+            type=Union[str, None],
+            default=None,
+            help="Whether to finetune the model. If `None`, no finetune. Otherwise, "
+            "if a path to a checkpoint is given, it is used to initialized the "
+            "model.",
+        )
+
         parser.add_argument(
             "--skip_test", type=bool, default=False, help="Whether to skip the test?"
         )
@@ -101,11 +115,8 @@ class mattenCLI(LightningCLI):
         # restore info
         checkpoint, wandb_id, _ = self._get_restore_info(self.config)
 
-        # TODO resume_from_checkpoint is deprecated by lightning.
-        #  So store the checkpoint like self.config['restore_ckpt']
-        #  and then use in trainer.fit(ckpt_path = self.config['restore_ckpt'])
         if checkpoint:
-            self.config["trainer"]["resume_from_checkpoint"] = checkpoint
+            self.config["trainer"]["ckpt_path"] = checkpoint
 
         if wandb_id:
             logger_config = self.config["trainer"].get("logger", [])
@@ -133,20 +144,30 @@ class mattenCLI(LightningCLI):
         # add data config back to let lightning cli log it
         self.config["data"] = data_config
 
+        # get initalized model
+        self.model = self._get(self.config_init, "model")
+
+        # if finetune, reinitialize it using the checkpoint
+        if self.config["finetune"] is not None:
+            hparams = self.model.hparams
+            self.model = self.model_class.load_from_checkpoint(
+                self.config["finetune"], **hparams
+            )
+            logger.info(f"Finetune from checkpoint {self.config['finetune']}")
+
         # remove linked config to model, added in `add_arguments_to_parser`
         self.config["model"].pop("lr_scheduler_hparams")
         self.config["model"].pop("optimizer_hparams")
         self.config["model"].pop("trainer_hparams")
         self.config["model"].pop("data_hparams")
 
-        self.model = self._get(self.config_init, "model")
         self._add_configure_optimizers_method_to_model(self.subcommand)
         self.trainer = self.instantiate_trainer()
 
     @staticmethod
     def _instantiate_datamodule(data_config):
         """
-        Setup datamoldule to get info needed to instantiate module.
+        Setup datamodule to get info needed to instantiate module.
         """
 
         args = tuple()  # no positional args

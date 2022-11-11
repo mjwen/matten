@@ -1,6 +1,8 @@
 seed_everything: 35
 log_level: info
 restore: false
+#finetune: null # or a path to a checkpoint
+#finetune: /Users/mjwen.admin/Packages/matten/scripts/wandb_logs/tmp-matten/2441iwbv/checkpoints/epoch=4-step=9.ckpt
 
 data:
   class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
