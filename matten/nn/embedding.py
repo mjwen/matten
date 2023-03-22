@@ -9,6 +9,7 @@ from matten.data.irreps import DataKey, ModuleIrreps
 from matten.nn._nequip import with_edge_vectors
 
 
+# TODO, fixed embedding for attrs but trainable for features
 class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
     """
     Embed atomic species (number) to  with fixed-size lookup table using

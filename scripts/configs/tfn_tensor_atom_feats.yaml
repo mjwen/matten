@@ -7,7 +7,7 @@ restore: false
 data:
   class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20221107
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20230322
     r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
