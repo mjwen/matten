@@ -140,6 +140,7 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "num_basis": hparams["num_radial_basis"],
                 "start": hparams["radial_basis_start"],
                 "end": hparams["radial_basis_end"],
+                "basis": hparams["radial_basis_type"],
             },
         ),
         # This embed features is not necessary any more when we change OneHotEmbedding

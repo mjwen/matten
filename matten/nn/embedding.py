@@ -56,7 +56,7 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
 
         if allowed_species is not None:
             self.atomic_number_to_index = _AtomicNumberToIndex(allowed_species)
-            num_species = self.atomic_number_to_index.num_species
+            self.num_species = self.atomic_number_to_index.num_species
 
         if self.use_atom_feats:
             if atom_feats_dim is None:
@@ -64,16 +64,24 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
                     "`atom_feats_dim` must be provided if `use_atom_feats` is True."
                 )
             else:
-                out_dim = embedding_dim + atom_feats_dim
+                feats_dim = embedding_dim + atom_feats_dim
         else:
-            out_dim = embedding_dim
+            feats_dim = embedding_dim
+
+        attrs_dim = self.num_species
 
         # species as a scalar with even parity, with multiplicity out_dim
-        irreps_out = {k: Irreps(f"{out_dim}x0e") for k in self.out_fields}
+        irreps_out = {
+            DataKey.NODE_ATTRS: Irreps(f"{attrs_dim}x0e"),
+            DataKey.NODE_FEATURES: Irreps(f"{feats_dim}x0e"),
+        }
+
         self.init_irreps(irreps_in, irreps_out)
 
         # learnable embedding layer
-        self.embedding = torch.nn.Embedding(num_species, embedding_dim)
+        # self.embedding = torch.nn.Embedding(num_species, embedding_dim)
+
+        self.linear = torch.nn.Linear(attrs_dim, embedding_dim)
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
         if DataKey.SPECIES_INDEX in data:
@@ -87,14 +95,18 @@ class SpeciesEmbedding(ModuleIrreps, torch.nn.Module):
                 "atomic_numbers"
             )
 
-        embed = self.embedding(type_numbers)
+        attrs = torch.nn.functional.one_hot(
+            type_numbers, num_classes=self.num_species
+        ).float()
+
+        embed = self.linear(attrs)
 
         # add atom feats (name hard coded)
         if self.use_atom_feats:
             embed = torch.hstack((embed, data["atom_feats"]))
 
-        for k in self.out_fields:
-            data[k] = embed
+        data[DataKey.NODE_ATTRS] = attrs
+        data[DataKey.NODE_FEATURES] = embed
 
         return data
 
@@ -129,7 +141,6 @@ class NodeAttrsFromEdgeAttrs(ModuleIrreps, torch.nn.Module):
         self.reduce = reduce
 
     def forward(self, data: DataKey.Type) -> DataKey.Type:
-
         edge_src, edge_dst = data[DataKey.EDGE_INDEX]
 
         x = scatter(

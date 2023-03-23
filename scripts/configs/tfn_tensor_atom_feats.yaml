@@ -51,6 +51,8 @@ model:
     irreps_edge_sh: 0e + 1o + 2e + 3o + 4e
 
     # radial edge distance embedding
+    radial_basis_type: smooth_finite
+#    radial_basis_type: bessel
     num_radial_basis: 10
     radial_basis_start: 0.
     radial_basis_end: 5.
