@@ -380,7 +380,6 @@ class BaseModel(pl.LightningModule):
         mode = "metric_" + mode
 
         for task_name, metric in self.metrics[mode].items():
-
             task = self.tasks[task_name]
 
             p = task.transform_pred_metric(preds[task_name])
@@ -416,7 +415,6 @@ class BaseModel(pl.LightningModule):
         individual_score = {}
 
         for task_name, metric_coll in self.metrics[mode].items():
-
             # metric collection output, a dict: {metric_name: metric_value}
             score = metric_coll.compute()
             individual_score[task_name] = score
@@ -445,7 +443,6 @@ class BaseModel(pl.LightningModule):
         return individual_score, total_score
 
     def configure_optimizers(self):
-
         # optimizer
         model_params = (filter(lambda p: p.requires_grad, self.parameters()),)
         optimizer = instantiate_class(model_params, self.optimizer_hparams)

@@ -51,8 +51,7 @@ model:
     irreps_edge_sh: 0e + 1o + 2e + 3o + 4e
 
     # radial edge distance embedding
-    radial_basis_type: smooth_finite
-#    radial_basis_type: bessel
+    radial_basis_type: bessel
     num_radial_basis: 10
     radial_basis_start: 0.
     radial_basis_end: 5.
@@ -146,6 +145,6 @@ optimizer:
 lr_scheduler:
   class_path: pl_bolts.optimizers.lr_scheduler.LinearWarmupCosineAnnealingLR
   init_args:
-    warmup_epochs: 5
-    max_epochs: 5 # this should be set to trainer.max_epochs
+    warmup_epochs: 10
+    max_epochs: 20 # this should be set to trainer.max_epochs
     eta_min: 0.0

@@ -30,7 +30,6 @@ CWD = to_path(__file__).parent
 
 
 def main():
-
     logger.info("Start parsing experiment config and instantiating model!")
 
     # create cli
@@ -185,6 +184,13 @@ def main():
             ]
         },
         #
+        ### fitting tensor, without using atom feats
+        # model_class=ScalarTensorModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_tensor.yaml").as_posix()
+        #     ]
+        # },
         #
         datamodule_class=BaseDataModule,
         subclass_mode_data=True,
