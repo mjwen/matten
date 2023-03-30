@@ -41,6 +41,7 @@ model:
     irreps_edge_sh: 0e + 1o + 2e
 
     # radial edge distance embedding
+    radial_basis_type: bessel
     num_radial_basis: 10
     radial_basis_start: 0.
     radial_basis_end: 5.
@@ -55,7 +56,7 @@ model:
     invariant_neurons: 32 # number of hidden neurons in radial function, smaller is faster
     average_num_neighbors: null # average number of neighbors, used for normalization . Options: 1. float or int provided here. 2. `auto` to determine it automatically, by setting it to average of dataset 3. `null` to not use it, and then individual normalization will be applied to each node
 
-    conv_layer_irreps: 32x0o + 32x0e + 16x1o + 16x1e + 8x2o + 8x2e
+    conv_layer_irreps: 32x0o+32x0e + 16x1o+16x1e + 8x2o+8x2e
     nonlinearity_type: gate
     normalization: none # {`none`, `batch`, `instance`}
     resnet: true

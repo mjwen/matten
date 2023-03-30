@@ -166,7 +166,7 @@ class EdgeLengthEmbedding(ModuleIrreps, torch.nn.Module):
         num_basis: int = 10,
         start: float = 0.0,
         end: float = 5.0,
-        basis: str = "smooth_finite",
+        basis: str = "bessel",
         cutoff: bool = True,
     ):
         """

@@ -1,11 +1,12 @@
-# this uses the ScalarModel
+### this uses the ScalarTensorModel
+
 seed_everything: 35
 log_level: info
 
 data:
   class_path: matten.dataset.structure_scalar_tensor.TensorDataModule
   init_args:
-    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20221030
+    root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20230322
     r_cut: 5.0
     trainset_filename: crystal_elasticity_n20.json
     valset_filename: crystal_elasticity_n20.json
@@ -13,9 +14,10 @@ data:
     #
     tensor_target_name: null
     #
-    scalar_target_names: [minLC_val] # should be in `tasks` below
-
+    scalar_target_names: [k_voigt] # should be in `tasks` below
     global_featurizer: null
+    atom_featurizer: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20220714/magpie_normalized_atom_feats.yaml
+    normalize_atom_features: false
     #
     reuse: false
     compute_dataset_statistics: true
@@ -33,10 +35,14 @@ model:
     species_embedding_dim: 32
     # species_embedding_irreps_out: 16x0e # not needed when using SpeciesEmbedding
 
+    # whether to use predefined atom feats
+    use_atom_feats: true
+
     # spherical harmonics embedding of edge direction
     irreps_edge_sh: 0e + 1o + 2e
 
     # radial edge distance embedding
+    radial_basis_type: bessel
     num_radial_basis: 10
     radial_basis_start: 0.
     radial_basis_end: 5.
@@ -60,6 +66,18 @@ model:
     # output
     #
     conv_to_output_hidden_irreps_out: 16x0e
+    # output_format and output_formula should be used together.
+    # - output_format (can be `irreps` or `cartesian`) determines what the loss
+    #   function (if any) will be on (either on the irreps space or the cartesian
+    #   space). It should always be the same as `output_format` in the dada
+    #   section above.
+    # - output_formula gives what the cartesian formula is when e.g. ij=ji gives a
+    #   symmetric second order tensor. When output_format=`irreps`, this formula will
+    #   be used to convert the output to its corresponding irreps (e.g. 0e+2e for ij=ji)
+    #   to build the loss (if any). It should always be the same as `output_formula`
+    #   in the dada section above.
+    output_format: cartesian
+    output_formula: scalar
 
     # pooling node feats to graph feats
     reduce: mean
@@ -68,7 +86,7 @@ model:
   tasks:
     - class_path: matten.model_factory.task.ScalarRegressionTask
       init_args:
-        name: minLC_val
+        name: k_voigt
         normalize_target: false
 
 trainer:
