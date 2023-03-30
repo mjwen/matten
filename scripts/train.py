@@ -178,13 +178,12 @@ def main():
         #
         ###
         ### train on irreps tensor, with atom feats
-        # model_class=ScalarTensorModel,
-        # parser_kwargs={
-        #     "default_config_files": [
-        #         CWD.joinpath("configs", "tfn_tensor_atom_feats.yaml").as_posix()
-        #     ]
-        # },
-        #
+        model_class=ScalarTensorModel,
+        parser_kwargs={
+            "default_config_files": [
+                CWD.joinpath("configs", "tfn_tensor_atom_feats.yaml").as_posix()
+            ]
+        },
         ### train on irreps tensor, without using atom feats
         # model_class=ScalarTensorModel,
         # parser_kwargs={
@@ -202,12 +201,12 @@ def main():
         # },
         #
         ### train on scalar, without using atom feats
-        model_class=ScalarTensorModel,
-        parser_kwargs={
-            "default_config_files": [
-                CWD.joinpath("configs", "tfn_scalar_atom_feats_2.yaml").as_posix()
-            ]
-        },
+        # model_class=ScalarTensorModel,
+        # parser_kwargs={
+        #     "default_config_files": [
+        #         CWD.joinpath("configs", "tfn_scalar_atom_feats_2.yaml").as_posix()
+        #     ]
+        # },
         #
         #
         datamodule_class=BaseDataModule,
