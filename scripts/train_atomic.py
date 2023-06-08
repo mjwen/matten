@@ -25,7 +25,6 @@ CWD = to_path(__file__).parent
 
 
 def main():
-
     logger.info("Start parsing experiment config and instantiating model!")
 
     # create cli
