@@ -13,8 +13,8 @@ import torchmetrics
 from torch import Tensor
 from torchmetrics import (
     AUROC,
-    F1,
     Accuracy,
+    F1Score,
     MeanAbsoluteError,
     MetricCollection,
     Precision,
@@ -108,7 +108,7 @@ class Task:
             metric = MetricCollection(
                 [
                     Accuracy(num_classes=10),
-                    F1(num_classes=10),
+                    F1Score(num_classes=10),
                 ]
             )
             return metric
@@ -161,14 +161,14 @@ class Task:
             metric = MetricCollection(
                 [
                     Accuracy(num_classes=10),
-                    F1(num_classes=10),
+                    F1Score(num_classes=10),
                 ]
             )
             return metric
 
             Then, we can have the below in this function
 
-            metric_agg = {'F1': -1}
+            metric_agg = {'F1Score': -1}
             return metric_agg
 
 
@@ -273,8 +273,8 @@ class CanonicalClassificationTask(ClassificationTask):
     """
     Canonical Classification task with:
         - CrossEntropy loss function (or BCEWithLogitsLoss for binary case)
-        - Accuracy, Precision, Recall and F1 metrics
-        - F1 contributes to the total metric score
+        - Accuracy, Precision, Recall and F1Score metrics
+        - F1Score contributes to the total metric score
     """
 
     def init_loss(self):
@@ -302,7 +302,7 @@ class CanonicalClassificationTask(ClassificationTask):
             Accuracy(num_classes=n, average=average, compute_on_step=False),
             Precision(num_classes=n, average=average, compute_on_step=False),
             Recall(num_classes=n, average=average, compute_on_step=False),
-            F1(num_classes=n, average=average, compute_on_step=False),
+            F1Score(num_classes=n, average=average, compute_on_step=False),
         ]
 
         # AUROC expect different preds and targets as the other metrics for
@@ -317,7 +317,7 @@ class CanonicalClassificationTask(ClassificationTask):
     def metric_aggregation(self):
         # This requires `mode` of early stopping and checkpoint to be `min`
         # TODO, check the mode?
-        return {"F1": -1.0}
+        return {"F1Score": -1.0}
 
 
 class CanonicalRegressionTask(Task):
