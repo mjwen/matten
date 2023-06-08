@@ -13,7 +13,9 @@ from matten.core.utils import CartesianTensorWrapper
 from matten.data.data import Crystal
 from matten.data.datamodule import BaseDataModule
 from matten.data.dataset import InMemoryDataset
-from matten.data.featurizer import GlobalFeaturizer, PrecomputedAtomFeaturizer
+
+# from matten.data.featurizer import GlobalFeaturizer
+from matten.data.featurizer import PrecomputedAtomFeaturizer
 from matten.data.transform import FeatureTensorScalarTargetTransform
 
 
@@ -80,7 +82,7 @@ class TensorDataset(InMemoryDataset):
         log_scalar_targets: List[bool] = None,
         normalize_scalar_targets: List[bool] = None,
         tensor_target_weight: dict[str, dict[str, float]] = None,
-        global_featurizer: GlobalFeaturizer = None,
+        global_featurizer: None = None,
         normalize_global_features: bool = False,
         atom_featurizer: PrecomputedAtomFeaturizer = None,
         normalize_atom_features: bool = False,
@@ -287,7 +289,6 @@ class TensorDataset(InMemoryDataset):
 
         # convert to crystal data point
         for i, (irow, row) in enumerate(df.iterrows()):
-
             try:
                 # get structure
                 struct = row["structure"]
@@ -446,9 +447,10 @@ class TensorDataModule(BaseDataModule):
         )
 
     def setup(self, stage: Optional[str] = None):
-
         # global featurizer
         if self.global_featurizer:
+            raise NotImplementedError("global featurizer not implemented")
+
             if isinstance(self.global_featurizer, list):
                 feature_names = self.global_featurizer
             elif isinstance(
@@ -609,7 +611,6 @@ class TensorDataModule(BaseDataModule):
 
 
 if __name__ == "__main__":
-
     dm = TensorDataModule(
         trainset_filename="crystal_elasticity_n20.json",
         valset_filename="crystal_elasticity_n20.json",
