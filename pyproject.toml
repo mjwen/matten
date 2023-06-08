@@ -2,11 +2,23 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "matten"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.8, <3.11"
+dependencies = [
+#    "pytorch-lightning>1.7.0, <1.9.0",
+#    "lightning-bolts>=0.6.0",
+#    "torchmetrics>=0.10.0",
+#    "torch_geometric",
+    "e3nn",
+    "ase",
+    "pymatgen",
+    "loguru",
+    "torchtyping",
+    "jsonargparse[signatures]",
+]
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38']
-
-[tool.isort]
-# make it compatible with black
-profile = "black"

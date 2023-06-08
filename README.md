@@ -106,3 +106,20 @@ $ MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-di
 $ MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-dir install torch-geometric
 
 $ mamba install -c conda-forge pytorch-lightning=1.5.8
+
+## Installing 20230608
+
+- No need to install PyG stuff in a specific way for Mac
+
+```shell
+conda install -c conda-forge python<3.11
+conda install -c pytorch pytorch<2.0.0
+#conda install -c pyg pyg
+pip install torch_geometric
+MACOSX_DEPLOYMENT_TARGET=12.5 CC=clang CXX=clang++ python -m pip --no-cache-dir install torch-scatter -f https://data.pyg.org/whl/torch-1.13.1+cpu.html
+conda install -c conda-forge pytorch-lightning<1.9.0 lightning-bolts torchmetrics
+conda install -c conda-forge pymatgen ase
+
+cd matten
+pip install -e .
+```
