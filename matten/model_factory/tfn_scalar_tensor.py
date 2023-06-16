@@ -18,13 +18,13 @@ from e3nn.io import CartesianTensor
 from e3nn.o3 import Irreps, Linear
 from torch import Tensor
 
-from matten.core.utils import ToCartesian
 from matten.model.model import ModelForPyGData
 from matten.model_factory.utils import create_sequential_module
 from matten.nn._nequip import SphericalHarmonicEdgeAttrs
 from matten.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from matten.nn.nodewise import NodewiseLinear, NodewiseReduce
 from matten.nn.tfn import PointConv, PointConvWithActivation
+from matten.utils import ToCartesian
 
 OUT_FIELD_NAME = "my_model_output"
 

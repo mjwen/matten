@@ -12,9 +12,9 @@ from e3nn import o3
 from pymatgen.core.operations import SymmOp
 from pymatgen.core.structure import Structure
 
-from matten.core.utils import ToCartesian
 from matten.dataset.structure_scalar_tensor import TensorDataModule
 from matten.model_factory.tfn_scalar_tensor_global_feats import create_model
+from matten.utils import ToCartesian
 
 TESTFILE_DIR = Path(__file__).parents[1]
 

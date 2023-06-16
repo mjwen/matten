@@ -1,7 +1,7 @@
 """
 Put all keys in a file as attributes, to make functions annotated by them jittable.
 
-see neuqip.
+Based on nequip.
 """
 from typing import Dict, Final
 

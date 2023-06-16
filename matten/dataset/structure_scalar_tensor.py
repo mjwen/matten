@@ -9,7 +9,6 @@ from e3nn.io import CartesianTensor
 from monty.serialization import loadfn
 from pymatgen.core.structure import Structure
 
-from matten.core.utils import CartesianTensorWrapper
 from matten.data.data import Crystal
 from matten.data.datamodule import BaseDataModule
 from matten.data.dataset import InMemoryDataset
@@ -17,6 +16,7 @@ from matten.data.dataset import InMemoryDataset
 # from matten.data.featurizer import GlobalFeaturizer
 from matten.data.featurizer import PrecomputedAtomFeaturizer
 from matten.data.transform import FeatureTensorScalarTargetTransform
+from matten.utils import CartesianTensorWrapper
 
 
 class TensorDataset(InMemoryDataset):
