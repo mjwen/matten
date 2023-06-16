@@ -33,7 +33,6 @@ class Normalize(nn.Module):
     def forward(
         self, data: TensorType["batch", "D"]  # noqa: F821
     ) -> TensorType["batch", "D"]:  # noqa: F821
-
         """
         Transform the data.
 
@@ -146,7 +145,7 @@ class MeanNormNormalize(Normalize):
 
         ix = 0
 
-        for (mul, ir) in self.irreps:  # mul: multiplicity, ir: an irrep
+        for mul, ir in self.irreps:  # mul: multiplicity, ir: an irrep
             d = ir.dim
             field = data[:, ix : ix + mul * d]  # [batch, mul * repr]
             ix += mul * d

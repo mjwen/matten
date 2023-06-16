@@ -12,9 +12,6 @@ from pymatgen.core.structure import Structure
 from matten.data.data import Crystal
 from matten.data.datamodule import BaseDataModule
 from matten.data.dataset import InMemoryDataset
-
-# from matten.data.featurizer import GlobalFeaturizer
-from matten.data.featurizer import PrecomputedAtomFeaturizer
 from matten.data.transform import FeatureTensorScalarTargetTransform
 from matten.utils import CartesianTensorWrapper
 
@@ -84,7 +81,7 @@ class TensorDataset(InMemoryDataset):
         tensor_target_weight: dict[str, dict[str, float]] = None,
         global_featurizer: None = None,
         normalize_global_features: bool = False,
-        atom_featurizer: PrecomputedAtomFeaturizer = None,
+        atom_featurizer: None = None,
         normalize_atom_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,

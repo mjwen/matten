@@ -14,7 +14,6 @@ from matten.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH
 from matten.typing import PBC, IntVector, Vector
 
 
-# TODO atomic number should be added as a required key
 class DataPoint(Data):
     """
     Base class of a graph data point (be it a molecule or a crystal).
