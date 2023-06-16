@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 import yaml
@@ -28,26 +27,6 @@ def get_args(path: Path):
     return config
 
 
-def save_model_info(config, model):
-    # print the model
-    print(file=sys.stderr, flush=True)
-    print("=" * 80, file=sys.stderr)
-    print("Model:", end="\n\n", file=sys.stderr)
-    print(model)
-    print("=" * 80, end="\n\n\n", file=sys.stderr, flush=True)
-
-    # print config
-    print(file=sys.stderr, flush=True)
-    print("=" * 80, file=sys.stderr)
-    print("Configuration (also saved as cli_config.yaml):", end="\n\n", file=sys.stderr)
-
-    # print(cli.parser.dump(cli.config, skip_none=False), file=sys.stderr)
-    # the below line also prints out __default_config__
-
-    yaml.dump(config, stream=sys.stderr, sort_keys=True)
-    print("=" * 80, end="\n\n\n", file=sys.stderr, flush=True)
-
-
 def main(config: dict, project_name="matten_project"):
     dm = TensorDataModule(**config["data"])
     dm.prepare_data()
@@ -60,8 +39,6 @@ def main(config: dict, project_name="matten_project"):
         optimizer_hparams=config["optimizer"],
         lr_scheduler_hparams=config["lr_scheduler"],
     )
-
-    save_model_info(config, model)
 
     try:
         callbacks = instantiate_class(config["trainer"].pop("callbacks"))
