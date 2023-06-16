@@ -4,13 +4,12 @@ import ase.io
 import numpy as np
 from torch_geometric.data import Batch
 
-from matten.data.data import DataPoint, pmg_mol_graph
+from matten.data.data import DataPoint
 
 TEST_FILE_DIR = Path(__file__).resolve().parents[1].joinpath("test_files")
 
 
 def test_AtomicData():
-
     natoms = 4
     pos = np.random.randn(natoms, 3)
     edge_index = np.random.randint(0, natoms - 1, (2, 6))
@@ -27,7 +26,6 @@ def test_AtomicData():
 
 
 def test_pmg_mol_graph():
-
     file = TEST_FILE_DIR.joinpath("mol.xyz")
     atoms = ase.io.read(file, format="extxyz")
     pos = atoms.positions

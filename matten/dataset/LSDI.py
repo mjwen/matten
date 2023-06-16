@@ -202,9 +202,9 @@ class SiNMRDataModule(BaseDataModule):
 if __name__ == "__main__":
 
     dm = SiNMRDataModule(
-        trainset_filename="LSDI_NMR_tensor.json",
-        valset_filename="LSDI_NMR_tensor.json",
-        testset_filename="LSDI_NMR_tensor.json",
+        trainset_filename="../../datasets/LSDI_NMR_tensor.json",
+        valset_filename="../../datasets/LSDI_NMR_tensor.json",
+        testset_filename="../../datasets/LSDI_NMR_tensor.json",
         r_cut=5.0,
         reuse=False,
         root=Path.cwd().joinpath("LSDI_NMR"),
