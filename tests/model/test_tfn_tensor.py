@@ -13,14 +13,13 @@ from pymatgen.core.operations import SymmOp
 from pymatgen.core.structure import Structure
 
 from matten.dataset.structure_scalar_tensor import TensorDataModule
-from matten.model_factory.tfn_scalar_tensor_global_feats import create_model
+from matten.model_factory.tfn_scalar_tensor import create_model
 from matten.utils import ToCartesian
 
 TESTFILE_DIR = Path(__file__).parents[1]
 
 
 def get_model(output_format="cartesian", output_formula="ijkl=jikl=klij"):
-
     hparams = {
         "species_embedding_dim": 32,
         "irreps_edge_sh": "0e + 1o + 2e + 3o + 4e",
@@ -110,7 +109,6 @@ def test_model_equivariance():
     loader_rotated = load_dataset(filename=filename2, root="/tmp")
 
     def get_result(model, loader):
-
         model.eval()
 
         with torch.no_grad():

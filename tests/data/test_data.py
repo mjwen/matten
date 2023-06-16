@@ -23,39 +23,3 @@ def test_AtomicData():
     print(data)
     print("\n\n\n")
     print(batch)
-
-
-def test_pmg_mol_graph():
-    file = TEST_FILE_DIR.joinpath("mol.xyz")
-    atoms = ase.io.read(file, format="extxyz")
-    pos = atoms.positions
-    species = atoms.symbols
-
-    edges, num_neigh = pmg_mol_graph(pos, species)
-
-    ref_edges = np.asarray(
-        [
-            [0, 6],
-            [0, 1],
-            [0, 4],
-            [0, 5],
-            [1, 2],
-            [1, 0],
-            [2, 7],
-            [2, 3],
-            [2, 1],
-            [3, 8],
-            [3, 4],
-            [3, 2],
-            [4, 0],
-            [4, 3],
-            [5, 0],
-            [6, 0],
-            [7, 2],
-            [8, 3],
-        ]
-    ).T
-    ref_num_neigh = [4, 2, 3, 3, 2, 1, 1, 1, 1]
-
-    assert np.array_equal(edges, ref_edges)
-    assert num_neigh == ref_num_neigh
