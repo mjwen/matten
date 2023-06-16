@@ -1,3 +1,7 @@
+"""
+Main script to train the materials tensor model.
+"""
+
 from pathlib import Path
 
 import yaml
@@ -65,7 +69,7 @@ def main(config: dict, project_name="matten_project"):
 
 
 if __name__ == "__main__":
-    config_file = Path(__file__).parent / "configs" / "tfn_tensor_new.yaml"
+    config_file = Path(__file__).parent / "configs" / "materials_tensor.yaml"
     config = get_args(config_file)
 
     main(config)

@@ -54,19 +54,19 @@ This below installing guide should get you started on Mac, without using GPUs.
 
 ### Train on atomic property (e.g. NMR tensor)
 
-Run this script [train_atomic.py](./scripts/train_atomic.py)
+Run this script [train_atomic.py](./scripts/train_atomic_tensor.py)
 
 ```bash
 python train_atomic.py --config <config file>
 ```
 
-If `config` is not provided, the default [minimal_atomic.yaml](./scripts/configs/minimal_atomic.yaml)
+If `config` is not provided, the default [minimal_atomic.yaml](./scripts/configs/atomic_tensor.yaml)
 is used.
 The model used in `train_atomic.py` is built at [atomic_tensor_model.py](./matten/model_factory/atomic_tensor_model.py)
 
 ### Train on structure property
 
-Run this scirpt [train.py](./scripts/train.py)
+Run this scirpt [train.py](./scripts/train_materials_tensor.py)
 
 ```bash
 python train.py --config <config file>
