@@ -236,6 +236,9 @@ class TensorDataset(InMemoryDataset):
         # convert structure
         df["structure"] = df["structure"].apply(lambda s: Structure.from_dict(s))
 
+        return self._get_crystals(df)
+
+    def _get_crystals(self, df):
         # add global features
         if self.global_featurizer is not None:
             df = self.global_featurizer(df)
@@ -362,6 +365,37 @@ class TensorDataset(InMemoryDataset):
         Row index of the failed structures.
         """
         return self._failed_entries
+
+
+class TensorDatasetPrediction(TensorDataset):
+    """
+    Tensor dataset for prediction.
+
+    Compared to the base TensorDataset, this class:
+    - directly takes a list of pymatgen Structure as input
+    - does not require target values
+    """
+
+    def __init__(
+        self,
+        filename: str,  # this can be None
+        r_cut: float,
+        structures: list[Structure],
+        **kwargs,
+    ):
+        super().__init__(filename, r_cut, **kwargs)
+        self.structures = structures
+
+    def get_data(self):
+        # create a dummy target tensor
+        zero_tensor = np.zeros((3, 3, 3, 3)).tolist()
+        zero_tensors = [zero_tensor] * len(self.structures)
+
+        df = pd.DataFrame(
+            {"structure": self.structures, self.tensor_target_name: zero_tensors}
+        )
+
+        return self._get_crystals(df)
 
 
 class TensorDataModule(BaseDataModule):

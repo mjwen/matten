@@ -2,11 +2,9 @@ from typing import Dict, Optional
 
 import torch
 from e3nn.io import CartesianTensor
-from e3nn.nn import Extract
-from e3nn.o3 import FullTensorProduct, FullyConnectedTensorProduct, Irreps
+from e3nn.o3 import Irreps
 
 from matten.data.irreps import DataKey, ModuleIrreps
-from matten.nn.utils import tp_path_exists
 
 
 class IrrepsToCartesianTensor(ModuleIrreps, torch.nn.Module):

@@ -17,7 +17,6 @@ dependencies = [
     "pymatgen",
     "loguru",
     "torchtyping",
-    "jsonargparse[signatures]",
 ]
 
 [tool.black]

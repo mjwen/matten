@@ -21,9 +21,9 @@ from torch import Tensor
 from matten.model.model import ModelForPyGData
 from matten.model_factory.utils import create_sequential_module
 from matten.nn._nequip import SphericalHarmonicEdgeAttrs
+from matten.nn.conv import PointConv, PointConvWithActivation
 from matten.nn.embedding import EdgeLengthEmbedding, SpeciesEmbedding
 from matten.nn.nodewise import NodewiseLinear, NodewiseReduce
-from matten.nn.tfn import PointConv, PointConvWithActivation
 from matten.utils import ToCartesian
 
 OUT_FIELD_NAME = "my_model_output"
