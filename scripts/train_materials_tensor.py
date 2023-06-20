@@ -1,6 +1,4 @@
-"""
-Main script to train the materials tensor model.
-"""
+"""Script to train the materials tensor model."""
 
 from pathlib import Path
 

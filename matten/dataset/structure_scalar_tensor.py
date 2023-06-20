@@ -383,8 +383,8 @@ class TensorDatasetPrediction(TensorDataset):
         structures: list[Structure],
         **kwargs,
     ):
-        super().__init__(filename, r_cut, **kwargs)
         self.structures = structures
+        super().__init__(filename, r_cut, **kwargs)
 
     def get_data(self):
         # create a dummy target tensor
