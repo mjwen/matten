@@ -10,8 +10,8 @@ from pymatgen.core import Structure
 from torch import Tensor
 from torch_geometric.data import Data
 
+from matten._typing import PBC, IntVector, Vector
 from matten.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH_INTS
-from matten.typing import PBC, IntVector, Vector
 
 
 class DataPoint(Data):

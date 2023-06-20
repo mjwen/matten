@@ -66,8 +66,8 @@ class InMemoryDataset(PyGInMemoryDataset):
         # Otherwise, the inherent children class will ignore the download function here
         class_type = type(self)
         if class_type != InMemoryDataset:
-            if "download" not in self.__class__.__dict__:
-                class_type.download = InMemoryDataset.download
+            # if "download" not in self.__class__.__dict__:
+            #     class_type.download = InMemoryDataset.download
             if "process" not in self.__class__.__dict__:
                 class_type.process = InMemoryDataset.process
 
@@ -153,20 +153,20 @@ class InMemoryDataset(PyGInMemoryDataset):
 
         logger.info(f"Processed data files saved as {self.processed_paths}.")
 
-    def download(self):
-        # from torch_geometric.data import download_url
-        # download_url(self.url, self.raw_dir)
-        ## download_url does not work for some url, e.g. matbench ones
-
-        logger.info(
-            f"Did not find files {self.raw_file_names} in {self.raw_dir}. Now try to "
-            f"download from {self.url}."
-        )
-        try:
-            filepath = _fetch_external_dataset(self.url, self.raw_dir)
-            _extract_file(filepath, self.raw_dir)
-        except Exception:
-            raise RuntimeError(f"Failed download and extract file from {self.url}.")
+    # def download(self):
+    #     # from torch_geometric.data import download_url
+    #     # download_url(self.url, self.raw_dir)
+    #     ## download_url does not work for some url, e.g. matbench ones
+    #
+    #     logger.info(
+    #         f"Did not find files {self.raw_file_names} in {self.raw_dir}. Now try to "
+    #         f"download from {self.url}."
+    #     )
+    #     try:
+    #         filepath = _fetch_external_dataset(self.url, self.raw_dir)
+    #         _extract_file(filepath, self.raw_dir)
+    #     except Exception:
+    #         raise RuntimeError(f"Failed download and extract file from {self.url}.")
 
     @property
     def raw_file_names(self):
