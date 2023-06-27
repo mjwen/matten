@@ -9,7 +9,7 @@ from pymatgen.core.structure import Structure
 from torch_geometric.loader import DataLoader
 
 from matten.dataset.structure_scalar_tensor import TensorDatasetPrediction
-from matten.log import remove_logger, set_logger
+from matten.log import set_logger
 from matten.model_factory.tfn_scalar_tensor import ScalarTensorModel
 from matten.utils import CartesianTensorWrapper, yaml_load
 
