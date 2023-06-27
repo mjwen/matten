@@ -140,8 +140,6 @@ class BaseModel(pl.LightningModule):
 
         return tasks
 
-    # TODO, this should be rewritten to only accept graphs, because for a real
-    #  prediction, there is no label available
     def forward(
         self,
         batch,
