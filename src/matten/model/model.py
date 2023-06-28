@@ -280,7 +280,7 @@ class BaseModel(pl.LightningModule):
 
         return {"loss": loss}
 
-    def training_epoch_end(self, outputs):
+    def on_training_epoch_end(self):
         self.compute_metrics("train")
 
     def validation_step(self, batch, batch_idx):
@@ -289,7 +289,7 @@ class BaseModel(pl.LightningModule):
 
         return {"loss": loss}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         _, score = self.compute_metrics("val")
 
         # val/score used for early stopping and learning rate scheduler
@@ -311,7 +311,7 @@ class BaseModel(pl.LightningModule):
 
         return {"loss": loss}
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self):
         self.compute_metrics("test")
 
     def shared_step(self, batch, mode: str):

@@ -79,8 +79,8 @@ model:
 trainer:
   max_epochs: 5 # number of maximum training epochs
   num_nodes: 1
-  accelerator: null
-  devices: null
+  accelerator: cpu
+  devices: 1
   # detect_anomaly: true # DEBUG
   # track_grad_norm: 2 # DEBUG
   # gradient_clip_val: 0.5
