@@ -123,3 +123,15 @@ conda install -c conda-forge pymatgen ase
 cd matten
 pip install -e .
 ```
+
+## Installing Linux
+
+```shell
+conda install -c conda-forge python<3.11
+conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pyg pytorch-scatter -c pyg
+conda install -c conda-forge pytorch-lightning torchmetrics
+conda install -c conda-forge pymatgen ase
+# conda install -c conda-forge wandb
+pip install e3nn
+```
