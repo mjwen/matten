@@ -29,7 +29,7 @@ def get_args(path: Path):
     return config
 
 
-def main(config: dict, project_name="matten_project"):
+def main(config: dict):
     dm = TensorDataModule(**config["data"])
     dm.prepare_data()
     dm.setup()

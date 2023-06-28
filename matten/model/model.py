@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pytorch_lightning.utilities.cli import instantiate_class
+from pytorch_lightning.cli import instantiate_class
 from torch import Tensor
 
 from matten.data.data import DataPoint
