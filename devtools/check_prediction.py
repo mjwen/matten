@@ -27,26 +27,25 @@ def get_data():
     return structures, targets
 
 
-def get_spherical_tensor(t):
+def get_spherical_tensor(t: list[torch.Tensor]):
     """Convert a Cartesian tensor to a spherical tensor."""
+    t = torch.stack(t)
     converter = CartesianTensorWrapper("ijkl=jikl=klij")
     spherical = converter.from_cartesian(t)
     return spherical
 
 
 def mae(predictions: list[torch.Tensor], targets: list[torch.Tensor]):
-    predictions = torch.stack(predictions)
-    targets = torch.stack(targets)
     return torch.mean(torch.abs(predictions - targets))
 
 
 if __name__ == "__main__":
     structures, targets = get_data()
     predictions = predict(structures)
+    print("Finish getting predictions")
 
-    targets = [get_spherical_tensor(t) for t in targets]
-
-    predictions = [torch.tensor(t) for t in predictions]
-    predictions = [get_spherical_tensor(t) for t in predictions]
+    targets = get_spherical_tensor(targets)
+    predictions = get_spherical_tensor([torch.tensor(t) for t in predictions])
+    print("Finish get spherical tensor")
 
     print(mae(predictions, targets))

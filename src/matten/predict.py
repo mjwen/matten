@@ -1,7 +1,9 @@
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import torch
+import tqdm
 from pymatgen.analysis.elasticity import ElasticTensor
 from pymatgen.core import Element
 from pymatgen.core.structure import Structure
@@ -116,7 +118,7 @@ def evaluate(
 
     model.eval()
     with torch.no_grad():
-        for batch in loader:
+        for batch in tqdm.tqdm(loader):
             preds, _ = model(batch, task_name=target_name)
             p = preds[target_name]
             p = converter.to_cartesian(p)
@@ -166,14 +168,18 @@ if __name__ == "__main__":
     set_logger("ERROR")
 
     struct = Structure(
-        lattice=[
-            [3.348898, 0.0, 1.933487],
-            [1.116299, 3.157372, 1.933487],
-            [0.0, 0.0, 3.866975],
-        ],
+        lattice=np.asarray(
+            [
+                [3.348898, 0.0, 1.933487],
+                [1.116299, 3.157372, 1.933487],
+                [0.0, 0.0, 3.866975],
+            ]
+        ),
         species=["Si", "Si"],
         coords=[[0.25, 0.25, 0.25], [0, 0, 0]],
     )
     structures = [struct, struct]
 
-    predict(structures, batch_size=2)
+    elasticity = predict(structures, batch_size=2)
+
+    print(elasticity)
