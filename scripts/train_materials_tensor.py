@@ -4,10 +4,11 @@ from pathlib import Path
 
 import yaml
 from loguru import logger
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.cli import instantiate_class as lit_instantiate_class
 
 from matten.dataset.structure_scalar_tensor import TensorDataModule
+from matten.log import set_logger
 from matten.model_factory.task import TensorRegressionTask
 from matten.model_factory.tfn_scalar_tensor import ScalarTensorModel
 
@@ -69,5 +70,11 @@ def main(config: dict):
 if __name__ == "__main__":
     config_file = Path(__file__).parent / "configs" / "materials_tensor.yaml"
     config = get_args(config_file)
+
+    seed = config.get("seed_everything", 1)
+    seed_everything(seed)
+
+    log_level = config.get("log_level", "INFO")
+    set_logger(log_level)
 
     main(config)

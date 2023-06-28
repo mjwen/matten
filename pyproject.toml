@@ -24,4 +24,4 @@ line-length = 88
 
 # Explicitly add src_paths so that import of current package will be placed at the bottom.
 [tool.isort]
-src_paths = ["matten", "tests"]
+src_paths = ["src", "tests"]
