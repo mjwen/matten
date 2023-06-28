@@ -120,11 +120,9 @@ def evaluate(
     model.eval()
     with torch.no_grad():
         for batch in loader:
-            preds, labels = model(batch, task_name=target_name)
+            preds, _ = model(batch, task_name=target_name)
             p = preds[target_name]
-
             p = converter.to_cartesian(p)
-
             predictions.extend(p)
 
     return predictions
@@ -159,7 +157,7 @@ def predict(
 
     model = get_pretrained_model(identifier=model_identifier)
     check_species(model, structure)
-    loader = get_data_loader(structures, batch_size=batch_size)
+    loader = get_data_loader(structure, batch_size=batch_size)
 
     predictions = evaluate(model, loader)
     elastic_tensors = [ElasticTensor(t) for t in predictions]
