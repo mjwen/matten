@@ -1,5 +1,4 @@
 import tempfile
-import warnings
 from pathlib import Path
 
 import torch
@@ -14,13 +13,11 @@ from matten.model_factory.tfn_scalar_tensor import ScalarTensorModel
 from matten.utils import CartesianTensorWrapper, yaml_load
 
 
-def get_pretrained_model_dir(identifier: str = "20230601"):
-    return Path(__file__).parent.parent / "pretrained" / identifier
+def get_pretrained_model_dir(identifier: str):
+    return Path(__file__).parent.parent.parent / "pretrained" / identifier
 
 
-def get_pretrained_model(
-    identifier: str = "20230601", checkpoint: str = "model_final.ckpt"
-):
+def get_pretrained_model(identifier: str, checkpoint: str = "model_final.ckpt"):
     directory = get_pretrained_model_dir(identifier)
     model = ScalarTensorModel.load_from_checkpoint(
         checkpoint_path=directory.joinpath(checkpoint).as_posix(),
@@ -29,19 +26,19 @@ def get_pretrained_model(
     return model
 
 
-def get_pretrained_config(
-    identifier: str = "20230601", config_filename: str = "config_final.yaml"
-):
+def get_pretrained_config(identifier: str, config_filename: str = "config_final.yaml"):
     directory = get_pretrained_model_dir(identifier)
     config = yaml_load(directory / config_filename)
 
     return config
 
 
-def get_data_loader(structures: list[Structure], batch_size: int = 200) -> DataLoader:
+def get_data_loader(
+    structures: list[Structure], identifier: str, batch_size: int = 200
+) -> DataLoader:
     # config contains info for dataset and data loader, we only use the dataset part,
     # and adjust some parameters
-    config = get_pretrained_config()
+    config = get_pretrained_config(identifier)
     config = config["data"].copy()
 
     for k in [
@@ -130,7 +127,7 @@ def evaluate(
 
 def predict(
     structure: Structure | list[Structure],
-    model_identifier="20230601",
+    model_identifier="20230627",
     batch_size: int = 200,
     logger_level: str = "ERROR",
 ) -> ElasticTensor | list[ElasticTensor]:
@@ -157,7 +154,7 @@ def predict(
 
     model = get_pretrained_model(identifier=model_identifier)
     check_species(model, structure)
-    loader = get_data_loader(structure, batch_size=batch_size)
+    loader = get_data_loader(structure, model_identifier, batch_size=batch_size)
 
     predictions = evaluate(model, loader)
     elastic_tensors = [ElasticTensor(t) for t in predictions]
@@ -174,9 +171,7 @@ if __name__ == "__main__":
             [1.116299, 3.157372, 1.933487],
             [0.0, 0.0, 3.866975],
         ],
-        # TODO
-        # species=["Si", "Si"],
-        species=["P", "P"],
+        species=["Si", "Si"],
         coords=[[0.25, 0.25, 0.25], [0, 0, 0]],
     )
     structures = [struct, struct]

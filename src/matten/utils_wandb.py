@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union
 
 from loguru import logger
-from pytorch_lightning.loggers import LightningLoggerBase, WandbLogger
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from matten.utils import to_path, yaml_dump
@@ -137,7 +137,7 @@ def get_wandb_checkpoint_path(identifier: str, path: Union[str, Path] = "."):
     return None
 
 
-def get_wandb_logger(loggers: Union[List[LightningLoggerBase], LightningLoggerBase]):
+def get_wandb_logger(loggers):
     """
     Given a logger instance or a sequence of logger instances, return the wandb logger
     instance.

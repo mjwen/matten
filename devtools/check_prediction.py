@@ -15,7 +15,7 @@ from matten.utils import CartesianTensorWrapper
 def get_data():
     filename = (
         "/Users/mjwen.admin/Packages/matten_analysis/matten_analysis"
-        "/dataset/elastic_tensor/20230322/crystal_elasticity_n20.json"
+        "/dataset/elastic_tensor/20230322/crystal_elasticity_filtered_test.json"
     )
     df = pd.read_json(filename, orient="split")
 
