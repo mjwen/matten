@@ -35,8 +35,8 @@ def get_spherical_tensor(t: list[torch.Tensor]):
     return spherical
 
 
-def mae(predictions: list[torch.Tensor], targets: list[torch.Tensor]):
-    return torch.mean(torch.abs(predictions - targets))
+def mae(a: torch.Tensor, b: torch.Tensor):
+    return torch.mean(torch.abs(a - b))
 
 
 if __name__ == "__main__":

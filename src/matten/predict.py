@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,7 @@ import tqdm
 from pymatgen.analysis.elasticity import ElasticTensor
 from pymatgen.core import Element
 from pymatgen.core.structure import Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from torch_geometric.loader import DataLoader
 
 from matten.dataset.structure_scalar_tensor import TensorDatasetPrediction
@@ -15,8 +17,18 @@ from matten.model_factory.tfn_scalar_tensor import ScalarTensorModel
 from matten.utils import CartesianTensorWrapper, yaml_load
 
 
-def get_pretrained_model_dir(identifier: str):
-    return Path(__file__).parent.parent.parent / "pretrained" / identifier
+def get_pretrained_model_dir(identifier: str) -> Path:
+    """
+    Get the directory of the pretrained model.
+
+    Args:
+        identifier: if it is a path, return the path. Otherwise, return the path to
+            the directory of the pretrained model.
+    """
+    if Path(identifier).exists() and Path(identifier).is_dir():
+        return Path(identifier)
+    else:
+        return Path(__file__).parent.parent.parent / "pretrained" / identifier
 
 
 def get_pretrained_model(identifier: str, checkpoint: str = "model_final.ckpt"):
@@ -147,7 +159,8 @@ def predict(
 
 
     Returns:
-        Predicted elastic tensor(s). Can be None is the model cannot make predictions.
+        Predicted elastic tensor(s). `None` if the model cannot make prediction for a
+            structure.
     """
     set_logger(logger_level)
 
@@ -159,14 +172,32 @@ def predict(
     loader = get_data_loader(structure, model_identifier, batch_size=batch_size)
 
     predictions = evaluate(model, loader)
-    elastic_tensors = [ElasticTensor(t) for t in predictions]
+    predictions = [ElasticTensor(t) for t in predictions]
+
+    # deal with failed entries
+    failed = set(loader.dataset.failed_entries)
+
+    if failed:
+        idx = 0
+        elastic_tensors = []
+        for i in range(len(structure)):
+            if i in failed:
+                elastic_tensors.append(None)
+            else:
+                elastic_tensors.append(predictions[idx])
+                idx += 1
+
+        warnings.warn(
+            "Cannot make predictions for the following structures. Their returned "
+            f"elasticity tensor set to `None`: {sorted(failed)}."
+        )
+    else:
+        elastic_tensors = predictions
 
     return elastic_tensors
 
 
 if __name__ == "__main__":
-    set_logger("ERROR")
-
     struct = Structure(
         lattice=np.asarray(
             [
