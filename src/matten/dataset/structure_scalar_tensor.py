@@ -70,7 +70,7 @@ class TensorDataset(InMemoryDataset):
         filename: str,
         r_cut: float,
         *,
-        tensor_target_name: str = None,
+        tensor_target_name: str = "elastic_tensor_full",
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         tensor_target_scale: float = 1.0,
@@ -225,7 +225,7 @@ class TensorDataset(InMemoryDataset):
 
     def get_data(self):
         filepath = self.raw_paths[0]
-        df = pd.read_json(filepath, orient="split")
+        df = pd.read_json(filepath)
 
         assert "structure" in df.columns, (
             f"Unsupported input data from file `{self.filename}`. Geometric "
@@ -406,7 +406,7 @@ class TensorDataModule(BaseDataModule):
         testset_filename: str,
         *,
         r_cut: float,
-        tensor_target_name: str = None,
+        tensor_target_name: str = "elastic_tensor_full",
         tensor_target_format: str = "irreps",
         tensor_target_formula: str = "ijkl=jikl=klij",
         tensor_target_scale: float = 1.0,
@@ -421,7 +421,7 @@ class TensorDataModule(BaseDataModule):
         normalize_atom_features: bool = False,
         root: Union[str, Path] = ".",
         reuse: bool = True,
-        compute_dataset_statistics: bool = True,
+        compute_dataset_statistics: bool = False,
         loader_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -639,28 +639,3 @@ class TensorDataModule(BaseDataModule):
             "global_feats_size": global_feats_size,
             "atom_feats_size": atom_feats_size,
         }
-
-
-if __name__ == "__main__":
-    dm = TensorDataModule(
-        trainset_filename="crystal_elasticity_n20.json",
-        valset_filename="crystal_elasticity_n20.json",
-        testset_filename="crystal_elasticity_n20.json",
-        r_cut=5.0,
-        tensor_target_name="elastic_tensor_full",
-        scalar_target_names=["k_voigt", "k_reuss"],
-        global_featurizer=[
-            "MagpieData minimum MendeleevNumber",
-            "MagpieData maximum MeltingT",
-        ],
-        normalize_global_features=True,
-        atom_featurizer=["AtomicVolume", "AtomicWeight"],
-        normalize_atom_features=True,
-        root="/Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset"
-        "/elastic_tensor/20220714",
-        reuse=False,
-    )
-
-    dm.prepare_data()
-    dm.setup()
-    dm.get_to_model_info()

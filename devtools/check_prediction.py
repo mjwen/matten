@@ -4,6 +4,8 @@ Check the prediction script get the correct results as in fitting.
 Using the same dataset as in fitting, we check the prediction script recovers
 the MAE.
 """
+from pathlib import Path
+
 import pandas as pd
 import torch
 from pymatgen.core import Structure
@@ -14,10 +16,11 @@ from matten.utils import CartesianTensorWrapper
 
 def get_data():
     filename = (
-        "/Users/mjwen.admin/Packages/matten_analysis/matten_analysis"
-        "/dataset/elastic_tensor/20230322/crystal_elasticity_filtered_test.json"
+        Path(__file__).parent.parent
+        / "datasets"
+        / "example_crystal_elasticity_tensor_n100.json"
     )
-    df = pd.read_json(filename, orient="split")
+    df = pd.read_json(filename)
 
     structures = df["structure"].apply(lambda x: Structure.from_dict(x)).tolist()
 

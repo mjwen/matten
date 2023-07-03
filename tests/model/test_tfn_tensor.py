@@ -74,7 +74,7 @@ def _rotate_struct(filename):
     #
 
     # original mol
-    df = pd.read_json(filename, orient="split")
+    df = pd.read_json(filename)
     struct = df["structure"][0]
     struct = Structure.from_dict(struct)
 

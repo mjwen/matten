@@ -2,21 +2,12 @@ seed_everything: 35
 log_level: info
 
 data:
-  root: /Users/mjwen.admin/Packages/matten_analysis/matten_analysis/dataset/elastic_tensor/20230322
+  root: ../datasets/
   r_cut: 5.0
-  trainset_filename: crystal_elasticity_n20.json
-  valset_filename: crystal_elasticity_n20.json
-  testset_filename: crystal_elasticity_n20.json
-  #
-  tensor_target_name: elastic_tensor_full # should be in `tasks` below
-  tensor_target_format: irreps
-  tensor_target_formula: ijkl=jikl=klij
-  # normalize_tensor_target: false
-  #
-  # scalar_target_names: [] # should be in `tasks` below
-  #
+  trainset_filename: example_crystal_elasticity_tensor_n100.json
+  valset_filename: example_crystal_elasticity_tensor_n100.json
+  testset_filename: example_crystal_elasticity_tensor_n100.json
   reuse: false
-  compute_dataset_statistics: false
   loader_kwargs:
     batch_size: 10
     shuffle: true
