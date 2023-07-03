@@ -8,7 +8,6 @@ import tqdm
 from pymatgen.analysis.elasticity import ElasticTensor
 from pymatgen.core import Element
 from pymatgen.core.structure import Structure
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from torch_geometric.loader import DataLoader
 
 from matten.dataset.structure_scalar_tensor import TensorDatasetPrediction

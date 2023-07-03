@@ -231,7 +231,6 @@ class BaseModel(pl.LightningModule):
         """
         raise NotImplementedError
 
-    # TODO move compute_loss, update_metric, compute_metric to task class
     def compute_loss(
         self,
         preds: Dict[str, Tensor],

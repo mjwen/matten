@@ -90,10 +90,6 @@ class DataPoint(Data):
             num_neigh = torch.as_tensor(num_neigh, dtype=DTYPE)
             assert len(num_neigh) == len(pos)
 
-        # TODO, think about how to represent node/edge/global features features
-        #  Maybe define separate class for it, but convert to dict here?
-        #  We need to check the shape of the features
-
         # convert input and output to tensors
         if x is not None:
             tensor_x = {}

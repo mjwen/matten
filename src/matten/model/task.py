@@ -11,15 +11,7 @@ from typing import Dict
 import torch.nn as nn
 import torchmetrics
 from torch import Tensor
-from torchmetrics import (
-    AUROC,
-    Accuracy,
-    F1Score,
-    MeanAbsoluteError,
-    MetricCollection,
-    Precision,
-    Recall,
-)
+from torchmetrics import MeanAbsoluteError, MetricCollection
 
 
 class TaskType(Enum):

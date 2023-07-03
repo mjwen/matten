@@ -35,7 +35,6 @@ class ScalarTensorModel(ModelForPyGData):
         backbone_hparams: Dict[str, Any],
         dataset_hparams: Optional[Dict[str, Any]] = None,
     ) -> tuple[torch.nn.Module, dict]:
-
         backbone = create_model(backbone_hparams, dataset_hparams)
 
         formula = (backbone_hparams["output_formula"]).lower()
@@ -62,7 +61,6 @@ class ScalarTensorModel(ModelForPyGData):
         return backbone, extra_layers_dict
 
     def decode(self, model_input) -> Dict[str, Tensor]:
-
         out = self.backbone(model_input)
         out = out[OUT_FIELD_NAME]
 
@@ -124,16 +122,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             SphericalHarmonicEdgeAttrs,
             {"irreps_edge_sh": hparams["irreps_edge_sh"]},
         ),
-        # "radial_basis": (
-        #     RadialBasisEdgeEncoding,
-        #     {
-        #         "basis_kwargs": {
-        #             "num_basis": hparams["num_radial_basis"],
-        #             "r_max": hparams["radial_basis_r_cut"],
-        #         },
-        #         "cutoff_kwargs": {"r_max": hparams["radial_basis_r_cut"]},
-        #     },
-        # ),
         "radial_basis": (
             EdgeLengthEmbedding,
             {
@@ -143,32 +131,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
                 "basis": hparams["radial_basis_type"],
             },
         ),
-        # This embed features is not necessary any more when we change OneHotEmbedding
-        # to SpeciesEmbedding.
-        # SpeciesEmbedding and OneHotEmbedding+AtowiseLinear have the same effects:
-        # we just need to set embedding_dim (e.g. 16) of SpeciesEmbedding to be
-        # corresponding to  `irreps_out` (e.g. 16x0e) of AtomwiseLinear.
-        # To be less error-prone, we use SpeciesEmbedding.
-        #
-        # NOTE, there is some subtle difference:
-        # - In OneHotEmbedding+AtowiseLinear, NODE_ATTRS is set to the one-hot
-        # encoding, which is fixed throughout the model, while NODE_FEATURES is the
-        # embedding, which ls learnable.
-        # - In SpeciesEmbedding, both NODE_ATTRS and NODE_FEATURES are set to the
-        # learnable embedding.
-        # - The only use of NODE_ATTRS  in nequip is in InteractionBlock (which is in
-        # ConvNetLayer), where it is used for the self-interaction layer.
-        # So, if self-interaction is enabled, these two modes will give different
-        # results.
-        # - A side note, the self-interaction layer in nequip is different from the one
-        # used in TFN paper, where self-interaction is on NODE_FEATURES only. So,
-        # if we use SpeciesEmbedding, we agree with the original TFN paper.
-        #
-        # We can simply generalize both to see which one works better.
-        #
-        ##
-        # -- Embed features --
-        # "chemical_embedding": (AtomwiseLinear, {}),  # a linear layer on node_feats
     }
 
     # ===== convnet layers =====
@@ -180,44 +142,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
 
     for i in range(hparams["num_layers"]):
         layers[f"layer{i}_convnet"] = (
-            #
-            # ConvNetLayer,
-            # {
-            #     "feature_irreps_hidden": hparams["conv_layer_irreps"],
-            #     "nonlinearity_type": hparams["nonlinearity_type"],
-            #     "resnet": hparams["resnet"],
-            #     "convolution_kwargs": {
-            #         "invariant_layers": hparams["invariant_layers"],
-            #         "invariant_neurons": hparams["invariant_neurons"],
-            #         "avg_num_neighbors": num_neigh,
-            #         "use_sc": hparams["use_sc"],
-            #     },
-            # },
-            #
-            # MessagePassing,
-            # {
-            #     "conv_layer_irreps": hparams["conv_layer_irreps"],
-            #     "activation_type": hparams["nonlinearity_type"],
-            #     "use_resnet": hparams["resnet"],
-            #     "conv": PointConv,
-            #     "conv_kwargs": {
-            #         "fc_num_hidden_layers": hparams["invariant_layers"],
-            #         "fc_hidden_size": hparams["invariant_neurons"],
-            #         "avg_num_neighbors": num_neigh,
-            #         "use_self_connection": hparams["use_sc"],
-            #     },
-            #     # # transformer conv
-            #     # "conv": TransformerConv,
-            #     # "conv_kwargs": {
-            #     #     "irreps_query_and_key": hparams["conv_layer_irreps"],
-            #     #     "r_max": hparams["radial_basis_r_cut"],
-            #     #     "fc_num_hidden_layers": hparams["invariant_layers"],
-            #     #     "fc_hidden_size": hparams["invariant_neurons"],
-            #     #     "avg_num_neighbors": num_neigh,
-            #     #     "use_self_connection": hparams["use_sc"],
-            #     # },
-            # },
-            #
             PointConvWithActivation,
             {
                 "conv_layer_irreps": hparams["conv_layer_irreps"],
@@ -240,12 +164,8 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
         },
     )
 
-    # ===== prediction layers =====
+    # ===== output head =====
     #
-    # determining output irreps
-    #
-    # output_irreps = CartesianTensor(hparams["output_formula"])
-
     layers.update(
         {
             #  last layer of convnet
@@ -269,10 +189,6 @@ def create_model(hparams: Dict[str, Any], dataset_hparams):
             "reduce": hparams["reduce"],
         },
     )
-
-    # model = create_sequential_module(
-    #    modules=OrderedDict(layers), use_kwargs_irreps_in=True
-    # )
 
     model = create_sequential_module(modules=OrderedDict(layers))
 

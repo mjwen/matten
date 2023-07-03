@@ -41,14 +41,6 @@ def create_sequential_module(
     module_names = []
     module_instances = []
     for name, (cls_type, kwargs) in modules.items():
-
-        # TODO, enable the below when no nequip stuff is not used
-        # if not issubclass(cls_type, ModuleIrreps):
-        #     raise TypeError(
-        #         "Expect all modules be a subclass of `ModuleIrreps`. "
-        #         f"`{cls_name}` is not for layer with name `{name}`."
-        #     )
-
         if len(module_instances) == 0:
             ir = irreps_in
         else:

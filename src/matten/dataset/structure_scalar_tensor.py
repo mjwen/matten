@@ -334,7 +334,6 @@ class TensorDataset(InMemoryDataset):
                             )
                         seen = True
 
-                        # TODO hard-coded to make it 2D
                         w = d[row[column_name]]
                         x["target_weight"] = torch.as_tensor([[w]])
 
