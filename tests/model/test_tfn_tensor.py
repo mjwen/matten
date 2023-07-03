@@ -90,7 +90,7 @@ def _rotate_struct(filename):
     # write it out
     filename2 = "elastic_tensor_one-rotated.json"
     filename2 = Path("/tmp").joinpath(filename2)
-    df.to_json(filename2, orient="split")
+    df.to_json(filename2)
 
     return filename2, Q
 
