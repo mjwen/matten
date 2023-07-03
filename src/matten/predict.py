@@ -166,6 +166,9 @@ def predict(
 
     if isinstance(structure, Structure):
         structure = [structure]
+        single_struct = True
+    else:
+        single_struct = False
 
     model = get_pretrained_model(identifier=model_identifier)
     check_species(model, structure)
@@ -194,7 +197,10 @@ def predict(
     else:
         elastic_tensors = predictions
 
-    return elastic_tensors
+    if single_struct:
+        return elastic_tensors[0]
+    else:
+        return elastic_tensors
 
 
 if __name__ == "__main__":
