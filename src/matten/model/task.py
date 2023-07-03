@@ -231,95 +231,6 @@ class Task:
         setattr(self, key, value)
 
 
-class ClassificationTask(Task):
-    """
-    Classification task.
-
-    Subclass should implement:
-        - init_loss()
-        - init_metric()
-
-    Subclass can implement:
-        - is_binary()
-        - metric_aggregation()
-        - transform()
-    """
-
-    def __init__(
-        self,
-        name: str,
-        num_classes: int,
-        average: str = "micro",
-        *,
-        loss_weight: float = 1.0,
-        **kwargs,
-    ):
-        super().__init__(name, loss_weight=loss_weight, **kwargs)
-        self.num_classes = num_classes
-        self.average = average
-
-    @property
-    def task_type(self):
-        return TaskType("classification")
-
-    def is_binary(self) -> bool:
-        """
-        Whether this is a binary classification task.
-        """
-        return self.num_classes == 2
-
-
-class CanonicalClassificationTask(ClassificationTask):
-    """
-    Canonical Classification task with:
-        - CrossEntropy loss function (or BCEWithLogitsLoss for binary case)
-        - Accuracy, Precision, Recall and F1Score metrics
-        - F1Score contributes to the total metric score
-    """
-
-    def init_loss(self):
-
-        # binary classification
-        if self.is_binary():
-            loss_fn = nn.BCEWithLogitsLoss()
-
-        # multiclass
-        else:
-            loss_fn = nn.CrossEntropyLoss()
-
-        return loss_fn
-
-    def init_metric(self):
-
-        n = self.num_classes
-        average = self.average
-
-        # binary or micro, num_classes not needed
-        if self.is_binary() or average == "micro":
-            n = None
-
-        m = [
-            Accuracy(num_classes=n, average=average, compute_on_step=False),
-            Precision(num_classes=n, average=average, compute_on_step=False),
-            Recall(num_classes=n, average=average, compute_on_step=False),
-            F1Score(num_classes=n, average=average, compute_on_step=False),
-        ]
-
-        # AUROC expect different preds and targets as the other metrics for
-        # multiclass classification, so we only enable binary for it now
-        if self.is_binary():
-            m.append(AUROC(num_classes=n, average=average, compute_on_step=False))
-
-        metric = MetricCollection(m)
-
-        return metric
-
-    def metric_aggregation(self):
-        # This requires `mode` of early stopping and checkpoint to be `min`
-        # TODO, check the mode?
-        return {"F1Score": -1.0}
-
-
 class CanonicalRegressionTask(Task):
     """
     Canonical regression task with:
@@ -341,7 +252,6 @@ class CanonicalRegressionTask(Task):
         return metric
 
     def metric_aggregation(self):
-
         # This requires `mode` of early stopping and checkpoint to be `min`
         return {"MeanAbsoluteError": 1.0}
 

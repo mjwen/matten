@@ -26,6 +26,7 @@ def get_model(output_format="cartesian", output_formula="ijkl=jikl=klij"):
         "num_radial_basis": 10,
         "radial_basis_start": 0.0,
         "radial_basis_end": 5.0,
+        "radial_basis_type": "bessel",
         "num_layers": 3,
         "invariant_layers": 2,
         "invariant_neurons": 32,

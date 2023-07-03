@@ -59,7 +59,6 @@ class StructureScalarDataset(InMemoryDataset):
 
         # forward transform for targets
         if normalize_target:
-
             if normalizer_kwargs is None:
                 normalizer_kwargs = {}
 
@@ -108,7 +107,6 @@ class StructureScalarDataset(InMemoryDataset):
 
         # convert to crystal data point
         for irow, row in df.iterrows():
-
             try:
                 # get structure
                 struct = row["structure"]
@@ -178,7 +176,6 @@ class StructureScalarDataModule(BaseDataModule):
         )
 
     def setup(self, stage: Optional[str] = None):
-
         if self.compute_dataset_statistics:
             if self.normalizer_kwargs is None:
                 kw = {}
@@ -243,7 +240,6 @@ class StructureScalarDataModule(BaseDataModule):
 
 
 if __name__ == "__main__":
-
     dm = StructureScalarDataModule(
         trainset_filename="crystal_elasticity_filtered_test.json",
         valset_filename="crystal_elasticity_filtered_test.json",

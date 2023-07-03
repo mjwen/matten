@@ -1,29 +1,6 @@
 import torch
 
-from matten.model.task import CanonicalClassificationTask, CanonicalRegressionTask
-
-
-def test_classification_task():
-    name = "some_name"
-    loss_weight = 2.0
-    num_classes = 3
-
-    task = CanonicalClassificationTask(
-        name=name, num_classes=num_classes, loss_weight=loss_weight
-    )
-
-    # property
-    assert task.name == name
-    assert task.loss_weight == loss_weight
-
-    # metrics
-    metric = task.init_metric_as_collection()
-    preds = torch.tensor([0, 0, 1, 2])
-    labels = torch.tensor([1, 0, 1, 2])
-    metric(preds, labels)
-    out = metric.compute()
-    for name in metric.keys():
-        assert out[name] == 0.75
+from matten.model.task import CanonicalRegressionTask
 
 
 def test_regression_task():
