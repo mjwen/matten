@@ -1,3 +1,5 @@
+# Reimplemented at: https://github.com/wengroup/matten 
+
 # eigenn
 
 Equivariant Invariant Graph Enabled Neural Network
