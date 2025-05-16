@@ -1,4 +1,4 @@
-# Reimplemented at: https://github.com/wengroup/matten 
+# This repo is in an archived state. For a new implementation, see: https://github.com/wengroup/matten 
 
 # eigenn
 
